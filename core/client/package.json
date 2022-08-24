@@ -1,0 +1,24 @@
+{
+  "name": "libnoise-client",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "privacy",
+    "client",
+    "data",
+    "storage"
+  ],
+  "author": "Natalie Popescu",
+  "license": "ISC",
+  "dependencies": {
+    "libsodium-wrappers": "^0.7.9"
+  },
+  "devDependencies": {
+    "eslint": "^8.6.0",
+    "eslint-plugin-vue": "^8.2.0"
+  }
+}

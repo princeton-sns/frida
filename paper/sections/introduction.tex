@@ -1,3 +1,113 @@
 \section{Introduction}
 
-\name is great and more intro stuff.
+%\subsection{Going Forwards}
+%
+%% paragraph goal: privacy is hard because the current architecture for 
+%% writing apps is unconducive to it
+%Privacy is hard. 
+%So much so that even billion-dollar companies get it wrong (insert data breaches 
+%here). 
+%This is largely due to the use of a common, centralized application architecture, 
+%in which central server(s) handle most logic and clients merely display user 
+%interfaces and interpret user interactions.
+%Namely, the central server(s) are responsible for storing ground truth data, 
+%identity authentication, access control, consistency, conflict resolution, and 
+%application-specific logic.
+%%=> fully-trusted server
+%While in practice this architecture makes a lot of functionality simpler by 
+%implementing it all in one place, it greatly burdens the developers of any 
+%application that wants privacy. % and often results in imperfect solutions.
+%%Even if ground truth data is encrypted, cryptographic keys are \textit{also} 
+%%typically stored on the server(s), leaving user data vulnerable to any entity 
+%%that gains access to the server(s), be it a curious administrator, a malicious 
+%%attacker, or a government subpoena. 
+%Such developers would have to be well-versed in cryptography and use it correctly, 
+%and every different application would have to do this from scratch.
+%
+%% focus on the app-architecture seems to prime me to think about signal and thus 
+%% sort of undermines our novelty a bit?
+%Instead, is there an application architecture that ensures privacy for a large 
+%class of applications without sacrificing any other functionality?
+%
+%We present \name, which leverages the insights that privacy can be decoupled from 
+%application-specific functionality...
+%
+%\subsection{Going Backwards}
+
+% doesn't talk about app-arch at all, except to motivate why we don't want to 
+% trust central servers
+% maybe talk about attack surface stuff
+
+Many applications want privacy (cite apps; should mirror the kinds of applications 
+that \name supports).
+But privacy is hard.
+Even billion-dollar companies get it wrong (insert data breaches here).
+
+% maybe we're going too far back, and should start more from Signal/SPORC?
+% starting to sound more like we're building up to cryptDB-type work
+Implementing private applications is hard and error-prone because the way we 
+build apps today does not start with privacy as a primary design principle.
+Applications fully trust central server(s) to implement the majority of application 
+functionality (storing ground truth data, access control, consistency, etc).
+Consequently, user data is vulnerable to any entity that gains access to the 
+central server(s) (e.g. curious admin, attacker, gov).
+Hardening this fully-trusted server model requires XYZ\dots
+Thus developers of applications that want privacy end up needing to be experts 
+in cryptography, etc, which practically limits the number of applications that 
+successfully uphold user privacy.
+
+% Argument: Can we build a large class of applications privately?
+
+% unclear why we want to move stuff to the clients if we're abstracting all the 
+% hard stuff away from the app-devs anyway
+% maybe "moving everything to the client" isn't specifically our main contribution, 
+% but making apps work with "untrusted servers" is more the route (like SPORC)
+% but still should motivate _somewhere_ why we're changing the "architecture" if 
+% privacy can conceivably still be achieved with the old one => maybe need to 
+% lean into the untrusted server more?
+% sort of conflicting ideas between privacy under the current arch being 
+% "practically impossible" vs "fundamentally impossible"
+
+% design section should explain some of the choices we make and emphasize that 
+% we typically choose the options that favor generalizability
+How can we close the gap between the many applications that \textit{want} privacy, 
+and the practical burden of correctly implementing private applications?
+We design and implement a framework, called \name, that enables a large class of 
+applications to get end-to-end privacy for free.
+Rather than trusting central server(s) to properly secure user data, \name leverages 
+the insight that existing encryption protocols for private messaging (cite Signal) 
+can be generalized to many other applications.
+%In this vein, \name is as general as possible in order to support as many 
+%applications as possible.
+\name unifies existing end-to-end encryption protocols with other common application 
+functionality such that developers using \name only need to implement application-
+specific functionality.
+Notably, \name doesn't change the high-level semantics of any of the supported 
+applications such that application developers don't need to change how they think 
+about their apps. 
+%It abstracts away all common application needs such that developers using \name 
+%only need to implement app-specific functionality.
+
+%\name's design leverages the insight that existing protocols for private messaging 
+%(Signal) can be applied to more than just than just messaging applications.
+%\name unifies the various necessary privacy measures via a client-centric design.
+%TODO how to talk about device/app limitations?
+
+%for a large class of applications without sacrificing other functionality.
+%This framework leverages the following two key insights.
+% => can build a framework
+%The first insight is that privacy can be decoupled from application-specific logic, 
+%meaning that a framework for building private applications \textit{exists}.
+% SPORC kind of builds off this insight
+% => for a large class of apps
+%The second insight is that the privacy the more general a framework is, the more 
+%applications it can potentially support. 
+%Thus our framework seeks to be as generalizable as possible in order to support 
+%the largest set of applications.
+
+The contributions of this paper are as follows: 
+\begin{itemize}
+\item \name design
+\item \name implementation
+\item \name evaluation (build 5 sufficiently different apps on top of \name)
+\end{itemize}

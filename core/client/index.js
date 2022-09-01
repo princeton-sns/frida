@@ -173,8 +173,8 @@ export function resolveIDs(ids) {
  * TODO validate newValidateCallback to ensure it only takes one argument
  *   (the payload)
  */
-export function setValidateCallback(newValidateCallback) {
-  validateCallback = newValidateCallback;
+export function setValidateCallback(callback) {
+  validateCallback = callback;
 }
 
 /*
@@ -187,12 +187,6 @@ export function setValidateCallback(newValidateCallback) {
 function validate(payload) {
   validateCallback(payload);
 }
-
-/*
- ******************
- * Core or Higher *
- ******************
- */
 
 /*
  * Wrapper function for assigning a group key to a group value consisting
@@ -389,7 +383,7 @@ function setPubkey(pubkey) {
 /*
  * Privkey getter
  */
-export function getPrivkey() {
+function getPrivkey() {
   return db.get(PRIVKEY);
 }
 

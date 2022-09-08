@@ -24,12 +24,27 @@ const REQ_LINK = "requestLink";
 const LINK     = "link";
 const DELETE   = "delete";
 
+export {GROUP_KEY_PREFIX as groupPrefix};
+//export {db};
+
+// default auth/unauth functions do nothing
+let onAuth = () => {};
+let onUnauth = () => {};
+
 // default callback
 let defaultValidateCallback = (payload) => {
   console.log("validating payload...");
   console.log(payload)
 };
 let validateCallback = defaultValidateCallback;
+
+// default group structure
+//let defaultGroupFields = {
+//  key: "ID",
+//  list: "members", // => without the "type" field, leaf nodes can be those with empty lists
+//  // type: "type", => would be used to distinguish group/pubkey types
+//};
+//let groupFields = defaultGroupFields;
 
 /* Function definitions */
 
@@ -38,9 +53,53 @@ let validateCallback = defaultValidateCallback;
  *
  * ip: string
  * port: string
+ * config: object
+ *   onAuth: func
+ *   onUnauth: func
+ *   validateCallback: func
  */
-export function init(ip, port) {
+export function init(ip, port, config) {
   sc.init(ip, port);
+  if (config.onAuth) {
+    onAuth = config.onAuth;
+  }
+  if (config.onUnauth) {
+    onUnauth = config.onUnauth;
+  }
+  if (config.validateCallback) {
+    validateCallback = config.validateCallback;
+  }
+}
+
+/*
+ * Sets the callback function to use upon authentication
+ *
+ * func: function
+ */
+export function setOnAuthFunc(func) {
+  onAuth = func;
+}
+
+/*
+ * Sets the callback function to use upon unauthentication
+ *
+ * func: function
+ */
+export function setOnUnauthFunc(func) {
+  onUnauth = func;
+}
+
+/*
+ * Sets the callback function with which to perform message validation
+ *   for this application
+ *
+ * newValidateCallback: function
+ *
+ * TODO validate newValidateCallback to ensure it only takes one argument
+ *   (the payload)
+ */
+export function setValidateCallback(callback) {
+  validateCallback = callback;
 }
 
 /*
@@ -83,7 +142,7 @@ export function sendMessage(dstPubkeys, payload) {
     let { ciphertext: encPayload, nonce: nonce } = c.signAndEncrypt(
       dstPubkey,
       srcPrivkey,
-      db.toString(payload)
+      toString(payload)
     );
     batch.push({
       dstPubkey: dstPubkey,
@@ -115,7 +174,7 @@ export function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
 
   let curPrivkey = getPrivkey();
-  let payload = db.fromString(
+  let payload = fromString(
     c.decryptAndVerify(
       msg.encPayload,
       msg.nonce,
@@ -146,17 +205,14 @@ export function onMessage(msg) {
  * Resolves the ID(s) passed in to a list of one or more public keys
  *
  * ids: list
- *
- * TODO consider: does this assume some structure for ID -> public key
- *   association? If so, how to separate that out? Is a tree structure 
- *   something that needs to be parsed out, or is that general enough?
  */
-export function resolveIDs(ids) {
+export function defaultResolveIDs(ids) {
   let pubkeys = [];
   ids.forEach((id) => {
     let groupValue = getGroup(id);
+    // FIXME `type` field is group-structure-specific
     if (groupValue.type == GROUP_TYPE) {
-      pubkeys = pubkeys.concat(resolveIDs(groupValue.members));
+      pubkeys = pubkeys.concat(defaultResolveIDs(groupValue.members));
     } else {
       pubkeys = pubkeys.concat(groupValue.members);
     }
@@ -164,17 +220,12 @@ export function resolveIDs(ids) {
   return pubkeys;
 }
 
-/*
- * Sets the callback function with which to perform message validation
- *   for this application
- *
- * newValidateCallback: function
- *
- * TODO validate newValidateCallback to ensure it only takes one argument
- *   (the payload)
- */
-export function setValidateCallback(callback) {
-  validateCallback = callback;
+// GROUP AGNOSTIC
+let resolveIDs = defaultResolveIDs;
+
+export function setResolveIDs(callback) { 
+  // TODO validate 1 arg
+  resolveIDs = callback;
 }
 
 /*
@@ -199,7 +250,7 @@ function validate(payload) {
  *   if type is GROUP_TYPE, each string should be an ID
  *   else if type is PUBKEY_TYPE, each string should be a pubkey (hex-formatted)
  */
-function createGroup(ID, name, type, members) {
+function defaultCreateGroup(ID, name, type, members) {
   setGroup(
     ID,
     {
@@ -210,13 +261,21 @@ function createGroup(ID, name, type, members) {
   );
 }
 
+// GROUP AGNOSTIC
+let createGroup = defaultCreateGroup;
+
+export function setCreateGroup(callback) {
+  // TODO validate? how?
+  createGroup = callback;
+}
+
 /*
  * Adds an additional member (ID or pubkey) to an existing group's member list
  *
  * groupID: string (unique)
  * memberID: string (unique)
  */
-function addGroupMember(groupID, memberID) {
+function defaultAddGroupMember(groupID, memberID) {
   let oldGroupValue = getGroup(groupID);
   let newMembers = oldGroupValue.members;
   newMembers.push(memberID);
@@ -227,6 +286,14 @@ function addGroupMember(groupID, memberID) {
   }
   setGroup(groupID, newGroupValue);
   return newGroupValue;
+}
+
+// GROUP AGNOSTIC
+let addGroupMember = defaultAddGroupMember;
+
+export function setAddGroupMember(callback) {
+  // TODO validate 2 args
+  addGroupMember = callback;
 }
 
 /*
@@ -243,6 +310,7 @@ function initDevice(deviceID, deviceName) {
   sc.addDevice(deviceKeys.pubkey);
   connectDevice(deviceKeys.pubkey);
   createGroup(deviceID, deviceName, PK_TYPE, [deviceKeys.pubkey]);
+  return deviceKeys.pubkey;
 }
 
 /*
@@ -251,12 +319,21 @@ function initDevice(deviceID, deviceName) {
  * linkedName: string (human-readable name; for contacts)
  * deviceName: string (human-readable name; optional)
  *
- * TODO require non-null linkedName or generate random, unique one
+ * TODO better choice than setting deviceName = deviceID if null?
  */
-export function createDevice(linkedName, deviceName) {
+export function createDevice(linkedName = null, deviceName = null) {
+  // if linkedName is null, generate a random one (anonymity?)
+  if (linkedName === null) {
+    linkedName = crypto.randomUUID();
+  }
   let deviceID = crypto.randomUUID();
-  initDevice(deviceID, deviceName);
+  if (deviceName === null) {
+    deviceName = deviceID;
+  }
+  let pubkey = initDevice(deviceID, deviceName);
   createGroup(LINKED, linkedName, GROUP_TYPE, [deviceID]);
+  onAuth();
+  return pubkey;
 }
 
 /*
@@ -265,11 +342,16 @@ export function createDevice(linkedName, deviceName) {
  *
  * dstPubkey: string (hex-formatted)
  * deviceName: string (human-readable; optional)
+ *
+ * TODO better choice than setting deviceName = deviceID if null?
  */
-export function createLinkedDevice(dstPubkey, deviceName) {
+export function createLinkedDevice(dstPubkey, deviceName = null) {
   if (dstPubkey !== null) {
     let deviceID = crypto.randomUUID();
-    initDevice(deviceID, deviceName);
+    if (deviceName === null) {
+      deviceName = deviceID;
+    }
+    let pubkey = initDevice(deviceID, deviceName);
     // construct message that asks dstPubkey's corresponding device to
     // link this device
     let payload = {
@@ -279,6 +361,7 @@ export function createLinkedDevice(dstPubkey, deviceName) {
       newDeviceID: deviceID,
     };
     sendMessage([dstPubkey], payload);
+    return pubkey;
   }
 }
 
@@ -291,36 +374,35 @@ export function createLinkedDevice(dstPubkey, deviceName) {
  * newDeviceName: string (human-readable name; optional)
  * newDevicePubkey: string (hex-formatted)
  * 
- * TODO add prompt for confirming/denying this request, currently
- *   always succeeds
- *
  * TODO send other data from this device
  *   - contacts?
  *   - app data?
  */
 function processRequestLink(newDeviceID, newDeviceName, newDevicePubkey) {
-  // get all existing device groups to send to new device
-  let existingDevices = [];
-  let members = getGroup(LINKED).members;
-  members.forEach((memberID) => {
-    existingDevices.push({
-      ID: memberID,
-      group: getGroup(memberID),
+  if (confirm(`Authenticate new device?\n\tName: ${newDeviceName}\n\tPubkey: ${newDevicePubkey}`)) {
+    // get all existing device groups to send to new device
+    let existingDevices = [];
+    let members = getMembers(LINKED);
+    members.forEach((memberID) => {
+      existingDevices.push({
+        ID: memberID,
+        group: getGroup(memberID),
+      });
     });
-  });
 
-  // create group for new device
-  createGroup(newDeviceID, newDeviceName, PK_TYPE, [newDevicePubkey]);
+    // create group for new device
+    createGroup(newDeviceID, newDeviceName, PK_TYPE, [newDevicePubkey]);
 
-  // add new device to linked group
-  let updatedGroup = addGroupMember(LINKED, newDeviceID);
+    // add new device to linked group
+    let updatedGroup = addGroupMember(LINKED, newDeviceID);
 
-  let payload = {
-    msgType: LINK,
-    linkedGroup: updatedGroup,
-    existingDevices: existingDevices,
-  };
-  sendMessage([newDevicePubkey], payload);
+    let payload = {
+      msgType: LINK,
+      linkedGroup: updatedGroup,
+      existingDevices: existingDevices,
+    };
+    sendMessage([newDevicePubkey], payload);
+  }
 }
 
 /*
@@ -337,6 +419,7 @@ function processLink(linkedGroup, existingDevices) {
   existingDevices.forEach(({ ID, group }) => {
     setGroup(ID, group);
   });
+  onAuth();
 }
 
 /*
@@ -348,6 +431,7 @@ export function deleteDevice() {
   sc.removeDevice(pubkey);
   sc.disconnect(pubkey);
   db.clear();
+  onUnauth();
 }
 
 /*
@@ -415,4 +499,50 @@ function getGroup(groupID) {
  */
 function setGroup(groupID, groupValue) {
   db.set(getGroupKey(groupID), groupValue);
+}
+
+/*
+ * Accessor for 'members' field of group
+ */
+function defaultGetMembers(groupID) {
+  return getGroup(groupID).members;
+}
+
+// GROUP AGNOSTIC
+let getMembers = defaultGetMembers;
+
+export function setGetMembers(callback) {
+  // TODO validate 1 arg
+  getMembers = callback;
+}
+
+/*
+ * linkedGroup getter
+ */
+export function defaultGetLinkedDevices() {
+  let linkedGroup = getGroup(LINKED);
+  if (linkedGroup !== null) {
+    return resolveIDs(linkedGroup.members);
+  } else {
+    return [];
+  }
+}
+
+// GROUP AGNOSTIC
+export let getLinkedDevices = defaultGetLinkedDevices;
+
+export function setGetLinkedDevices(callback) {
+  // TODO validate 0 args
+  getLinkedDevices = callback;
+}
+
+/*
+ * JSON wrapper helpers for DB
+ */
+export function toString(obj) {
+  return JSON.stringify(obj);
+}
+
+export function fromString(str) {
+  return JSON.parse(str);
 }

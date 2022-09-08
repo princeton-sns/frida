@@ -4,6 +4,8 @@
  ******
  */
 
+import { toString, fromString } from "../index.js";
+
 export function set(key, value) {
   localStorage.setItem(
     key,
@@ -29,10 +31,10 @@ export function clear() {
  ***********
  */
 
-export function toString(obj) {
-  return JSON.stringify(obj);
-}
-
-export function fromString(str) {
-  return JSON.parse(str);
-}
+//export function toString(obj) {
+//  return JSON.stringify(obj);
+//}
+//
+//export function fromString(str) {
+//  return JSON.parse(str);
+//}

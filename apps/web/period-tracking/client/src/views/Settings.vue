@@ -1,12 +1,9 @@
 <template>
   <div class="settings">
-    <!--<div>
-      <div>
-        <input v-model="linkDevicePublicKey" placeholder="device public key" />
-      </div>
-      <button @click="linkDevice">Link Device</button>
-    </div>
-    <br />-->
+    <p>pubkey:</p>
+    <p>{{ pubkey }}</p>
+    <p>devices:</p>
+    <p>{{ devices }}</p>
     <div>
       <button @click="deleteDevice">Delete This Device</button>
     </div>
@@ -36,12 +33,20 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
+
 export default {
   data() {
     return {
       linkDevicePublicKey: null,
       deleteDevicePublicKey: null,
     };
+  },
+  computed: {
+    ...mapState({
+      pubkey: "pubkey",
+      devices: "devices",
+    }),
   },
   methods: {
     linkDevice(event) {

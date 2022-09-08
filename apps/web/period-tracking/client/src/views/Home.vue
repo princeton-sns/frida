@@ -1,17 +1,7 @@
 <template>
-  <div id="home">
-    <h4>pubkey: {{ pubkey }}</h4>
-  </div>
+  <div id="home"></div>
 </template>
 
 <script>
-import { mapGetters } from "vuex";
-
-export default {
-  computed: {
-    ...mapGetters({
-      pubkey: "pubkey",
-    }),
-  },
-};
+export default {};
 </script>

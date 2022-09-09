@@ -1,22 +1,18 @@
 import { createStore } from "vuex";
-//import router from "../router";
+import router from "../router";
 import * as noise from "../../../../../../core/client";
 
 let serverIP = "localhost";
 let serverPort = "8080";
 
 noise.init(serverIP, serverPort, {
-  //onAuth: () => {
-  //  router.push("/home");
-  //},
-  //onUnauth: () => {
-  //  router.push("/register");
-  //},
+  onAuth: () => {
+    router.push("/home");
+  },
+  onUnauth: () => {
+    router.push("/register");
+  },
 });
-
-// takes in an object that describes a struct
-//noise.setGroupType({
-//});
 
 function createLocalStorageListenerPlugin() {
   return (store) => {
@@ -61,7 +57,11 @@ const store = createStore({
       state.pubkey = "";
       state.devices = [];
     },
-    // DELETE_LINKED_DEVICE(state, { pubkey })
+    DELETE_LINKED_DEVICE(state, { pubkey }) {
+      noise.deleteLinkedDevice(pubkey);
+      let idx = state.devices.indexOf(pubkey);
+      if (idx !== -1) state.devices.splice(idx, 1);
+    },
     DELETE_ALL_DEVICES(state) {
       noise.deleteAllLinkedDevices();
       state.pubkey = "";

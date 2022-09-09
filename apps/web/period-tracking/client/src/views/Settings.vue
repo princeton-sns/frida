@@ -7,7 +7,7 @@
     <div>
       <button @click="deleteDevice">Delete This Device</button>
     </div>
-    <!--<br />
+    <br />
     <div>
       <div>
         <input
@@ -16,7 +16,7 @@
         />
       </div>
       <button @click="deleteLinkedDevice">Delete Linked Device</button>
-    </div>-->
+    </div>
     <br />
     <div>
       <button @click="deleteAllDevices">Delete All Devices</button>
@@ -38,7 +38,6 @@ import { mapState } from "vuex";
 export default {
   data() {
     return {
-      linkDevicePublicKey: null,
       deleteDevicePublicKey: null,
     };
   },
@@ -49,13 +48,6 @@ export default {
     }),
   },
   methods: {
-    linkDevice(event) {
-      console.log(event);
-      this.$store.commit("LINK_DEVICE", {
-        devicePublicKey: this.linkDevicePublicKey,
-      });
-      this.linkDevicePublicKey = null;
-    },
     deleteDevice(event) {
       console.log(event);
       this.$store.commit("DELETE_DEVICE", {});
@@ -63,7 +55,7 @@ export default {
     deleteLinkedDevice(event) {
       console.log(event);
       this.$store.commit("DELETE_LINKED_DEVICE", {
-        devicePublicKey: this.deleteDevicePublicKey,
+        pubkey: this.deleteDevicePublicKey,
       });
       this.deleteDevicePublicKey = null;
     },

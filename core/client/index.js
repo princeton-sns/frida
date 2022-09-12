@@ -342,7 +342,7 @@ function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueTo
     // get list of devices that need to be notified of this group update
     // (deduplicating the current device)
     let pubkey = getPubkey();
-    let oldLinkedPubkeys = resolveIDs([groupIDToUpdate]).filter((x) => x != pubkey);
+    let oldGroupPubkeys = resolveIDs([groupIDToUpdate]).filter((x) => x != pubkey);
 
     // add groupIDToAdd to groupIDToUpdate
     let updatedGroupValue = addChild(groupIDToUpdate, groupIDToAdd);
@@ -355,7 +355,7 @@ function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueTo
       groupIDToAdd: groupIDToAdd,
       groupValueToAdd: groupValueToAdd,
     };
-    sendMessage(oldLinkedPubkeys, payloadToExisting);
+    sendMessage(oldGroupPubkeys, payloadToExisting);
 
     // notify new group member of the group they were successfully added to
     let payloadToNew = {

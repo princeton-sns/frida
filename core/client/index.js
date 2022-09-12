@@ -29,12 +29,11 @@ const DELETE_GROUP         = "deleteGroup";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
-  [REQ_UPDATE_GROUP]:     processRequestUpdateGroup,
-  [CONFIRM_UPDATE_GROUP]: processConfirmUpdateGroup,
-  [UPDATE_GROUP]:         processUpdateGroup,
-
+  [REQ_UPDATE_GROUP]:     processUpdateGroupRequest,
+  [CONFIRM_UPDATE_GROUP]: confirmUpdateGroup,
+  [UPDATE_GROUP]:         updateGroup,
   [DELETE_SELF]:          deleteDevice,
-  [DELETE_GROUP]:         processDelete,
+  [DELETE_GROUP]:         deleteGroup,
 };
 
 export {GROUP_KEY_PREFIX as groupPrefix};
@@ -302,9 +301,9 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
     // link this device
     let payload = {
       msgType: REQ_UPDATE_GROUP,
-      groupToUpdate: LINKED,
-      groupID: pubkey,
-      groupValue: getGroup(pubkey),
+      groupIDToUpdate: LINKED,
+      groupIDToAdd: pubkey,
+      groupValueToAdd: getGroup(pubkey),
     };
     sendMessage([dstPubkey], payload);
     return pubkey;
@@ -322,53 +321,51 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
  *   current device's linked group, and send the requesting device the list of 
  *   and group information of any existing devices (including the current one)
  *
- * groupToUpdate: string (ID of group to update)
- * groupID: string (ID of new group)
- * groupValue: object (value of new group)
+ * groupIDToUpdate: string (ID of group to update)
+ * groupIDToAdd: string (ID of new group)
+ * groupValueToAdd: object (value of new group)
  * 
  * TODO send other data from this device
  *   - contacts?
  *   - app data?
  */
-function processRequestUpdateGroup({ groupToUpdate, groupID, groupValue }) {
-  if (confirm(`Authenticate new ${groupToUpdate} member?\n\tName: ${groupID}`)) {
-    // get subtree structure of groupToUpdate to send to new member: groupID
-    let existingSubgroups = getAllSubgroups([groupToUpdate]);
-    // FIXME better to inclusively also return this group's value? (ie call 
-    //   after adding the new child to it?)
+function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueToAdd }) {
+  if (confirm(`Authenticate new ${groupIDToUpdate} member?\n\tName: ${groupIDToAdd}`)) {
+    // get subtree structure of groupIDToUpdate to send to new member: groupIDToAdd
+    let existingSubgroups = getAllSubgroups([groupIDToUpdate]);
     console.log(existingSubgroups);
 
-    // add new member group and point parent to groupToUpdate
-    setGroup(groupID, groupValue);
-    addParent(groupID, groupToUpdate);
+    // add new member group and point parent to groupIDToUpdate
+    setGroup(groupIDToAdd, groupValueToAdd);
+    addParent(groupIDToAdd, groupIDToUpdate);
 
     // get list of devices that need to be notified of this group update
     // (deduplicating the current device)
     let pubkey = getPubkey();
-    let oldLinkedPubkeys = resolveIDs([groupToUpdate]).filter((x) => x != pubkey);
+    let oldLinkedPubkeys = resolveIDs([groupIDToUpdate]).filter((x) => x != pubkey);
 
-    // add groupID to groupToUpdate
-    let updatedGroup = addChild(groupToUpdate, groupID);
+    // add groupIDToAdd to groupIDToUpdate
+    let updatedGroupValue = addChild(groupIDToUpdate, groupIDToAdd);
 
     // notify devices of updated group
     let payloadToExisting = {
       msgType: UPDATE_GROUP,
-      groupToUpdate: groupToUpdate,
-      updatedGroup: updatedGroup,
-      groupID: groupID,
-      groupValue: groupValue,
+      groupIDToUpdate: groupIDToUpdate,
+      updatedGroupValue: updatedGroupValue,
+      groupIDToAdd: groupIDToAdd,
+      groupValueToAdd: groupValueToAdd,
     };
     sendMessage(oldLinkedPubkeys, payloadToExisting);
 
     // notify new group member of the group they were successfully added to
     let payloadToNew = {
       msgType: CONFIRM_UPDATE_GROUP,
-      groupToUpdate: groupToUpdate,
-      updatedGroup: updatedGroup,
-      groupID: groupID,
+      groupIDToUpdate: groupIDToUpdate,
+      updatedGroupValue: updatedGroupValue,
+      groupIDToAdd: groupIDToAdd,
       existingSubgroups: existingSubgroups,
     };
-    sendMessage(resolveIDs([groupID]), payloadToNew);
+    sendMessage(resolveIDs([groupIDToAdd]), payloadToNew);
   }
 }
 
@@ -376,19 +373,19 @@ function processRequestUpdateGroup({ groupToUpdate, groupID, groupValue }) {
  * Updates linked group info and and group info for all devices that are children
  *   of the linked group
  *
- * groupToUpdate: string (ID of group to update)
- * updatedGroup: object (value of group to update)
- * groupID: string (ID of new group)
+ * groupIDToUpdate: string (ID of group to update)
+ * updatedGroupValue: object (value of group to update)
+ * groupIDToAdd: string (ID of new group)
  * existingSubgroups: list
  *
  * TODO also process any other data sent from the device being linked with
  */
-function processConfirmUpdateGroup({ groupToUpdate, updatedGroup, groupID, existingSubgroups }) {
+function confirmUpdateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, existingSubgroups }) {
   existingSubgroups.forEach(({ ID, group }) => {
     setGroup(ID, group);
   });
-  setGroup(groupToUpdate, updatedGroup);
-  addParent(groupID, groupToUpdate);
+  setGroup(groupIDToUpdate, updatedGroupValue);
+  addParent(groupIDToAdd, groupIDToUpdate);
   onAuth();
 }
 
@@ -396,15 +393,15 @@ function processConfirmUpdateGroup({ groupToUpdate, updatedGroup, groupID, exist
  * Updates linked group info and adds new device group when a new device was 
  *   successfully linked with another device in linked group
  *
- * groupToUpdate: string (ID of group to update)
- * updatedGroup: object (value of group to update)
- * groupID: string (ID of new group)
- * groupValue: object (value of new group)
+ * groupIDToUpdate: string (ID of group to update)
+ * updatedGroupValue: object (value of group to update)
+ * groupIDToAdd: string (ID of new group)
+ * groupValueToAdd: object (value of new group)
  */
-function processUpdateGroup({ groupToUpdate, updatedGroup, groupID, groupValue }) {
-  setGroup(groupID, groupValue);
-  addParent(groupID, groupToUpdate);
-  setGroup(groupToUpdate, updatedGroup);
+function updateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, groupValueToAdd }) {
+  setGroup(groupIDToAdd, groupValueToAdd);
+  addParent(groupIDToAdd, groupIDToUpdate);
+  setGroup(groupIDToUpdate, updatedGroupValue);
 }
 
 /*
@@ -454,7 +451,7 @@ export function deleteAllLinkedDevices() {
   sendMessage(resolveIDs([LINKED]), payload);
 }
 
-function processDelete({ groupID }) {
+function deleteGroup({ groupID }) {
   // unlink pubkey group from parents
   let parents = getParents(groupID);
   parents.forEach((parentID) => {
@@ -525,7 +522,7 @@ function getAllSubgroups(groupIDs) {
         ID: groupID,
         group: group,
       });
-      if (group.children !== undefined) { // FIXME or undefined?
+      if (group.children !== undefined) {
         groups = groups.concat(getAllSubgroups(group.children));
       }
     }

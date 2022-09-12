@@ -52,6 +52,7 @@ const store = createStore({
       state.pubkey = curPubkey;
       state.devices.push(curPubkey);
     },
+    // TODO LINK_DEVICE for two pre-existing devices (how to handle group diffs?)
     DELETE_DEVICE(state) {
       noise.deleteDevice();
       state.pubkey = "";

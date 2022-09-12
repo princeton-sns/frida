@@ -294,7 +294,9 @@ export function createDevice(linkedName = null, deviceName = null) {
  */
 export function createLinkedDevice(dstPubkey, deviceName = null) {
   if (dstPubkey !== null) {
-    let pubkey = initDevice([], deviceName);
+    let pubkey = initDevice([LINKED], deviceName);
+    let linkedName = crypto.randomUUID();
+    createGroup(LINKED, linkedName, [], [pubkey]);
     // construct message that asks dstPubkey's corresponding device to
     // link this device
     let payload = {
@@ -510,7 +512,9 @@ function getChildren(groupID) {
  */
 function addChild(groupID, childID) {
   return updateChildren(groupID, childID, (childID, newChildren) => {
-    newChildren.push(childID);
+    let idx = newChildren.indexOf(childID);
+    // deduplicate: only add parentID if doesn't already exist in list
+    if (idx === -1) newChildren.push(childID);
     return newChildren;
   });
 }
@@ -565,7 +569,9 @@ function getParents(groupID) {
  */
 function addParent(groupID, parentID) {
   return updateParents(groupID, parentID, (parentID, newParents) => {
-    newParents.push(parentID);
+    let idx = newParents.indexOf(parentID);
+    // deduplicate: only add parentID if doesn't already exist in list
+    if (idx === -1) newParents.push(parentID);
     return newParents;
   });
 }

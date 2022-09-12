@@ -1,9 +1,9 @@
 /*
- **********
- **********
- ** Core **
- **********
- **********
+ ************
+ ************
+ *** Core ***
+ ************
+ ************
  */
 
 import * as sc from "./serverComm/socketIO.js";
@@ -21,19 +21,20 @@ const PUBKEY   = "pubkey";
 const PRIVKEY  = "privkey";
 
 // valid message types
-const REQ_LINK      = "requestLink";
-const LINK          = "link";
-const DELETE_SELF   = "deleteSelf";
-const DELETE_GROUP  = "deleteGroup";
-const UPDATE_LINKED = "updateLinked";
+const REQ_UPDATE_GROUP     = "requestUpdateGroup";
+const CONFIRM_UPDATE_GROUP = "confirmUpdateGroup";
+const UPDATE_GROUP         = "updateGroup";
+const DELETE_SELF          = "deleteSelf";
+const DELETE_GROUP         = "deleteGroup";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
-  [REQ_LINK]: processRequestLink,
-  [LINK]: processLink,
-  [DELETE_SELF]: deleteDevice,
-  [DELETE_GROUP]: processDelete,
-  [UPDATE_LINKED]: processUpdateLinked,
+  [REQ_UPDATE_GROUP]:     processRequestUpdateGroup,
+  [CONFIRM_UPDATE_GROUP]: processConfirmUpdateGroup,
+  [UPDATE_GROUP]:         processUpdateGroup,
+
+  [DELETE_SELF]:          deleteDevice,
+  [DELETE_GROUP]:         processDelete,
 };
 
 export {GROUP_KEY_PREFIX as groupPrefix};
@@ -286,8 +287,8 @@ export function createDevice(linkedName = null, deviceName = null) {
 }
 
 /*
- * Initializes device without a linked group, and requests linked
- *   group information from the supplied public key
+ * Initializes device and requests linked group information from the supplied 
+ *   public key
  *
  * dstPubkey: string (hex-formatted)
  * deviceName: string (human-readable; optional)
@@ -300,9 +301,10 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
     // construct message that asks dstPubkey's corresponding device to
     // link this device
     let payload = {
-      msgType: REQ_LINK,
-      newDevicePubkey: pubkey,
-      newDeviceName: deviceName,
+      msgType: REQ_UPDATE_GROUP,
+      groupToUpdate: LINKED,
+      groupID: pubkey,
+      groupValue: getGroup(pubkey),
     };
     sendMessage([dstPubkey], payload);
     return pubkey;
@@ -310,57 +312,63 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
 }
 
 /*
+ ************
+ * Updating *
+ ************
+ */
+
+/*
  * Creates a new group for the requesting device, adds the new group ID to the 
  *   current device's linked group, and send the requesting device the list of 
  *   and group information of any existing devices (including the current one)
  *
- * newDeviceName: string (human-readable name; optional)
- * newDevicePubkey: string (hex-formatted)
+ * groupToUpdate: string (ID of group to update)
+ * groupID: string (ID of new group)
+ * groupValue: object (value of new group)
  * 
  * TODO send other data from this device
  *   - contacts?
  *   - app data?
  */
-function processRequestLink({ newDeviceName, newDevicePubkey }) {
-  if (confirm(`Authenticate new device?\n\tName: ${newDeviceName}\n\tPubkey: ${newDevicePubkey}`)) {
-    // get all existing device groups to send to new device
-    let existingDevices = [];
-    // FIXME only goes one level, discounts other tree structures
-    // want to somehow rebuild the exact structure regardless of what it is
-    let children = getChildren(LINKED);
-    children.forEach((childID) => {
-      existingDevices.push({
-        ID: childID,
-        group: getGroup(childID),
-      });
-    });
+function processRequestUpdateGroup({ groupToUpdate, groupID, groupValue }) {
+  if (confirm(`Authenticate new ${groupToUpdate} member?\n\tName: ${groupID}`)) {
+    // get subtree structure of groupToUpdate to send to new member: groupID
+    let existingSubgroups = getAllSubgroups([groupToUpdate]);
+    // FIXME better to inclusively also return this group's value? (ie call 
+    //   after adding the new child to it?)
+    console.log(existingSubgroups);
 
-    // create key for new device
-    createKey(newDevicePubkey, newDeviceName, [LINKED]);
+    // add new member group and point parent to groupToUpdate
+    setGroup(groupID, groupValue);
+    addParent(groupID, groupToUpdate);
 
-    // get devices whose linked group needs to be updated too (removing 
-    // current device from that list so don't duplicate this group)
+    // get list of devices that need to be notified of this group update
+    // (deduplicating the current device)
     let pubkey = getPubkey();
-    let oldLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
+    let oldLinkedPubkeys = resolveIDs([groupToUpdate]).filter((x) => x != pubkey);
 
-    // add new device to linked group
-    let updatedGroup = addChild(LINKED, newDevicePubkey);
+    // add groupID to groupToUpdate
+    let updatedGroup = addChild(groupToUpdate, groupID);
 
-    // update existing devices linked groups
+    // notify devices of updated group
     let payloadToExisting = {
-      msgType: UPDATE_LINKED,
-      linkedGroup: updatedGroup,
-      newDevicePubkey: newDevicePubkey,
-      newDeviceName: newDeviceName,
+      msgType: UPDATE_GROUP,
+      groupToUpdate: groupToUpdate,
+      updatedGroup: updatedGroup,
+      groupID: groupID,
+      groupValue: groupValue,
     };
     sendMessage(oldLinkedPubkeys, payloadToExisting);
 
+    // notify new group member of the group they were successfully added to
     let payloadToNew = {
-      msgType: LINK,
-      linkedGroup: updatedGroup,
-      existingDevices: existingDevices,
+      msgType: CONFIRM_UPDATE_GROUP,
+      groupToUpdate: groupToUpdate,
+      updatedGroup: updatedGroup,
+      groupID: groupID,
+      existingSubgroups: existingSubgroups,
     };
-    sendMessage([newDevicePubkey], payloadToNew);
+    sendMessage(resolveIDs([groupID]), payloadToNew);
   }
 }
 
@@ -368,17 +376,19 @@ function processRequestLink({ newDeviceName, newDevicePubkey }) {
  * Updates linked group info and and group info for all devices that are children
  *   of the linked group
  *
- * linkedGroup: object
- * existingDevices: list
+ * groupToUpdate: string (ID of group to update)
+ * updatedGroup: object (value of group to update)
+ * groupID: string (ID of new group)
+ * existingSubgroups: list
  *
  * TODO also process any other data sent from the device being linked with
  */
-function processLink({ linkedGroup, existingDevices }) {
-  setGroup(LINKED, linkedGroup);
-  existingDevices.forEach(({ ID, group }) => {
+function processConfirmUpdateGroup({ groupToUpdate, updatedGroup, groupID, existingSubgroups }) {
+  existingSubgroups.forEach(({ ID, group }) => {
     setGroup(ID, group);
   });
-  addParent(getPubkey(), LINKED);
+  setGroup(groupToUpdate, updatedGroup);
+  addParent(groupID, groupToUpdate);
   onAuth();
 }
 
@@ -386,22 +396,16 @@ function processLink({ linkedGroup, existingDevices }) {
  * Updates linked group info and adds new device group when a new device was 
  *   successfully linked with another device in linked group
  *
- * linkedGroup: object
- * newDeviceName: string (human-readable name; optional)
- * newDevicePubkey: string (hex-formatted)
+ * groupToUpdate: string (ID of group to update)
+ * updatedGroup: object (value of group to update)
+ * groupID: string (ID of new group)
+ * groupValue: object (value of new group)
  */
-function processUpdateLinked({ linkedGroup, newDevicePubkey, newDeviceName }) {
-  // create key for new device
-  createKey(newDevicePubkey, newDeviceName, [LINKED]);
-  // add new device to linked group
-  setGroup(LINKED, linkedGroup);
+function processUpdateGroup({ groupToUpdate, updatedGroup, groupID, groupValue }) {
+  setGroup(groupID, groupValue);
+  addParent(groupID, groupToUpdate);
+  setGroup(groupToUpdate, updatedGroup);
 }
-
-/*
- ************
- * Updating *
- ************
- */
 
 /*
  ************
@@ -417,7 +421,7 @@ function processUpdateLinked({ linkedGroup, newDevicePubkey, newDeviceName }) {
  */
 export function deleteDevice() {
   let pubkey = getPubkey();
-  // get all groupIDs that point to this key
+  // get all groupIDs that directly point to this key
   let parents = getParents(pubkey);
   let payload = {
     msgType: DELETE_GROUP,
@@ -496,12 +500,37 @@ function createKey(ID, name, parents) {
  *
  * groupID: string (unique)
  */
-function getChildren(groupID) {
-  let group = getGroup(groupID);
-  if (group !== null) {
-    return group.children;
-  }
-  return [];
+//function getChildren(groupID) {
+//  let group = getGroup(groupID);
+//  if (group !== null) {
+//    return group.children;
+//  }
+//  return [];
+//}
+
+/*
+ * Recursively gets all children groups in the subtree with root groupID
+ *
+ * Returns a list of child objects, where each object contains a group key (ID)
+ *   and group value
+ *
+ * groupID: string (unique)
+ */
+function getAllSubgroups(groupIDs) {
+  let groups = [];
+  groupIDs.forEach((groupID) => {
+    let group = getGroup(groupID);
+    if (group !== null) {
+      groups.push({
+        ID: groupID,
+        group: group,
+      });
+      if (group.children !== undefined) { // FIXME or undefined?
+        groups = groups.concat(getAllSubgroups(group.children));
+      }
+    }
+  });
+  return groups;
 }
 
 /*

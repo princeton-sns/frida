@@ -27,6 +27,15 @@ const DELETE_SELF   = "deleteSelf";
 const DELETE_GROUP  = "deleteGroup";
 const UPDATE_LINKED = "updateLinked";
 
+// demultiplexing map from message types to functions
+const demuxMap = {
+  [REQ_LINK]: processRequestLink,
+  [LINK]: processLink,
+  [DELETE_SELF]: deleteDevice,
+  [DELETE_GROUP]: processDelete,
+  [UPDATE_LINKED]: processUpdateLinked,
+};
+
 export {GROUP_KEY_PREFIX as groupPrefix};
 
 // default auth/unauth functions do nothing
@@ -62,7 +71,7 @@ const Group = makeGroup("name parents children");
  */
 
 /*
- * Initializes client-server connection
+ * Initializes client-server connection and client state
  *
  * ip: string
  * port: string
@@ -174,38 +183,14 @@ export function onMessage(msg) {
     // validate via callback
     validate(payload);
 
-    //let func = demuxDict[payload.msgType];
-    //func(payload);
-
-    switch (payload.msgType) {
-      case REQ_LINK:
-        processRequestLink(payload.newDeviceName, payload.newDevicePubkey);
-        break;
-      case LINK:
-        processLink(payload.linkedGroup, payload.existingDevices);
-        break;
-      case DELETE_SELF:
-        deleteDevice();
-        break;
-      case DELETE_GROUP:
-        processDelete(payload.groupID);
-        break;
-      case UPDATE_LINKED:
-        processUpdateLinked(payload.linkedGroup, payload.newDevicePubkey, payload.newDeviceName);
-        break;
-      default: 
-        console.log("ERROR UNKNOWN msgType: " + payload.msgType);
+    let demuxFunc = demuxMap[payload.msgType];
+    if (demuxFunc === undefined) {
+      console.log("ERROR UNKNOWN msgType: " + payload.msgType);
+      return;
     }
+    demuxFunc(payload);
   }
 }
-
-//const demuxDict = {
-//  REQ_LINK: processRequestLink,
-//  LINK: processLink,
-//  DELETE_SELF: deleteDevice,
-//  DELETE_GROUP: processDelete,
-//  UPDATE_LINKED: processUpdateLinked,
-//};
 
 /*
  * Sets the callback function with which to perform message validation
@@ -334,7 +319,7 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
  *   - contacts?
  *   - app data?
  */
-function processRequestLink(newDeviceName, newDevicePubkey) {
+function processRequestLink({ newDeviceName, newDevicePubkey }) {
   if (confirm(`Authenticate new device?\n\tName: ${newDeviceName}\n\tPubkey: ${newDevicePubkey}`)) {
     // get all existing device groups to send to new device
     let existingDevices = [];
@@ -386,7 +371,7 @@ function processRequestLink(newDeviceName, newDevicePubkey) {
  *
  * TODO also process any other data sent from the device being linked with
  */
-function processLink(linkedGroup, existingDevices) {
+function processLink({ linkedGroup, existingDevices }) {
   setGroup(LINKED, linkedGroup);
   existingDevices.forEach(({ ID, group }) => {
     setGroup(ID, group);
@@ -403,11 +388,11 @@ function processLink(linkedGroup, existingDevices) {
  * newDeviceName: string (human-readable name; optional)
  * newDevicePubkey: string (hex-formatted)
  */
-function processUpdateLinked(linkedGroup, newDevicePubkey, newDeviceName) {
+function processUpdateLinked({ linkedGroup, newDevicePubkey, newDeviceName }) {
   // create key for new device
   createKey(newDevicePubkey, newDeviceName, [LINKED]);
   // add new device to linked group
-  addChild(LINKED, newDevicePubkey);
+  setGroup(LINKED, linkedGroup);
 }
 
 /*
@@ -463,7 +448,7 @@ export function deleteAllLinkedDevices() {
   sendMessage(resolveIDs([LINKED]), payload);
 }
 
-function processDelete(groupID) {
+function processDelete({ groupID }) {
   // unlink pubkey group from parents
   let parents = getParents(groupID);
   parents.forEach((parentID) => {

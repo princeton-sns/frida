@@ -44,7 +44,7 @@ const demuxMap = {
 export {GROUP_KEY_PREFIX as groupPrefix};
 
 // default auth/unauth functions do nothing
-let onAuth = () => {};
+let onAuth   = () => {};
 let onUnauth = () => {};
 
 // default callback
@@ -66,7 +66,7 @@ function makeGroup(fieldNames) {
 }
 
 /* doubly-linked tree, allows cycles */
-const Key = makeGroup("name parents");
+const Key   = makeGroup("name parents");
 const Group = makeGroup("name parents children");
 
 /*
@@ -153,13 +153,11 @@ export function sendMessage(dstPubkeys, payload) {
     });
   });
 
-  let msg = {
+  // send message to server
+  sc.sendMessage({
     srcPubkey: srcPubkey,
     batch: batch,
-  };
-
-  // send message to server
-  sc.sendMessage(msg);
+  });
 }
 
 /*
@@ -229,12 +227,12 @@ function validate(payload) {
 export function resolveIDs(ids) {
   let pubkeys = [];
   ids.forEach((id) => {
-    let groupValue = getGroup(id);
-    if (groupValue !== null) {
-      if (isKey(groupValue)) {
+    let group = getGroup(id);
+    if (group !== null) {
+      if (isKey(group)) {
         pubkeys.push(id);
       } else {
-        pubkeys = pubkeys.concat(resolveIDs(groupValue.children));
+        pubkeys = pubkeys.concat(resolveIDs(group.children));
       }
     }
   });
@@ -244,10 +242,10 @@ export function resolveIDs(ids) {
 /*
  * Helper function for determining if resolveIDs has hit it's base case or not
  *
- * value: object
+ * group: object
  */
-function isKey(value) {
-  if (value.children) {
+function isKey(group) {
+  if (group.children) {
     return false;
   }
   return true;
@@ -264,17 +262,24 @@ function isKey(value) {
  *   server
  *
  * parents: list of strings
+ * linkedName: string (human-readable name; for contacts)
  * deviceName: string (human-readable name; optional)
  */
-function initDevice(parents, deviceName = null) {
-  let deviceKeys = c.generateKeypair();
-  setPubkey(deviceKeys.pubkey);
-  setPrivkey(deviceKeys.privkey);
-  sc.addDevice(deviceKeys.pubkey);
-  connectDevice(deviceKeys.pubkey);
-  createKey(deviceKeys.pubkey, deviceName, parents);
+function initDevice(parents, linkedName = null, deviceName = null) {
+  let { pubkey, privkey } = c.generateKeypair();
+  setPubkey(pubkey);
+  setPrivkey(privkey);
+  sc.addDevice(pubkey);
+  connectDevice(pubkey);
+
+  createKey(pubkey, deviceName, parents);
   createGroup(CONTACTS, null, [], []);
-  return deviceKeys.pubkey;
+  // enforce that linkedName exists; deviceName is not necessary
+  if (linkedName === null) {
+    linkedName = crypto.randomUUID();
+  }
+  createGroup(LINKED, linkedName, [], [pubkey]);
+  return pubkey;
 }
 
 /*
@@ -284,12 +289,7 @@ function initDevice(parents, deviceName = null) {
  * deviceName: string (human-readable name; optional)
  */
 export function createDevice(linkedName = null, deviceName = null) {
-  // enforce that linkedName exists; deviceName is not necessary
-  if (linkedName === null) {
-    linkedName = crypto.randomUUID();
-  }
-  let pubkey = initDevice([LINKED], deviceName);
-  createGroup(LINKED, linkedName, [], [pubkey]);
+  let pubkey = initDevice([LINKED], linkedName, deviceName);
   onAuth();
   return pubkey;
 }
@@ -303,18 +303,15 @@ export function createDevice(linkedName = null, deviceName = null) {
  */
 export function createLinkedDevice(dstPubkey, deviceName = null) {
   if (dstPubkey !== null) {
-    let pubkey = initDevice([LINKED], deviceName);
-    let linkedName = crypto.randomUUID();
-    createGroup(LINKED, linkedName, [], [pubkey]);
+    let pubkey = initDevice([LINKED], null, deviceName);
     // construct message that asks dstPubkey's corresponding device to
     // link this device
-    let payload = {
+    sendMessage([dstPubkey], {
       msgType: REQ_UPDATE_GROUP,
       groupIDToUpdate: LINKED,
       groupIDToAdd: pubkey,
       groupValueToAdd: getGroup(pubkey),
-    };
-    sendMessage([dstPubkey], payload);
+    });
     return pubkey;
   }
 }
@@ -340,40 +337,38 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
  */
 function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueToAdd }) {
   if (confirm(`Authenticate new ${groupIDToUpdate} member?\n\tName: ${groupIDToAdd}`)) {
-    // get subtree structure of groupIDToUpdate to send to new member: groupIDToAdd
+    // get subtree structure of groupIDToUpdate to send to new member groupIDToAdd
     let existingSubgroups = getAllSubgroups([groupIDToUpdate]);
-
-    // add new member group and point parent to groupIDToUpdate
-    setGroup(groupIDToAdd, groupValueToAdd);
-    addParent(groupIDToAdd, groupIDToUpdate);
 
     // get list of devices that need to be notified of this group update
     // (deduplicating the current device)
     let pubkey = getPubkey();
     let oldGroupPubkeys = resolveIDs([groupIDToUpdate]).filter((x) => x != pubkey);
 
-    // add groupIDToAdd to groupIDToUpdate
+    // add new member group and point parent to groupIDToUpdate
+    setGroup(groupIDToAdd, groupValueToAdd);
+    // point parent of new member group to groupIDToUpdate
+    addParent(groupIDToAdd, groupIDToUpdate);
+    // add groupIDToAdd to groupIDToUpdate's children list
     let updatedGroupValue = addChild(groupIDToUpdate, groupIDToAdd);
 
-    // notify devices of updated group
-    let payloadToExisting = {
+    // notify old devices of updated group
+    sendMessage(oldGroupPubkeys, {
       msgType: UPDATE_GROUP,
       groupIDToUpdate: groupIDToUpdate,
       updatedGroupValue: updatedGroupValue,
       groupIDToAdd: groupIDToAdd,
       groupValueToAdd: groupValueToAdd,
-    };
-    sendMessage(oldGroupPubkeys, payloadToExisting);
+    });
 
     // notify new group member of the group they were successfully added to
-    let payloadToNew = {
+    sendMessage(resolveIDs([groupIDToAdd]), {
       msgType: CONFIRM_UPDATE_GROUP,
       groupIDToUpdate: groupIDToUpdate,
       updatedGroupValue: updatedGroupValue,
       groupIDToAdd: groupIDToAdd,
       existingSubgroups: existingSubgroups,
-    };
-    sendMessage(resolveIDs([groupIDToAdd]), payloadToNew);
+    });
   }
 }
 
@@ -424,13 +419,11 @@ function updateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, groupVa
  * contactPubkey: string (hex-formatted)
  */
 export function addContact(contactPubkey) {
-  let linkedMembers = getAllSubgroups([LINKED]);
   // piggyback own contact info when requesting others contact info
-  let payload = {
+  sendMessage([contactPubkey], {
     msgType: REQ_CONTACT,
-    reqContactGroups: linkedMembers,
-  };
-  sendMessage([contactPubkey], payload);
+    reqContactGroups: getAllSubgroups([LINKED]),
+  });
 }
 
 /*
@@ -444,12 +437,10 @@ function processRequestContact({ reqContactGroups }) {
   let contactName = getContactName(reqContactGroups);
   if (confirm(`Add new contact: ${contactName}?`)) {
     parseContactInfo(contactName, reqContactGroups);
-    let linkedMembers = getAllSubgroups([LINKED]);
-    let payload = {
+    sendMessage(resolveIDs([contactName]), {
       msgType: CONFIRM_CONTACT,
-      contactGroups: linkedMembers,
-    };
-    sendMessage(resolveIDs([contactName]), payload);
+      contactGroups: getAllSubgroups([LINKED]),
+    });
   }
 }
 
@@ -516,12 +507,10 @@ function parseContactInfo(contactName, contactGroups) {
 export function deleteDevice() {
   let pubkey = getPubkey();
   // get all groupIDs that directly point to this key
-  let parents = getParents(pubkey);
-  let payload = {
+  sendMessage(resolveIDs(getParents(pubkey)), {
     msgType: DELETE_GROUP,
     groupID: pubkey,
-  };
-  sendMessage(resolveIDs(parents), payload);
+  });
   sc.removeDevice(pubkey);
   sc.disconnect(pubkey);
   db.clear();
@@ -534,20 +523,18 @@ export function deleteDevice() {
  * pubkey: string (hex-formatted)
  */
 export function deleteLinkedDevice(pubkey) {
-  let payload = {
+  sendMessage([pubkey], {
     msgType: DELETE_SELF,
-  };
-  sendMessage([pubkey], payload);
+  });
 }
 
 /*
  * Deletes all devices that are children of this device's linked group
  */
 export function deleteAllLinkedDevices() {
-  let payload = {
+  sendMessage(resolveIDs([LINKED]), {
     msgType: DELETE_SELF,
-  };
-  sendMessage(resolveIDs([LINKED]), payload);
+  });
 }
 
 /*
@@ -558,8 +545,7 @@ export function deleteAllLinkedDevices() {
  */
 function deleteGroup({ groupID }) {
   // unlink pubkey group from parents
-  let parents = getParents(groupID);
-  parents.forEach((parentID) => {
+  getParents(groupID).forEach((parentID) => {
     removeChild(parentID, groupID);
   });
   // delete pubkey group
@@ -582,8 +568,7 @@ function deleteGroup({ groupID }) {
  * children: list of names (groupIDs or public keys)
  */
 function createGroup(ID, name, parents, children) {
-  let newGroup = new Group(name, parents, children);
-  setGroup(ID, newGroup);
+  setGroup(ID, new Group(name, parents, children));
 }
 
 /*
@@ -595,8 +580,7 @@ function createGroup(ID, name, parents, children) {
  * parents: list of names (groupIDs)
  */
 function createKey(ID, name, parents) {
-  let newKey = new Key(name, parents);
-  setGroup(ID, newKey);
+  setGroup(ID, new Key(name, parents));
 }
 
 /*
@@ -645,9 +629,8 @@ function getAllSubgroups(groupIDs) {
  */
 function addChild(groupID, childID) {
   return updateChildren(groupID, childID, (childID, newChildren) => {
-    let idx = newChildren.indexOf(childID);
     // deduplicate: only add parentID if doesn't already exist in list
-    if (idx === -1) newChildren.push(childID);
+    if (newChildren.indexOf(childID) === -1) newChildren.push(childID);
     return newChildren;
   });
 }
@@ -702,9 +685,8 @@ function getParents(groupID) {
  */
 function addParent(groupID, parentID) {
   return updateParents(groupID, parentID, (parentID, newParents) => {
-    let idx = newParents.indexOf(parentID);
     // deduplicate: only add parentID if doesn't already exist in list
-    if (idx === -1) newParents.push(parentID);
+    if (newParents.indexOf(parentID) === -1) newParents.push(parentID);
     return newParents;
   });
 }

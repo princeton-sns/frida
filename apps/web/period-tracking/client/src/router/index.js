@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Home from "../views/Home.vue";
 import Register from "../views/Register.vue";
-//import Friends from "../views/Friends.vue";
+import Friends from "../views/Friends.vue";
 import Settings from "../views/Settings.vue";
 //import Shared from "../views/Shared.vue";
 
@@ -17,11 +17,11 @@ const routes = [
     path: "/register",
     component: Register,
   },
-  //{
-  //  path: "/friends",
-  //  component: Friends,
-  //  beforeEnter: existsCurrentDevice,
-  //},
+  {
+    path: "/friends",
+    component: Friends,
+    beforeEnter: existsCurrentDevice,
+  },
   {
     path: "/settings",
     component: Settings,

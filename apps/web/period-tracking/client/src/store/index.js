@@ -68,19 +68,10 @@ const store = createStore({
       state.pubkey = "";
       state.devices = [];
     },
-    // TODO should we have a notion of one-way "friendships"?
-    // i.e. should noise enforce/expose friendship-level properties, or is
-    // this something the app can enforce/configure (but that noise should
-    // support)
-    //   e.g. SHAREE and SHARER seem too rigid, and a similar invariant
-    //   can be expressed through different r/w privileges
-    //
-    // Start with generic "contact" and try to make some pure sharees and
-    //   sharers, then consider if need something more/less flexible
-    //ADD_CONTACT() {
-    //  noise.addContact();
-    //},
-    //REMOVE_CONTACT() {
+    ADD_FRIEND(state, { pubkey }) {
+      noise.addContact(pubkey);
+    },
+    //REMOVE_FRIEND(state, { name }) {
     //  noise.removeContact();
     //},
     /* Simulate offline devices */

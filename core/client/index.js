@@ -16,7 +16,8 @@ const SLASH = "/";
 const DATA  = "__data";
 const GROUP = "__group";
 const GROUP_KEY_PREFIX = DATA + SLASH + GROUP + SLASH;
-const LINKED = "__linked";
+const LINKED   = "__linked";
+const CONTACTS = "__contacts";
 const PUBKEY   = "pubkey";
 const PRIVKEY  = "privkey";
 
@@ -26,6 +27,8 @@ const CONFIRM_UPDATE_GROUP = "confirmUpdateGroup";
 const UPDATE_GROUP         = "updateGroup";
 const DELETE_SELF          = "deleteSelf";
 const DELETE_GROUP         = "deleteGroup";
+const REQ_CONTACT          = "requestContact";
+const CONFIRM_CONTACT      = "confirmContact";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
@@ -34,6 +37,8 @@ const demuxMap = {
   [UPDATE_GROUP]:         updateGroup,
   [DELETE_SELF]:          deleteDevice,
   [DELETE_GROUP]:         deleteGroup,
+  [REQ_CONTACT]:          processRequestContact,
+  [CONFIRM_CONTACT]:      confirmContact,
 };
 
 export {GROUP_KEY_PREFIX as groupPrefix};
@@ -60,7 +65,7 @@ function makeGroup(fieldNames) {
   return constructor;
 }
 
-/* doubly-linked tree, supports cycles */
+/* doubly-linked tree, allows cycles */
 const Key = makeGroup("name parents");
 const Group = makeGroup("name parents children");
 
@@ -238,6 +243,8 @@ export function resolveIDs(ids) {
 
 /*
  * Helper function for determining if resolveIDs has hit it's base case or not
+ *
+ * value: object
  */
 function isKey(value) {
   if (value.children) {
@@ -256,6 +263,7 @@ function isKey(value) {
  * Initializes a new device with a keypair and adds the public key to the
  *   server
  *
+ * parents: list of strings
  * deviceName: string (human-readable name; optional)
  */
 function initDevice(parents, deviceName = null) {
@@ -265,6 +273,7 @@ function initDevice(parents, deviceName = null) {
   sc.addDevice(deviceKeys.pubkey);
   connectDevice(deviceKeys.pubkey);
   createKey(deviceKeys.pubkey, deviceName, parents);
+  createGroup(CONTACTS, null, [], []);
   return deviceKeys.pubkey;
 }
 
@@ -333,7 +342,6 @@ function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueTo
   if (confirm(`Authenticate new ${groupIDToUpdate} member?\n\tName: ${groupIDToAdd}`)) {
     // get subtree structure of groupIDToUpdate to send to new member: groupIDToAdd
     let existingSubgroups = getAllSubgroups([groupIDToUpdate]);
-    console.log(existingSubgroups);
 
     // add new member group and point parent to groupIDToUpdate
     setGroup(groupIDToAdd, groupValueToAdd);
@@ -406,6 +414,95 @@ function updateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, groupVa
 
 /*
  ************
+ * Contacts *
+ ************
+ */
+
+/*
+ * Shares own contact info and requests the contact info of contactPubkey
+ *
+ * contactPubkey: string (hex-formatted)
+ */
+export function addContact(contactPubkey) {
+  let linkedMembers = getAllSubgroups([LINKED]);
+  // piggyback own contact info when requesting others contact info
+  let payload = {
+    msgType: REQ_CONTACT,
+    reqContactGroups: linkedMembers,
+  };
+  sendMessage([contactPubkey], payload);
+}
+
+/*
+ * Asks user if contact exchange should be accepted, and if so processes
+ *   and stores the requesting party's contact info and sends back own 
+ *   contact info
+ *
+ * reqContactGroups: list of groups (ID and value)
+ */
+function processRequestContact({ reqContactGroups }) {
+  let contactName = getContactName(reqContactGroups);
+  if (confirm(`Add new contact: ${contactName}?`)) {
+    parseContactInfo(contactName, reqContactGroups);
+    let linkedMembers = getAllSubgroups([LINKED]);
+    let payload = {
+      msgType: CONFIRM_CONTACT,
+      contactGroups: linkedMembers,
+    };
+    sendMessage(resolveIDs([contactName]), payload);
+  }
+}
+
+/*
+ * Processes and stores the requested contact info
+ *
+ * contactGroups: list of groups (ID and value)
+ */
+function confirmContact({ contactGroups }) {
+  parseContactInfo(getContactName(contactGroups), contactGroups);
+}
+
+/*
+ * Gets the linked name of the supplied contact information
+ *
+ * contactGroups: list of groups (ID and value)
+ */
+function getContactName(contactGroups) {
+  let contactName;
+  contactGroups.forEach((contactGroup) => {
+    if (contactGroup.ID === LINKED) {
+      contactName = contactGroup.group.name !== null ? contactGroup.group.name : crypto.randomUUID();
+      return;
+    }
+  });
+  return contactName;
+}
+
+/*
+ * Parses and stores the supplied contact info, relinking previous 
+ *   parent/child pointers from LINKED to contactName
+ *
+ * contactName: string (unique)
+ * contactGroups: list of groups (ID and value)
+ */
+function parseContactInfo(contactName, contactGroups) {
+  contactGroups.forEach((contactGroup) => {
+    if (contactGroup.ID === LINKED) {
+      setGroup(contactName, contactGroup.group);
+      addChild(CONTACTS, contactName);
+      addParent(contactName, CONTACTS);
+    } else {
+      // modify the parents list of the new contact to point to
+      // contactName instead of LINKED
+      setGroup(contactGroup.ID, contactGroup.group);
+      removeParent(contactGroup.ID, LINKED);
+      addParent(contactGroup.ID, contactName);
+    }
+  });
+}
+
+/*
+ ************
  * Deletion *
  ************
  */
@@ -432,7 +529,9 @@ export function deleteDevice() {
 }
 
 /*
- * Deletes the device pointed to by the public key
+ * Deletes the device pointed to by pubkey
+ *
+ * pubkey: string (hex-formatted)
  */
 export function deleteLinkedDevice(pubkey) {
   let payload = {
@@ -451,6 +550,12 @@ export function deleteAllLinkedDevices() {
   sendMessage(resolveIDs([LINKED]), payload);
 }
 
+/*
+ * Unlinks the group denoted by groupID from its parents and
+ *   deletes it
+ *
+ * groupID: string (unique)
+ */
 function deleteGroup({ groupID }) {
   // unlink pubkey group from parents
   let parents = getParents(groupID);
@@ -473,6 +578,7 @@ function deleteGroup({ groupID }) {
  *
  * ID: string (unique)
  * name: string (human-readable name; optional)
+ * parents: list of names (groupIDs)
  * children: list of names (groupIDs or public keys)
  */
 function createGroup(ID, name, parents, children) {
@@ -486,6 +592,7 @@ function createGroup(ID, name, parents, children) {
  *
  * ID: public key string (unique; hex-formatted)
  * name: string (human-readable name; optional)
+ * parents: list of names (groupIDs)
  */
 function createKey(ID, name, parents) {
   let newKey = new Key(name, parents);
@@ -608,13 +715,13 @@ function addParent(groupID, parentID) {
  * groupID: string (unique)
  * parentID: string (unique)
  */
-//function removeParent(groupID, parentID) {
-//  return updateParents(groupID, parentID, (parentID, newParents) => {
-//    let idx = newParents.indexOf(parentID);
-//    if (idx !== -1) newParents.splice(idx, 1);
-//    return newParents;
-//  });
-//}
+function removeParent(groupID, parentID) {
+  return updateParents(groupID, parentID, (parentID, newParents) => {
+    let idx = newParents.indexOf(parentID);
+    if (idx !== -1) newParents.splice(idx, 1);
+    return newParents;
+  });
+}
 
 /*
  * Helper function for updating existing group's parents list
@@ -646,6 +753,17 @@ function getGroupKey(groupID) {
 function getGroup(groupID) {
   return db.get(getGroupKey(groupID));
 }
+
+/*
+ * Group name getter
+ */
+//function getGroupName(groupID) {
+//  let group = getGroup(groupID);
+//  if (group !== null) {
+//    return group.name;
+//  }
+//  return null;
+//}
 
 /*
  * Group setter

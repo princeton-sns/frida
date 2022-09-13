@@ -7,7 +7,7 @@ let serverPort = "8080";
 
 noise.init(serverIP, serverPort, {
   onAuth: () => {
-    router.push("/home");
+    router.push("/settings");
   },
   onUnauth: () => {
     router.push("/register");
@@ -36,6 +36,8 @@ const store = createStore({
     // TODO show human-readable names instead of pubkeys?
     //   deleteLinkedDevice would then have to take in the name, not the pubkey
     devices: noise.getLinkedDevices(),
+    // TODO make this list reactive
+    friends: noise.getContacts(),
   },
   mutations: {
     UPDATE_DEVICES(state, thing) {
@@ -71,9 +73,9 @@ const store = createStore({
     ADD_FRIEND(state, { pubkey }) {
       noise.addContact(pubkey);
     },
-    //REMOVE_FRIEND(state, { name }) {
-    //  noise.removeContact();
-    //},
+    REMOVE_FRIEND(state, { name }) {
+      noise.removeContact(name);
+    },
     /* Simulate offline devices */
     RECONNECT_DEVICE() {
       noise.connectDevice();

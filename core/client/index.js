@@ -7,7 +7,7 @@
  */
 
 import * as sc from "./serverComm/socketIO.js";
-import * as c from "./crypto/libSodium.js";
+import * as c from  "./crypto/libSodium.js";
 import * as db from "./db/localStorage.js";
 
 /* Local variables */
@@ -25,6 +25,7 @@ const PRIVKEY  = "privkey";
 const REQ_UPDATE_GROUP     = "requestUpdateGroup";
 const CONFIRM_UPDATE_GROUP = "confirmUpdateGroup";
 const UPDATE_GROUP         = "updateGroup";
+const ADD_GROUP            = "addGroup";
 const DELETE_SELF          = "deleteSelf";
 const DELETE_GROUP         = "deleteGroup";
 const REQ_CONTACT          = "requestContact";
@@ -35,13 +36,14 @@ const demuxMap = {
   [REQ_UPDATE_GROUP]:     processUpdateGroupRequest,
   [CONFIRM_UPDATE_GROUP]: confirmUpdateGroup,
   [UPDATE_GROUP]:         updateGroup,
+  [ADD_GROUP]:            addGroup,
   [DELETE_SELF]:          deleteDevice,
   [DELETE_GROUP]:         deleteGroup,
   [REQ_CONTACT]:          processRequestContact,
   [CONFIRM_CONTACT]:      confirmContact,
 };
 
-export {GROUP_KEY_PREFIX as groupPrefix};
+export { GROUP_KEY_PREFIX as groupPrefix };
 
 // default auth/unauth functions do nothing
 let onAuth   = () => {};
@@ -308,9 +310,10 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
     // link this device
     sendMessage([dstPubkey], {
       msgType: REQ_UPDATE_GROUP,
-      groupIDToUpdate: LINKED,
-      groupIDToAdd: pubkey,
-      groupValueToAdd: getGroup(pubkey),
+      subgroupRoots: [LINKED, CONTACTS],
+      parentID: LINKED,
+      childID: pubkey,
+      childValue: getGroup(pubkey),
     });
     return pubkey;
   }
@@ -327,46 +330,59 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
  *   current device's linked group, and send the requesting device the list of 
  *   and group information of any existing devices (including the current one)
  *
- * groupIDToUpdate: string (ID of group to update)
- * groupIDToAdd: string (ID of new group)
- * groupValueToAdd: object (value of new group)
+ * parentID: string (ID of group to update)
+ * childID: string (ID of new group)
+ * childValue: object (value of new group)
  * 
  * TODO send other data from this device
  *   - contacts?
  *   - app data?
  */
-function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueToAdd }) {
-  if (confirm(`Authenticate new ${groupIDToUpdate} member?\n\tName: ${groupIDToAdd}`)) {
-    // get subtree structure of groupIDToUpdate to send to new member groupIDToAdd
-    let existingSubgroups = getAllSubgroups([groupIDToUpdate]);
+function processUpdateGroupRequest({ subgroupRoots, parentID, childID, childValue }) {
+  if (confirm(`Authenticate new ${parentID} member?\n\tName: ${childID}`)) {
+    // get subtree structure of parentID to send to new member childID
+    let existingSubgroups = getAllSubgroups(subgroupRoots);
 
     // get list of devices that need to be notified of this group update
     // (deduplicating the current device)
     let pubkey = getPubkey();
-    let oldGroupPubkeys = resolveIDs([groupIDToUpdate]).filter((x) => x != pubkey);
+    let existingGroupPubkeys = resolveIDs([parentID]).filter((x) => x != pubkey);
 
-    // add new member group and point parent to groupIDToUpdate
-    setGroup(groupIDToAdd, groupValueToAdd);
-    // point parent of new member group to groupIDToUpdate
-    addParent(groupIDToAdd, groupIDToUpdate);
-    // add groupIDToAdd to groupIDToUpdate's children list
-    let updatedGroupValue = addChild(groupIDToUpdate, groupIDToAdd);
+    // add new member group and point parent to parentID
+    setGroup(childID, childValue);
+    // point parent of new member group to parentID
+    addParent(childID, parentID);
+    // add childID to parentID's children list
+    let newParent = addChild(parentID, childID);
 
     // notify old devices of updated group
-    sendMessage(oldGroupPubkeys, {
+    sendMessage(existingGroupPubkeys, {
       msgType: UPDATE_GROUP,
-      groupIDToUpdate: groupIDToUpdate,
-      updatedGroupValue: updatedGroupValue,
-      groupIDToAdd: groupIDToAdd,
-      groupValueToAdd: groupValueToAdd,
+      parentID: parentID,
+      childID: childID,
+      childValue: childValue,
+    });
+
+    // FIXME hard-coded CONTACTS notification
+    // remove parent LINKED pointer for contacts
+    let newChildValue = {
+       ...childValue,
+       parents: childValue.parents.filter((x) => x != LINKED),
+    };
+    sendMessage(resolveIDs([CONTACTS]), {
+      msgType: UPDATE_GROUP,
+      parentID: getGroup(LINKED).name,
+      childID: childID,
+      childValue: newChildValue,
     });
 
     // notify new group member of the group they were successfully added to
-    sendMessage(resolveIDs([groupIDToAdd]), {
+    // and pass along existing group information
+    sendMessage(resolveIDs([childID]), {
       msgType: CONFIRM_UPDATE_GROUP,
-      groupIDToUpdate: groupIDToUpdate,
-      updatedGroupValue: updatedGroupValue,
-      groupIDToAdd: groupIDToAdd,
+      parentID: parentID,
+      newParent: newParent,
+      childID: childID,
       existingSubgroups: existingSubgroups,
     });
   }
@@ -376,19 +392,19 @@ function processUpdateGroupRequest({ groupIDToUpdate, groupIDToAdd, groupValueTo
  * Updates linked group info and and group info for all devices that are children
  *   of the linked group
  *
- * groupIDToUpdate: string (ID of group to update)
- * updatedGroupValue: object (value of group to update)
- * groupIDToAdd: string (ID of new group)
+ * parentID: string (ID of group to update)
+ * newParent: object (value of group to update)
+ * childID: string (ID of new group)
  * existingSubgroups: list
  *
  * TODO also process any other data sent from the device being linked with
  */
-function confirmUpdateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, existingSubgroups }) {
+function confirmUpdateGroup({ parentID, newParent, childID, existingSubgroups }) {
   existingSubgroups.forEach(({ ID, group }) => {
     setGroup(ID, group);
   });
-  setGroup(groupIDToUpdate, updatedGroupValue);
-  addParent(groupIDToAdd, groupIDToUpdate);
+  setGroup(parentID, newParent);
+  addParent(childID, parentID);
   onAuth();
 }
 
@@ -396,15 +412,18 @@ function confirmUpdateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, 
  * Updates linked group info and adds new device group when a new device was 
  *   successfully linked with another device in linked group
  *
- * groupIDToUpdate: string (ID of group to update)
- * updatedGroupValue: object (value of group to update)
- * groupIDToAdd: string (ID of new group)
- * groupValueToAdd: object (value of new group)
+ * parentID: string (ID of group to update)
+ * childID: string (ID of new group)
+ * childValue: object (value of new group)
  */
-function updateGroup({ groupIDToUpdate, updatedGroupValue, groupIDToAdd, groupValueToAdd }) {
-  setGroup(groupIDToAdd, groupValueToAdd);
-  addParent(groupIDToAdd, groupIDToUpdate);
-  setGroup(groupIDToUpdate, updatedGroupValue);
+function updateGroup({ parentID, childID, childValue }) {
+  setGroup(childID, childValue);
+  addParent(childID, parentID);
+  addChild(parentID, childID);
+}
+
+function addGroup({ ID, value }) {
+  setGroup(ID, value);
 }
 
 /*
@@ -477,19 +496,52 @@ function getContactName(contactGroups) {
  * contactGroups: list of groups (ID and value)
  */
 function parseContactInfo(contactName, contactGroups) {
+  let pubkey = getPubkey();
+  let linkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
+
   contactGroups.forEach((contactGroup) => {
     if (contactGroup.ID === LINKED) {
-      setGroup(contactName, contactGroup.group);
-      addChild(CONTACTS, contactName);
-      addParent(contactName, CONTACTS);
+      updateGroup({
+        parentID: CONTACTS,
+        childID: contactName,
+        childValue: contactGroup.group
+      });
+      // notify linked devices of updated CONTACTS group
+      sendMessage(linkedPubkeys, {
+        msgType: UPDATE_GROUP,
+        parentID: CONTACTS,
+        childID: contactName,
+        childValue: contactGroup.group,
+      });
     } else {
       // modify the parents list of the new contact to point to
       // contactName instead of LINKED
       setGroup(contactGroup.ID, contactGroup.group);
       removeParent(contactGroup.ID, LINKED);
-      addParent(contactGroup.ID, contactName);
+      // notify linked devices of new contact subgroups
+      sendMessage(linkedPubkeys, {
+        msgType: ADD_GROUP,
+        ID: contactGroup.ID,
+        value: addParent(contactGroup.ID, contactName),
+      });
     }
   });
+}
+
+/*
+ * Remove contact
+ *
+ * name: string
+ */
+export function removeContact(name) {
+  sendMessage(resolveIDs([LINKED]), {
+    msgType: DELETE_GROUP,
+    groupID: name,
+  });
+}
+
+export function getContacts() {
+  return getChildren(CONTACTS);
 }
 
 /*
@@ -538,18 +590,27 @@ export function deleteAllLinkedDevices() {
 }
 
 /*
- * Unlinks the group denoted by groupID from its parents and
- *   deletes it
+ * Unlinks the group denoted by groupID from its parents and children
+ *   and then deletes the group itself
  *
  * groupID: string (unique)
  */
 function deleteGroup({ groupID }) {
-  // unlink pubkey group from parents
+  // unlink this group from parents
   getParents(groupID).forEach((parentID) => {
     removeChild(parentID, groupID);
   });
-  // delete pubkey group
+  // unlink children from this group
+  getChildren(groupID).forEach((childID) => {
+    removeParent(childID, groupID);
+    // garbage collect any KEY group that no longer has any parents
+    if (isKey(getGroup(childID)) && getParents(childID).length === 0) {
+      removeGroup(childID);
+    }
+  });
+  // delete group
   removeGroup(groupID);
+  // TODO more GC?
 }
 
 /*
@@ -588,13 +649,13 @@ function createKey(ID, name, parents) {
  *
  * groupID: string (unique)
  */
-//function getChildren(groupID) {
-//  let group = getGroup(groupID);
-//  if (group !== null) {
-//    return group.children;
-//  }
-//  return [];
-//}
+function getChildren(groupID) {
+  let group = getGroup(groupID);
+  if (group !== null) {
+    return group.children;
+  }
+  return [];
+}
 
 /*
  * Recursively gets all children groups in the subtree with root groupID

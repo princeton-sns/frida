@@ -650,11 +650,11 @@ function createKey(ID, name, parents) {
  * groupID: string (unique)
  */
 function getChildren(groupID) {
-  let group = getGroup(groupID);
-  if (group !== null) {
-    return group.children;
-  }
-  return [];
+  return getGroup(groupID)?.children ?? [];
+  //if (group !== null) {
+  //  return group.children;
+  //}
+  //return [];
 }
 
 /*
@@ -731,11 +731,11 @@ function updateChildren(groupID, childID, callback) {
  * groupID: string (unique)
  */
 function getParents(groupID) {
-  let group = getGroup(groupID);
-  if (group !== null) {
-    return group.parents;
-  }
-  return [];
+  return getGroup(groupID)?.parents ?? [];
+  //if (group !== null) {
+  //  return group.parents;
+  //}
+  //return [];
 }
 
 /*

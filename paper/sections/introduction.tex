@@ -40,13 +40,13 @@ Signal bakes in many application-specific assumptions or guarantees
 this message") into their protocol, making it very difficult for other 
 applications to profit from their technique (it took WhatsApp\---\textit{another
 messaging application}\---two years to adopt the Signal protocol 
-\cite{whatsapp_adopt_signal}).
+\cite{whatsapp_adopts_signal}).
 
 Support for applications in this new architecture's landscape is either 
 general but not private or private but not general. We design and implement
 a framework, called \name, that closes this gap and enables a large class of
-applications to get end-to-end privacy for free. \name unifies (and improves 
-upon) existing end-to-end encryption protocols \cite{signal} with other common 
+applications to get end-to-end privacy for free. \name unifies existing
+end-to-end encryption protocols \cite{signal} with other common 
 application functionality such that developers using \name need only implement 
 application-specific logic. Notably, \name does not change the high-level 
 semantics of any supported applications such that developers do not need to 

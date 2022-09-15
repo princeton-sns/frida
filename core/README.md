@@ -23,6 +23,12 @@ PROS
 CONS
 - Cycles are possible (how much of a problem is this?)
 
+two default groups so far:
+- `linked`: describes "self" (e.g. default privacy; minimal group)
+- `contacts`: describes "other"
+
+all other groups are some combination of linked/contacts groups/subgroups
+
 ## Things the Core library *understands*
 
 IDs: public keys (maybe not?)

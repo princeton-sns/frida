@@ -2,10 +2,10 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 CLIENT_CORE="../../../../core/client/"
 
-server: core_server
+client: core_client
 	cd ${mkfile_dir} && npm install
 
-core_server: 
+core_client: 
 	cd ${CLIENT_CORE} && npm install
 
 clean:

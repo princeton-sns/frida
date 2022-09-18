@@ -10,6 +10,8 @@ import * as sc from "./serverComm/socketIO.js";
 import * as c from  "./crypto/libSodium.js";
 import * as db from "./db/localStorage.js";
 
+export { db };
+
 /* Local variables */
 
 const SLASH = "/";
@@ -30,6 +32,7 @@ const DELETE_SELF          = "deleteSelf";
 const DELETE_GROUP         = "deleteGroup";
 const REQ_CONTACT          = "requestContact";
 const CONFIRM_CONTACT      = "confirmContact";
+const UPDATE_DATA          = "updateData";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
@@ -41,9 +44,11 @@ const demuxMap = {
   [DELETE_GROUP]:         deleteGroup,
   [REQ_CONTACT]:          processRequestContact,
   [CONFIRM_CONTACT]:      confirmContact,
+  [UPDATE_DATA]:          updateData,
 };
 
 export { GROUP_KEY_PREFIX as groupPrefix };
+export { PUBKEY as pubkeyPrefix };
 
 // default auth/unauth functions do nothing
 let onAuth   = () => {};
@@ -55,6 +60,10 @@ let defaultValidateCallback = (payload) => {
   console.log(payload)
 };
 let validateCallback = defaultValidateCallback;
+
+let storagePrefixes = {
+  [GROUP]: 0,
+};
 
 function makeGroup(fieldNames) {
   fieldNames = fieldNames.split(' ');
@@ -70,6 +79,22 @@ function makeGroup(fieldNames) {
 /* doubly-linked tree, allows cycles */
 const Key   = makeGroup("name parents");
 const Group = makeGroup("name parents children");
+
+/* DB listener plugin */
+
+function createFridaDBListenerPlugin() {
+  return () => {
+    window.addEventListener("storage", (e) => {
+      if (e.key === null) {
+        onUnauth();
+      } else if (e.key.includes(PUBKEY)) {
+        onAuth();
+      }
+    });
+  };
+}
+
+export { createFridaDBListenerPlugin as dbListenerPlugin };
 
 /*
  *********************
@@ -96,6 +121,12 @@ export function init(ip, port, config) {
   }
   if (config.validateCallback) {
     validateCallback = config.validateCallback;
+  }
+  if (config.storagePrefixes) {
+    config.storagePrefixes.forEach((prefix) => {
+      // init ID counter for each prefix space
+      storagePrefixes[prefix] = 0;
+    });
   }
 }
 
@@ -145,7 +176,7 @@ export function sendMessage(dstPubkeys, payload) {
     let { ciphertext: encPayload, nonce: nonce } = c.signAndEncrypt(
       dstPubkey,
       srcPrivkey,
-      toString(payload)
+      db.toString(payload)
     );
     batch.push({
       dstPubkey: dstPubkey,
@@ -179,7 +210,7 @@ export function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
   let curPrivkey = getPrivkey();
   if (curPrivkey !== null) {
-    let payload = fromString(
+    let payload = db.fromString(
       c.decryptAndVerify(
         msg.encPayload,
         msg.nonce,
@@ -458,6 +489,7 @@ function addGroup({ ID, value }) {
 
 /**
  * Shares own contact info and requests the contact info of contactPubkey.
+ * TODO implement private contact discovery and return contact name.
  *
  * @param {string} contactPubkey hex-formatted public key
  */
@@ -579,6 +611,16 @@ export function removeContact(name) {
  * @returns {string[]}
  */
 export function getContacts() {
+  return getChildren(CONTACTS);
+}
+
+/**
+ * Get pending contacts.
+ * TODO implement pending list, currently returns confirmed contacts.
+ *
+ * @returns {string[]}
+ */
+export function getPendingContacts() {
   return getChildren(CONTACTS);
 }
 
@@ -844,18 +886,6 @@ function updateParents(groupID, parentID, callback) {
 }
 
 /**
- * Gets full-length group key.
- *
- * @param {string} groupID ID of group to get key for
- * @returns {string}
- *
- * @private
- */
-function getGroupKey(groupID) {
-  return GROUP_KEY_PREFIX + groupID + SLASH;
-}
-
-/**
  * Group getter.
  *
  * @param {string} groupID ID of group to get
@@ -864,7 +894,7 @@ function getGroupKey(groupID) {
  * @private
  */
 function getGroup(groupID) {
-  return db.get(getGroupKey(groupID));
+  return db.get(getDataKey(GROUP, groupID));
 }
 
 /*
@@ -887,7 +917,7 @@ function getGroup(groupID) {
  * @private
  */
 function setGroup(groupID, groupValue) {
-  db.set(getGroupKey(groupID), groupValue);
+  db.set(getDataKey(GROUP, groupID), groupValue);
 }
 
 /**
@@ -898,7 +928,7 @@ function setGroup(groupID, groupValue) {
  * @private
  */
 function removeGroup(groupID) {
-  db.remove(getGroupKey(groupID));
+  db.remove(getDataKey(GROUP, groupID));
 }
 
 /**
@@ -908,6 +938,80 @@ function removeGroup(groupID) {
  */
 export function getLinkedDevices() {
   return resolveIDs([LINKED]);
+}
+
+/*
+ ************
+ * Data API *
+ ************
+ */
+
+/**
+ * Get storage key for item given prefix and id.
+ *
+ * @params {string} prefix key prefix (GROUPS or app-specific)
+ * @params {string} id auto-incremented id
+ * @returns {string}
+ *
+ * @private
+ */
+function getDataKey(prefix, id) {
+  return DATA + SLASH + prefix + SLASH + id + SLASH;
+}
+
+/**
+ * Returns id counter value for specified prefix space and increments
+ * it by one.
+ * TODO use for groups.
+ *
+ * @params {string} prefix prefix denoting prefix-space of id counter
+ * @returns {number}
+ *
+ * @private
+ */
+function getNextPrefixID(prefix) {
+  let id = storagePrefixes[prefix];
+  // increment counter
+  storagePrefixes[prefix] = id + 1;
+  return id;
+}
+
+/**
+ * Generates ID for data value, resolves the full key given the prefix, 
+ * adds group information, stores value and sends to other devices
+ * in the group to also store.
+ *
+ * @params {string} prefix prefix name
+ * @params {Object} data app-specific data object
+ */
+export function setData(prefix, data) {
+  let key = getDataKey(prefix, getNextPrefixID(prefix));
+  let value = {
+    groupID: LINKED,
+    data: data,
+  };
+  updateData({
+    key: key,
+    value: value,
+  });
+  // send to other devices in groupID
+  sendMessage(resolveIDs([LINKED]), {
+    msgType: UPDATE_DATA,
+    key: key,
+    value: value,
+  });
+}
+
+/**
+ * Stores data value at data key (where data value has group information).
+ *
+ * @params {string} key data key
+ * @params {Object} value data value
+ *
+ * @private
+ */
+function updateData({ key, value }) {
+  db.set(key, value);
 }
 
 /*
@@ -956,20 +1060,4 @@ function getPrivkey() {
  */
 function setPrivkey(privkey) {
   db.set(PRIVKEY, privkey);
-}
-
-/*
- ****************
- * JSON Helpers *
- ****************
- *
- * TODO put back in db module? were moved here in case client application 
- * needed direct access to these functions
- */
-export function toString(obj) {
-  return JSON.stringify(obj);
-}
-
-export function fromString(str) {
-  return JSON.parse(str);
 }

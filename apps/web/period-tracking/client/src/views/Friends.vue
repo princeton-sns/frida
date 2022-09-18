@@ -15,8 +15,13 @@
     </div>
     <br />
     <div class="list-friends">
-      <h3>List of friends:</h3>
+      <h3>Friends:</h3>
       <div v-for="friend in friends" :key="friend">{{ friend }}</div>
+    </div>
+    <br />
+    <div class="pending-friends">
+      <h3>Pending:</h3>
+      <div v-for="pending in pendingFriends" :key="pending">{{ pending }}</div>
     </div>
   </div>
 </template>
@@ -28,6 +33,7 @@ export default {
   computed: {
     ...mapState({
       friends: "friends",
+      pendingFriends: "pendingFriends",
     }),
   },
   data() {

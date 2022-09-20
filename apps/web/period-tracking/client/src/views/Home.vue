@@ -35,15 +35,50 @@
       <br />
       <button @click="addPeriod">Add Period</button>
     </div>
+    <br />
+    <br />
+    <h3>Symptom history</h3>
+    <div>
+      <div v-for="symptom in oldSymptoms" :key="symptom">
+        <p>Timestamp: {{ symptom.data.timestamp }}</p>
+        <p>Symptoms: {{ symptom.data.symptoms }}</p>
+        <div>
+          <input v-model="shareSymptomFriendName" placeholder="friend name" />
+        </div>
+        <button @click="shareSymptoms(symptom.id)">Share Symptoms</button>
+        <br />
+      </div>
+    </div>
+    <br />
+    <br />
+    <h3>Period history</h3>
+    <div>
+      <div v-for="period in oldPeriod" :key="period">
+        <p>Timestamp: {{ period.data.timestamp }}</p>
+        <p>Period: {{ period.data.period }}</p>
+        <div>
+          <input v-model="sharePeriodFriendName" placeholder="friend name" />
+        </div>
+        <button @click="sharePeriod(period.id)">Share Period</button>
+        <br />
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import Multiselect from "@vueform/multiselect";
+import { mapState } from "vuex";
 
 export default {
   components: {
     Multiselect,
+  },
+  computed: {
+    ...mapState({
+      oldSymptoms: "symptoms",
+      oldPeriod: "period",
+    }),
   },
   data() {
     return {
@@ -56,6 +91,7 @@ export default {
         headache: "Headache",
         irritability: "Irritability",
       },
+      shareSymptomFriendName: "",
       period: null,
       periodOptions: {
         spotting: "Spotting",
@@ -63,6 +99,7 @@ export default {
         medium: "Medium",
         high: "High",
       },
+      sharePeriodFriendName: "",
     };
   },
   methods: {
@@ -71,6 +108,7 @@ export default {
       this.$store.commit("ADD_SYMPTOMS", {
         timestamp: new Date(),
         symptoms: this.symptoms,
+        id: crypto.randomUUID(),
       });
       this.symptoms = [];
     },
@@ -79,8 +117,23 @@ export default {
       this.$store.commit("ADD_PERIOD", {
         timestamp: new Date(),
         period: this.period,
+        id: crypto.randomUUID(),
       });
       this.period = null;
+    },
+    shareSymptoms(id) {
+      this.$store.commit("SHARE_SYMPTOMS", {
+        id: id,
+        friendName: this.shareSymptomFriendName,
+      });
+      this.shareSymptomFriendName = "";
+    },
+    sharePeriod(id) {
+      this.$store.commit("SHARE_PERIOD", {
+        id: id,
+        friendName: this.sharePeriodFriendName,
+      });
+      this.sharePeriodFriendName = "";
     },
   },
 };

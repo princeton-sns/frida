@@ -13,6 +13,7 @@ const routes = [
     component: Home,
     beforeEnter: existsCurrentDevice,
   },
+  // TODO protect against overwriting current device
   {
     path: "/register",
     component: Register,

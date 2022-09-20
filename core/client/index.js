@@ -23,28 +23,32 @@ const CONTACTS = "__contacts";
 const PUBKEY   = "pubkey";
 const PRIVKEY  = "privkey";
 
+// FIXME need new special name for LINKED group (confusing when linking non-LINKED groups)
+
 // valid message types
-const REQ_UPDATE_GROUP     = "requestUpdateGroup";
-const CONFIRM_UPDATE_GROUP = "confirmUpdateGroup";
-const UPDATE_GROUP         = "updateGroup";
-const ADD_GROUP            = "addGroup";
-const DELETE_SELF          = "deleteSelf";
-const DELETE_GROUP         = "deleteGroup";
-const REQ_CONTACT          = "requestContact";
-const CONFIRM_CONTACT      = "confirmContact";
-const UPDATE_DATA          = "updateData";
+const REQ_UPDATE_LINKED     = "requestUpdateLinked";
+const CONFIRM_UPDATE_LINKED = "confirmUpdateLinked";
+const LINK_GROUPS           = "linkGroups";
+const ADD_PARENT            = "addParent";
+const NEW_GROUP             = "addNewGroup";
+const DELETE_SELF           = "deleteSelf";
+const DELETE_GROUP          = "deleteGroup";
+const REQ_CONTACT           = "requestContact";
+const CONFIRM_CONTACT       = "confirmContact";
+const UPDATE_DATA           = "updateData";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
-  [REQ_UPDATE_GROUP]:     processUpdateGroupRequest,
-  [CONFIRM_UPDATE_GROUP]: confirmUpdateGroup,
-  [UPDATE_GROUP]:         updateGroup,
-  [ADD_GROUP]:            addGroup,
-  [DELETE_SELF]:          deleteDevice,
-  [DELETE_GROUP]:         deleteGroup,
-  [REQ_CONTACT]:          processRequestContact,
-  [CONFIRM_CONTACT]:      confirmContact,
-  [UPDATE_DATA]:          updateData,
+  [REQ_UPDATE_LINKED]:     processUpdateLinkedRequest,
+  [CONFIRM_UPDATE_LINKED]: confirmUpdateLinked,
+  [LINK_GROUPS]:           linkGroups,
+  [ADD_PARENT]:            addParent,
+  [NEW_GROUP]:             addNewGroup,
+  [DELETE_SELF]:           deleteDevice,
+  [DELETE_GROUP]:          deleteGroup,
+  [REQ_CONTACT]:           processRequestContact,
+  [CONFIRM_CONTACT]:       confirmContact,
+  [UPDATE_DATA]:           updateData,
 };
 
 export { GROUP_KEY_PREFIX as groupPrefix };
@@ -61,9 +65,7 @@ let defaultValidateCallback = (payload) => {
 };
 let validateCallback = defaultValidateCallback;
 
-let storagePrefixes = {
-  [GROUP]: 0,
-};
+let storagePrefixes = [GROUP];
 
 function makeGroup(fieldNames) {
   fieldNames = fieldNames.split(' ');
@@ -124,8 +126,7 @@ export function init(ip, port, config) {
   }
   if (config.storagePrefixes) {
     config.storagePrefixes.forEach((prefix) => {
-      // init ID counter for each prefix space
-      storagePrefixes[prefix] = 0;
+      storagePrefixes.push(prefix);
     });
   }
 }
@@ -352,11 +353,9 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
     // construct message that asks dstPubkey's corresponding device to
     // link this device
     sendMessage([dstPubkey], {
-      msgType: REQ_UPDATE_GROUP,
-      subgroupRoots: [LINKED, CONTACTS],
-      parentID: LINKED,
-      childID: pubkey,
-      childValue: getGroup(pubkey),
+      msgType: REQ_UPDATE_LINKED,
+      newID: pubkey,
+      newValue: getGroup(pubkey),
     });
     return pubkey;
   }
@@ -373,60 +372,66 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
  * current device's linked group, and send the requesting device the list of 
  * and group information of any existing devices (including the current one).
  *
- * TODO send other data from this device (e.g. app data).
+ * TODO send other data from this device (e.g. app data)? Would be useful for 
+ * backups.
  *
- * @param {string} parentID ID of group to update
- * @param {string} childID ID of new group
- * @param {Obejct} childValue value of new group
+ * @param {string} newID ID of new group
+ * @param {Obejct} newValue value of new group
  *
  * @private
  */
-function processUpdateGroupRequest({ subgroupRoots, parentID, childID, childValue }) {
-  if (confirm(`Authenticate new ${parentID} member?\n\tName: ${childID}`)) {
-    // get subtree structure of parentID to send to new member childID
-    let existingSubgroups = getAllSubgroups(subgroupRoots);
+function processUpdateLinkedRequest({ newID, newValue }) {
+  if (confirm(`Authenticate new LINKED group member?\n\tName: ${newID}`)) {
+    // get subtree structure of LINKED to send to new member device
+    let existingSubgroups = getAllSubgroups([LINKED, CONTACTS]);
 
-    // get list of devices that need to be notified of this group update
-    // (deduplicating the current device)
+    // get rest of linked pubkeys to update
     let pubkey = getPubkey();
-    let existingGroupPubkeys = resolveIDs([parentID]).filter((x) => x != pubkey);
+    let restLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
 
-    // add new member group and point parent to parentID
-    setGroup(childID, childValue);
-    // point parent of new member group to parentID
-    addParent(childID, parentID);
-    // add childID to parentID's children list
-    let newParent = addChild(parentID, childID);
+    /* UPDATE OLD SELF */
 
-    // notify old devices of updated group
-    sendMessage(existingGroupPubkeys, {
-      msgType: UPDATE_GROUP,
-      parentID: parentID,
-      childID: childID,
-      childValue: childValue,
+    // update groups locally
+    addNewGroup({ id: newID, value: newValue });
+    let newLinked = linkGroups({ parentID: LINKED, childID: newID });
+
+    // update groups remotely
+    sendMessage(restLinkedPubkeys, {
+      msgType: NEW_GROUP,
+      id: newID,
+      value: newValue,
+    });
+    sendMessage(restLinkedPubkeys, {
+      msgType: LINK_GROUPS,
+      parentID: LINKED,
+      childID: newID,
     });
 
-    // FIXME hard-coded CONTACTS notification
-    // remove parent LINKED pointer for contacts
-    let newChildValue = {
-       ...childValue,
-       parents: childValue.parents.filter((x) => x != LINKED),
-    };
-    sendMessage(resolveIDs([CONTACTS]), {
-      msgType: UPDATE_GROUP,
-      parentID: getGroup(LINKED).name,
-      childID: childID,
-      childValue: newChildValue,
-    });
+    /* UPDATE NEW SELF */
 
-    // notify new group member of the group they were successfully added to
-    // and pass along existing group information
-    sendMessage(resolveIDs([childID]), {
-      msgType: CONFIRM_UPDATE_GROUP,
-      parentID: parentID,
-      newParent: newParent,
-      childID: childID,
+    // notify new group member successful link and piggyback existing group info
+    sendMessage(resolveIDs([newID]), {
+      msgType: CONFIRM_UPDATE_LINKED,
+      newLinked: newLinked,
       existingSubgroups: existingSubgroups,
+    });
+
+    /* UPDATE OTHER */
+
+    // notify contacts, replacing LINKED pointer with "linked name"
+    let contactPubkeys = resolveIDs([CONTACTS]);
+    sendMessage(contactPubkeys, {
+      msgType: NEW_GROUP,
+      id: newID,
+      value: {
+        ...newValue,
+        parents: newValue.parents.filter((x) => x != LINKED),
+      },
+    });
+    sendMessage(contactPubkeys, {
+      msgType: LINK_GROUPS,
+      parentID: getGroup(LINKED).name,
+      childID: newID,
     });
   }
 }
@@ -437,36 +442,32 @@ function processUpdateGroupRequest({ subgroupRoots, parentID, childID, childValu
  *
  * TODO also process any other data sent from the device being linked with.
  *
- * @param {string} parentID ID of group to update
- * @param {Object} newParent value of group to update
- * @param {string} childID ID of new group
+ * @param {Object} newLinked new value of LINKED group
  * @param {Object[]} existingSubgroups existing groups on linked device
  *
  * @private
  */
-function confirmUpdateGroup({ parentID, newParent, childID, existingSubgroups }) {
+function confirmUpdateLinked({ newLinked, existingSubgroups }) {
   existingSubgroups.forEach(({ ID, group }) => {
     setGroup(ID, group);
   });
-  setGroup(parentID, newParent);
-  addParent(childID, parentID);
+  setGroup(LINKED, newLinked);
+  //addParent({ groupID: newID, parentID: LINKED });
   onAuth();
 }
 
 /**
- * Updates linked group info and adds new device group when a new device was 
- * successfully linked with another device in linked group.
+ * Links parentID with childID by updating their childrens and parents lists,
+ * respectively.
  *
  * @param {string} parentID ID of group to update
  * @param {string} childID ID of new group
- * @param {Object} childValue value of new group
  *
  * @private
  */
-function updateGroup({ parentID, childID, childValue }) {
-  setGroup(childID, childValue);
-  addParent(childID, parentID);
-  addChild(parentID, childID);
+function linkGroups({ parentID, childID }) {
+  addParent({ groupID: childID, parentID: parentID });
+  return addChild(parentID, childID);
 }
 
 /**
@@ -477,8 +478,8 @@ function updateGroup({ parentID, childID, childValue }) {
  * 
  * @private
  */
-function addGroup({ ID, value }) {
-  setGroup(ID, value);
+function addNewGroup({ id, value }) {
+  setGroup(id, value);
 }
 
 /*
@@ -562,32 +563,36 @@ function getContactName(contactGroups) {
  */
 function parseContactInfo(contactName, contactGroups) {
   let pubkey = getPubkey();
-  let linkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
+  let restLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
 
   contactGroups.forEach((contactGroup) => {
     if (contactGroup.ID === LINKED) {
-      updateGroup({
+      // update groups locally
+      addNewGroup({ id: contactName, value: contactGroup.group });
+      linkGroups({
         parentID: CONTACTS,
         childID: contactName,
-        childValue: contactGroup.group
       });
-      // notify linked devices of updated CONTACTS group
-      sendMessage(linkedPubkeys, {
-        msgType: UPDATE_GROUP,
+      // notify remaining linked devices of updated CONTACTS group
+      sendMessage(restLinkedPubkeys, {
+        msgType: NEW_GROUP,
+        id: contactName,
+        value: contactGroup.group,
+      });
+      sendMessage(restLinkedPubkeys, {
+        msgType: LINK_GROUPS,
         parentID: CONTACTS,
         childID: contactName,
-        childValue: contactGroup.group,
       });
     } else {
-      // modify the parents list of the new contact to point to
-      // contactName instead of LINKED
+      // replace backpointer to LINKED group with backpointer to contactName
       setGroup(contactGroup.ID, contactGroup.group);
       removeParent(contactGroup.ID, LINKED);
       // notify linked devices of new contact subgroups
-      sendMessage(linkedPubkeys, {
-        msgType: ADD_GROUP,
-        ID: contactGroup.ID,
-        value: addParent(contactGroup.ID, contactName),
+      sendMessage(restLinkedPubkeys, {
+        msgType: NEW_GROUP,
+        id: contactGroup.ID,
+        value: addParent({ groupID: contactGroup.ID, parentID: contactName }),
       });
     }
   });
@@ -616,12 +621,12 @@ export function getContacts() {
 
 /**
  * Get pending contacts.
- * TODO implement pending list, currently returns confirmed contacts.
+ * TODO implement pending list.
  *
  * @returns {string[]}
  */
 export function getPendingContacts() {
-  return getChildren(CONTACTS);
+  return [];
 }
 
 /*
@@ -841,7 +846,7 @@ function getParents(groupID) {
  *
  * @private
  */
-function addParent(groupID, parentID) {
+function addParent({ groupID, parentID }) {
   return updateParents(groupID, parentID, (parentID, newParents) => {
     // deduplicate: only add parentID if doesn't already exist in list
     if (newParents.indexOf(parentID) === -1) newParents.push(parentID);
@@ -959,21 +964,9 @@ function getDataKey(prefix, id) {
   return DATA + SLASH + prefix + SLASH + id + SLASH;
 }
 
-/**
- * Returns id counter value for specified prefix space and increments
- * it by one.
- * TODO use for groups.
- *
- * @params {string} prefix prefix denoting prefix-space of id counter
- * @returns {number}
- *
- * @private
- */
-function getNextPrefixID(prefix) {
-  let id = storagePrefixes[prefix];
-  // increment counter
-  storagePrefixes[prefix] = id + 1;
-  return id;
+// TODO doc
+function getDataPrefix(prefix) {
+  return DATA + SLASH + prefix + SLASH;
 }
 
 /**
@@ -983,17 +976,15 @@ function getNextPrefixID(prefix) {
  *
  * @params {string} prefix prefix name
  * @params {Object} data app-specific data object
+ * @params {string} id app-specific object id
  */
-export function setData(prefix, data) {
-  let key = getDataKey(prefix, getNextPrefixID(prefix));
+export function setData(prefix, id, data) {
+  let key = getDataKey(prefix, id);
   let value = {
     groupID: LINKED,
     data: data,
   };
-  updateData({
-    key: key,
-    value: value,
-  });
+  db.set(key, value);
   // send to other devices in groupID
   sendMessage(resolveIDs([LINKED]), {
     msgType: UPDATE_DATA,
@@ -1001,6 +992,34 @@ export function setData(prefix, data) {
     value: value,
   });
 }
+
+// TODO doc
+
+// TODO pros/cons of maximum only allowing one prefix at a time?
+// if have to call this func for every prefix, thats a lot of iterations
+// (or is it?)
+export function getData(prefix, id = null) {
+  if (id === null) {
+    // get all data within prefix
+    let results = [];
+    let intermediate = db.getMany(getDataPrefix(prefix));
+    intermediate.forEach(({ key, value }) => {
+      results.push({
+        id: key.split(SLASH)[2],
+        data: value.data,
+      });
+    });
+    return results;
+  } else {
+    // get single data item
+    return db.get(getDataKey(prefix, id))?.data ?? null;
+  }
+}
+
+// need app-specific ID if app wants to be able to name/address data (and thus 
+// share it or delete it). Maybe can also expose frida IDs if app wants to use
+// them? But this may require more change than necessary on developer-side
+//export function removeData(prefix, id) {}
 
 /**
  * Stores data value at data key (where data value has group information).
@@ -1012,6 +1031,53 @@ export function setData(prefix, data) {
  */
 function updateData({ key, value }) {
   db.set(key, value);
+}
+
+// TODO move up
+export function updateGroups(prefix, id, groupID) {
+  if (getGroup(groupID) === null) {
+    return;
+  }
+
+  let curGroup = db.get(getDataKey(prefix, id))?.groupID ?? null;
+  if (curGroup !== null) {
+    console.log(curGroup);
+    let newGroupID = crypto.randomUUID();
+    createGroup(newGroupID, null, [], [curGroup, groupID]);
+    addParent({ groupID: curGroup, parentID: newGroupID });
+    addParent({ groupID: groupID, parentID: newGroupID });
+    let newGroupValue = getGroup(newGroupID);
+    
+    /* UPDATE SELF */
+    let restExistingPubkeys = resolveIDs([curGroup]);
+    sendMessage(restExistingPubkeys, {
+      msgType: NEW_GROUP,
+      id: newGroupID,
+      value: newGroupValue,
+    });
+    sendMessage(restExistingPubkeys, {
+      msgType: ADD_PARENT,
+      groupID: curGroup,
+      parentID: newGroupID,
+    });
+    sendMessage(restExistingPubkeys, {
+      msgType: ADD_PARENT,
+      groupID: groupID,
+      parentID: newGroupID,
+    });
+
+    /* UPDATE OTHER */
+    if (curGroup === LINKED) {
+      curGroup = getGroup(LINKED).name;
+    }
+    let newMemberPubkeys = resolveIDs([groupID]);
+    sendMessage(newMemberPubkeys, {
+      msgType: NEW_GROUP,
+      id: newGroupID,
+      value: newGroupValue,
+    });
+    // TODO can't just add parents, don't know what groups exist on other devices
+  }
 }
 
 /*

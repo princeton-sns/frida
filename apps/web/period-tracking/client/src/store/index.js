@@ -44,20 +44,30 @@ const store = createStore({
     devices: frida.getLinkedDevices(),
     friends: frida.getContacts(),
     pendingFriends: frida.getPendingContacts(),
+    symptoms: frida.getData(symptomPrefix),
+    period: frida.getData(periodPrefix),
   },
   mutations: {
     /* App-specific mutations */
-    ADD_SYMPTOMS(state, { timestamp, symptoms }) {
-      frida.setData(symptomPrefix, {
+    ADD_SYMPTOMS(state, { timestamp, symptoms, id }) {
+      frida.setData(symptomPrefix, id, {
         timestamp: timestamp,
         symptoms: symptoms,
       });
     },
-    ADD_PERIOD(state, { timestamp, period }) {
-      frida.setData(periodPrefix, {
+    ADD_PERIOD(state, { timestamp, period, id }) {
+      frida.setData(periodPrefix, id, {
         timestamp: timestamp,
         period: period,
       });
+    },
+    SHARE_SYMPTOMS(state, { id, friendName }) {
+      // FIXME API name
+      frida.updateGroups(symptomPrefix, id, friendName);
+    },
+    SHARE_PERIOD(state, { id, friendName }) {
+      // FIXME API name
+      frida.updateGroups(periodPrefix, id, friendName);
     },
     ADD_FRIEND(state, { pubkey }) {
       frida.addContact(pubkey);

@@ -368,6 +368,13 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
   }
 }
 
+/**
+ * Randomly generates a new group ID.
+ *
+ * @returns {string}
+ *
+ * @private
+ */
 function getNewGroupID() {
   return crypto.randomUUID();
 }
@@ -386,9 +393,9 @@ function getNewGroupID() {
  * TODO send other data from this device (e.g. app data)? Would be useful for 
  * backups.
  *
- * @param {string} newID ID of new group
- * @param {Obejct} newValue value of new group
- * TODO fix ^
+ * @param {string} tempName temporary name of device requesting to link
+ * @param {string} srcPubkey pubkey of device requesting to link
+ * @param {Object[]} newLinkedMembers linked subgroups of device requesting to link
  *
  * @private
  */
@@ -520,22 +527,10 @@ function linkGroups({ parentID, childID }) {
   return addChild(parentID, childID);
 }
 
-/*
- * Adds a new group to this device.
- *
- * @param {string} ID group ID
- * @param {Object} value group value
- * 
- * @private
- */
-//function addNewGroup({ id, value }) {
-//  setGroup(id, value);
-//}
-
 /**
  * Updates group with new value.
  *
- * @param {string} ID group ID
+ * @param {string} id group ID
  * @param {Object} value group value
  * 
  * @private
@@ -571,6 +566,7 @@ export function addContact(contactPubkey) {
  * and stores the requesting party's contact info and sends back own 
  * contact info.
  *
+ * @param {string} reqContactName requesting party's linked name
  * @param {Object[]} reqContactGroups list of requesting party's linked subgroups
  *
  * @private
@@ -590,6 +586,7 @@ function processRequestContact({ reqContactName, reqContactGroups }) {
 /**
  * Processes and stores the requested contact info.
  *
+ * @param {string} contactName linked name of requested contact
  * @param {Object[]} contactGroups linked group information of requested contact
  *
  * @private
@@ -981,6 +978,13 @@ export function getLinkedDevices() {
   return resolveIDs([LINKED]);
 }
 
+/**
+ * Get linked name.
+ *
+ * @returns {string}
+ *
+ * @private
+ */
 function getLinkedName() {
   return getGroup(LINKED).name;
 }
@@ -1004,7 +1008,14 @@ function getDataKey(prefix, id) {
   return DATA + SLASH + prefix + SLASH + id + SLASH;
 }
 
-// TODO doc
+/**
+ * Get partial storage key for a particular data prefix.
+ *
+ * @param {string} prefix key prefix (app-specific)
+ * @returns {string}
+ *
+ * @private
+ */
 function getDataPrefix(prefix) {
   return DATA + SLASH + prefix + SLASH;
 }
@@ -1033,11 +1044,16 @@ export function setData(prefix, id, data) {
   });
 }
 
-// TODO doc
-
-// TODO pros/cons of maximum only allowing one prefix at a time?
-// if have to call this func for every prefix, thats a lot of iterations
-// (or is it?)
+/**
+ * If only prefix is specified, gets a list of data objects whose keys begin
+ * with that prefix, otherwise get a single data object.
+ * TODO consider pros/cons of only processing one prefix at a time
+ * (efficiency in cases where want data from more than one prefix).
+ *
+ * @params {string} prefix data prefix
+ * @params {?string} id app-specific object id
+ * @returns {Object|Object[]|null}
+ */
 export function getData(prefix, id = null) {
   if (id === null) {
     // get all data within prefix

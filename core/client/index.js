@@ -30,7 +30,7 @@ const REQ_UPDATE_LINKED     = "requestUpdateLinked";
 const CONFIRM_UPDATE_LINKED = "confirmUpdateLinked";
 const LINK_GROUPS           = "linkGroups";
 const ADD_PARENT            = "addParent";
-const NEW_GROUP             = "addNewGroup";
+const UPDATE_GROUP          = "updateGroup";
 const DELETE_SELF           = "deleteSelf";
 const DELETE_GROUP          = "deleteGroup";
 const REQ_CONTACT           = "requestContact";
@@ -43,7 +43,7 @@ const demuxMap = {
   [CONFIRM_UPDATE_LINKED]: confirmUpdateLinked,
   [LINK_GROUPS]:           linkGroups,
   [ADD_PARENT]:            addParent,
-  [NEW_GROUP]:             addNewGroup,
+  [UPDATE_GROUP]:          updateGroup,
   [DELETE_SELF]:           deleteDevice,
   [DELETE_GROUP]:          deleteGroup,
   [REQ_CONTACT]:           processRequestContact,
@@ -84,7 +84,7 @@ const Group = makeGroup("name parents children");
 
 /* DB listener plugin */
 
-function createFridaDBListenerPlugin() {
+function createDBListenerPlugin() {
   return () => {
     window.addEventListener("storage", (e) => {
       if (e.key === null) {
@@ -96,7 +96,7 @@ function createFridaDBListenerPlugin() {
   };
 }
 
-export { createFridaDBListenerPlugin as dbListenerPlugin };
+export { createDBListenerPlugin as dbListenerPlugin };
 
 /*
  *********************
@@ -303,28 +303,33 @@ function isKey(group) {
  * Initializes a new device with a keypair and adds the public key to the
  * server.
  *
- * @param {string[]} parents parent groups of this new device
  * @param {?string} linkedName human-readable name (for contacts)
  * @param {?string} deviceName human-readable name (for self)
  * @returns {string}
  *
  * @private
  */
-function initDevice(parents, linkedName = null, deviceName = null) {
+function initDevice(linkedName = null, deviceName = null) {
   let { pubkey, privkey } = c.generateKeypair();
   setPubkey(pubkey);
   setPrivkey(privkey);
   sc.addDevice(pubkey);
   connectDevice(pubkey);
 
-  createKey(pubkey, deviceName, parents);
-  createGroup(CONTACTS, null, [], []);
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {
     linkedName = crypto.randomUUID();
   }
-  createGroup(LINKED, linkedName, [], [pubkey]);
-  return pubkey;
+  createGroup(LINKED, linkedName, [], [linkedName]);
+  createGroup(linkedName, null, [LINKED], [pubkey]);
+  createKey(pubkey, deviceName, [linkedName]);
+
+  createGroup(CONTACTS, null, [], []);
+
+  return {
+    pubkey: pubkey,
+    linkedName: linkedName,
+  };
 }
 
 /**
@@ -335,7 +340,7 @@ function initDevice(parents, linkedName = null, deviceName = null) {
  * @returns {string}
  */
 export function createDevice(linkedName = null, deviceName = null) {
-  let pubkey = initDevice([LINKED], linkedName, deviceName);
+  let { pubkey } = initDevice(linkedName, deviceName);
   onAuth();
   return pubkey;
 }
@@ -349,16 +354,22 @@ export function createDevice(linkedName = null, deviceName = null) {
  */
 export function createLinkedDevice(dstPubkey, deviceName = null) {
   if (dstPubkey !== null) {
-    let pubkey = initDevice([LINKED], null, deviceName);
-    // construct message that asks dstPubkey's corresponding device to
-    // link this device
+    let { pubkey, linkedName } = initDevice(null, deviceName);
+    let linkedMembers = getAllSubgroups([linkedName]);
+    console.log(linkedMembers);
+    // construct message that asks dstPubkey's device to link this device
     sendMessage([dstPubkey], {
       msgType: REQ_UPDATE_LINKED,
-      newID: pubkey,
-      newValue: getGroup(pubkey),
+      tempName: linkedName,
+      srcPubkey: pubkey,
+      newLinkedMembers: linkedMembers,
     });
     return pubkey;
   }
+}
+
+function getNewGroupID() {
+  return crypto.randomUUID();
 }
 
 /*
@@ -377,61 +388,103 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
  *
  * @param {string} newID ID of new group
  * @param {Obejct} newValue value of new group
+ * TODO fix ^
  *
  * @private
  */
-function processUpdateLinkedRequest({ newID, newValue }) {
-  if (confirm(`Authenticate new LINKED group member?\n\tName: ${newID}`)) {
-    // get subtree structure of LINKED to send to new member device
-    let existingSubgroups = getAllSubgroups([LINKED, CONTACTS]);
-
+function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
+  if (confirm(`Authenticate new LINKED group member?\n\tName: ${tempName}`)) {
     // get rest of linked pubkeys to update
     let pubkey = getPubkey();
     let restLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
+    let linkedName = getLinkedName();
 
     /* UPDATE OLD SELF */
 
-    // update groups locally
-    addNewGroup({ id: newID, value: newValue });
-    let newLinked = linkGroups({ parentID: LINKED, childID: newID });
-
-    // update groups remotely
-    sendMessage(restLinkedPubkeys, {
-      msgType: NEW_GROUP,
-      id: newID,
-      value: newValue,
+    // replace all occurrences of tempName with linkedName
+    let updatedNewLinkedMembers = [];
+    newLinkedMembers.forEach((newGroup) => {
+      if (newGroup.id === tempName) {
+        updatedNewLinkedMembers.push({
+          ...newGroup,
+          id: linkedName,
+        });
+      } else if (newGroup.value.parents.includes(tempName)) {
+        let updatedParents = newGroup.value.parents.filter((x) => x != tempName);
+        updatedParents.push(linkedName);
+        updatedNewLinkedMembers.push({
+          ...newGroup,
+          value: {
+            ...newGroup.value,
+            parents: updatedParents,
+          },
+        });
+      } else if (newGroup.value.children.includes(tempName)) {
+        let updatedChildren = newGroup.value.children.filter((x) => x != tempName);
+        updatedChildren.push(linkedName);
+        updatedNewLinkedMembers.push({
+          ...newGroup,
+          value: {
+            ...newGroup.value,
+            children: updatedChildren,
+          },
+        });
+      } else {
+        updatedNewLinkedMembers.push(newGroup);
+      }
     });
-    sendMessage(restLinkedPubkeys, {
-      msgType: LINK_GROUPS,
-      parentID: LINKED,
-      childID: newID,
+
+    updatedNewLinkedMembers.forEach((newGroup) => {
+      // FIXME assuming this group ID == linkedName (originally tempName)
+      // when would this be false??
+      if (newGroup.value.parents.includes(LINKED)) {
+        // merge with existing linkedName group
+        let nonLinkedParents = newGroup.value.parents.filter((x) => x != LINKED);
+        nonLinkedParents.forEach((nonLinkedParent) => {
+          addParent({ groupID: linkedName, parentID: nonLinkedParent });
+        });
+        newGroup.value.children.forEach((child) => {
+          addChild(linkedName, child);
+        });
+        sendMessage(restLinkedPubkeys, {
+          msgType: UPDATE_GROUP,
+          id: linkedName,
+          value: getGroup(linkedName),
+        });
+      } else {
+        updateGroup({ id: newGroup.id, value: newGroup.value });
+        sendMessage(restLinkedPubkeys, {
+          msgType: UPDATE_GROUP,
+          id: newGroup.id,
+          value: newGroup.value,
+        });
+      }
     });
 
     /* UPDATE NEW SELF */
 
     // notify new group member successful link and piggyback existing group info
-    sendMessage(resolveIDs([newID]), {
+    sendMessage([srcPubkey], {
+      msgType: DELETE_GROUP,
+      groupID: tempName,
+    });
+    sendMessage([srcPubkey], {
       msgType: CONFIRM_UPDATE_LINKED,
-      newLinked: newLinked,
-      existingSubgroups: existingSubgroups,
+      existingSubgroups: getAllSubgroups([LINKED, CONTACTS]),
     });
 
     /* UPDATE OTHER */
 
-    // notify contacts, replacing LINKED pointer with "linked name"
+    // notify contacts
     let contactPubkeys = resolveIDs([CONTACTS]);
-    sendMessage(contactPubkeys, {
-      msgType: NEW_GROUP,
-      id: newID,
-      value: {
-        ...newValue,
-        parents: newValue.parents.filter((x) => x != LINKED),
-      },
-    });
-    sendMessage(contactPubkeys, {
-      msgType: LINK_GROUPS,
-      parentID: getGroup(LINKED).name,
-      childID: newID,
+    // FIXME inefficient, calling this function twice
+    let contactGroups = getAllSubgroups([linkedName]);
+    contactGroups.forEach((contactGroup) => {
+      sendMessage(contactPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: contactGroup.id,
+        value: contactGroup.value,
+      });
     });
   }
 }
@@ -442,17 +495,14 @@ function processUpdateLinkedRequest({ newID, newValue }) {
  *
  * TODO also process any other data sent from the device being linked with.
  *
- * @param {Object} newLinked new value of LINKED group
  * @param {Object[]} existingSubgroups existing groups on linked device
  *
  * @private
  */
-function confirmUpdateLinked({ newLinked, existingSubgroups }) {
-  existingSubgroups.forEach(({ ID, group }) => {
-    setGroup(ID, group);
+function confirmUpdateLinked({ existingSubgroups }) {
+  existingSubgroups.forEach(({ id, value }) => {
+    setGroup(id, value);
   });
-  setGroup(LINKED, newLinked);
-  //addParent({ groupID: newID, parentID: LINKED });
   onAuth();
 }
 
@@ -470,7 +520,7 @@ function linkGroups({ parentID, childID }) {
   return addChild(parentID, childID);
 }
 
-/**
+/*
  * Adds a new group to this device.
  *
  * @param {string} ID group ID
@@ -478,7 +528,19 @@ function linkGroups({ parentID, childID }) {
  * 
  * @private
  */
-function addNewGroup({ id, value }) {
+//function addNewGroup({ id, value }) {
+//  setGroup(id, value);
+//}
+
+/**
+ * Updates group with new value.
+ *
+ * @param {string} ID group ID
+ * @param {Object} value group value
+ * 
+ * @private
+ */
+function updateGroup({ id, value }) {
   setGroup(id, value);
 }
 
@@ -496,9 +558,11 @@ function addNewGroup({ id, value }) {
  */
 export function addContact(contactPubkey) {
   // piggyback own contact info when requesting others contact info
+  let linkedName = getLinkedName();
   sendMessage([contactPubkey], {
     msgType: REQ_CONTACT,
-    reqContactGroups: getAllSubgroups([LINKED]),
+    reqContactName: linkedName,
+    reqContactGroups: getAllSubgroups([linkedName]),
   });
 }
 
@@ -511,13 +575,14 @@ export function addContact(contactPubkey) {
  *
  * @private
  */
-function processRequestContact({ reqContactGroups }) {
-  let contactName = getContactName(reqContactGroups);
-  if (confirm(`Add new contact: ${contactName}?`)) {
-    parseContactInfo(contactName, reqContactGroups);
-    sendMessage(resolveIDs([contactName]), {
+function processRequestContact({ reqContactName, reqContactGroups }) {
+  if (confirm(`Add new contact: ${reqContactName}?`)) {
+    parseContactInfo(reqContactName, reqContactGroups);
+    let linkedName = getLinkedName();
+    sendMessage(resolveIDs([reqContactName]), {
       msgType: CONFIRM_CONTACT,
-      contactGroups: getAllSubgroups([LINKED]),
+      contactName: linkedName,
+      contactGroups: getAllSubgroups([linkedName]),
     });
   }
 }
@@ -529,27 +594,8 @@ function processRequestContact({ reqContactGroups }) {
  *
  * @private
  */
-function confirmContact({ contactGroups }) {
-  parseContactInfo(getContactName(contactGroups), contactGroups);
-}
-
-/**
- * Gets the linked name of the supplied contact information.
- *
- * @param {Object[]} contactGroups linked group information of contact
- * @returns {string}
- *
- * @private
- */
-function getContactName(contactGroups) {
-  let contactName;
-  contactGroups.forEach((contactGroup) => {
-    if (contactGroup.ID === LINKED) {
-      contactName = contactGroup.group.name !== null ? contactGroup.group.name : crypto.randomUUID();
-      return;
-    }
-  });
-  return contactName;
+function confirmContact({ contactName, contactGroups }) {
+  parseContactInfo(contactName, contactGroups);
 }
 
 /**
@@ -566,35 +612,25 @@ function parseContactInfo(contactName, contactGroups) {
   let restLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
 
   contactGroups.forEach((contactGroup) => {
-    if (contactGroup.ID === LINKED) {
-      // update groups locally
-      addNewGroup({ id: contactName, value: contactGroup.group });
-      linkGroups({
-        parentID: CONTACTS,
-        childID: contactName,
-      });
-      // notify remaining linked devices of updated CONTACTS group
-      sendMessage(restLinkedPubkeys, {
-        msgType: NEW_GROUP,
-        id: contactName,
-        value: contactGroup.group,
-      });
-      sendMessage(restLinkedPubkeys, {
-        msgType: LINK_GROUPS,
-        parentID: CONTACTS,
-        childID: contactName,
-      });
-    } else {
-      // replace backpointer to LINKED group with backpointer to contactName
-      setGroup(contactGroup.ID, contactGroup.group);
-      removeParent(contactGroup.ID, LINKED);
-      // notify linked devices of new contact subgroups
-      sendMessage(restLinkedPubkeys, {
-        msgType: NEW_GROUP,
-        id: contactGroup.ID,
-        value: addParent({ groupID: contactGroup.ID, parentID: contactName }),
-      });
-    }
+    updateGroup({
+      id: contactGroup.id,
+      value: contactGroup.value,
+    });
+    sendMessage(restLinkedPubkeys, {
+      msgType: UPDATE_GROUP,
+      id: contactGroup.id,
+      value: contactGroup.value,
+    });
+  });
+
+  linkGroups({
+    parentID: CONTACTS,
+    childID: contactName,
+  });
+  sendMessage(restLinkedPubkeys, {
+    msgType: LINK_GROUPS,
+    parentID: CONTACTS,
+    childID: contactName,
   });
 }
 
@@ -761,8 +797,8 @@ function getAllSubgroups(groupIDs) {
     let group = getGroup(groupID);
     if (group !== null) {
       groups.push({
-        ID: groupID,
-        group: group,
+        id: groupID,
+        value: group,
       });
       if (group.children !== undefined) {
         groups = groups.concat(getAllSubgroups(group.children));
@@ -945,6 +981,10 @@ export function getLinkedDevices() {
   return resolveIDs([LINKED]);
 }
 
+function getLinkedName() {
+  return getGroup(LINKED).name;
+}
+
 /*
  ************
  * Data API *
@@ -1042,7 +1082,7 @@ export function updateGroups(prefix, id, groupID) {
   let curGroup = db.get(getDataKey(prefix, id))?.groupID ?? null;
   if (curGroup !== null) {
     console.log(curGroup);
-    let newGroupID = crypto.randomUUID();
+    let newGroupID = getNewGroupID();
     createGroup(newGroupID, null, [], [curGroup, groupID]);
     addParent({ groupID: curGroup, parentID: newGroupID });
     addParent({ groupID: groupID, parentID: newGroupID });
@@ -1051,7 +1091,7 @@ export function updateGroups(prefix, id, groupID) {
     /* UPDATE SELF */
     let restExistingPubkeys = resolveIDs([curGroup]);
     sendMessage(restExistingPubkeys, {
-      msgType: NEW_GROUP,
+      msgType: UPDATE_GROUP,
       id: newGroupID,
       value: newGroupValue,
     });
@@ -1068,11 +1108,11 @@ export function updateGroups(prefix, id, groupID) {
 
     /* UPDATE OTHER */
     if (curGroup === LINKED) {
-      curGroup = getGroup(LINKED).name;
+      curGroup = getLinkedName();
     }
     let newMemberPubkeys = resolveIDs([groupID]);
     sendMessage(newMemberPubkeys, {
-      msgType: NEW_GROUP,
+      msgType: UPDATE_GROUP,
       id: newGroupID,
       value: newGroupValue,
     });

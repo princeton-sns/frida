@@ -1,16 +1,84 @@
 \section{Design}
 
-\begin{itemize}
-    \item sec overview
-    \item the \name{} client library
-        \begin{itemize}
-        \item functionality: sharing and encryption
-        \item data types \& invariants
-        \item groups-device groups, social groups
-        \end{itemize}
-    \item the \name{} server
-    \item \name{} applications
-\end{itemize}
+\todo{
+    \begin{itemize}
+        \item sec overview
+        \item the \name{} client library
+            \begin{itemize}
+            \item functionality: sharing and encryption
+            \item data types \& invariants
+            \item groups-device groups, social groups
+            \end{itemize}
+        \item the \name{} server
+        \item \name{} applications
+    \end{itemize}
+}
 
 
-\name{} enables developers to easily build secure applications. 
+
+\name{} enables developers to easily build secure applications. It does
+so by exposing a simple interface that handles interactions with the
+application data store and with other clients. All application data is 
+stored in on-device local storage, and all cross-client communication is \
+encrypted. Thus, no private information is exposed or persisted on a 
+central server or database, ensuring user privacy. 
+
+The two main components of the \name{} architecture are the 
+\textit{client library} and the \textit{\name{} server}. All \name{} 
+applications utilize the library's exposed functions to enable 
+off-device communication and consistency for any shared data. The server
+facilitates communication across clients while enforcing a global order 
+on messages, and is application-agnostic, meaning it does not need to be 
+modified by application developers and service multiple applications 
+simultaneously. 
+
+\subsection{Client-side Library}
+\dots application developers get cross-client communication "for free",
+something about local data store, etc \dots
+
+\parlabel{Data}
+The \name{} client-side library facilitates application interactions with
+a local storage mechanism, e.g. localStorage in browsers, sqlite on 
+smartphones. Applications read and write to storage as usual, but or 
+any shared data, the library will track the change and propagate them to
+other clients. Likewise, any remote changes recieved from other clients
+will be applied automatically by the library.
+
+Fascilitating interactions with the underlying data storage mechanism
+allows \name{} applications to check data invariants before applying 
+changes.
+\todo{maybe in impl -> what is the interface for defining data invariants}
+  
+
+\parlabel{Groups}
+All data object are associated with a \textit{group} defining access 
+permissions for the specific data object. A group is a list of pointers 
+to any combination of other groups, user groups, devices. Any group
+can be recursively enumerated to a list of destination clients. 
+\todo{talk about data structure a little more}
+
+\parlabel{Sharing}
+When a change to any data object is initiated on a client, the client
+then enumerates a list of all clients the change must be propagated to
+based on the group assocuated with the data object.
+The client then encrypts the message outlining the change for each 
+destination device, and posts it to the server. The server forwards
+each encrypted message to the appropriate destination clients.
+
+Changes to the group field of an object are tracked the same way as 
+changes to any other object subfield, and propagated similarly to 
+relevant clients. Groups are treated as \name{} native data objects,
+with the group itself as the permission field.  
+
+\parlabel{Encryption}
+
+
+\subsection{Server}
+The server is responsible for forwarding messages and imposing a global 
+order on all routed messages. \dots can be achieved using a database with
+serializable transactions \dots
+
+
+
+
+

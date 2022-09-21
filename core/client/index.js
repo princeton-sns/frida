@@ -1030,14 +1030,17 @@ function getDataPrefix(prefix) {
  * @params {string} id app-specific object id
  */
 export function setData(prefix, id, data) {
-  let key = getDataKey(prefix, id);
+  setDataHelper(getDataKey(prefix, id), data, getLinkedName());
+}
+
+function setDataHelper(key, data, groupID) {
   let value = {
-    groupID: LINKED,
+    groupID: groupID,
     data: data,
   };
   db.set(key, value);
   // send to other devices in groupID
-  sendMessage(resolveIDs([LINKED]), {
+  sendMessage(resolveIDs([groupID]), {
     msgType: UPDATE_DATA,
     key: key,
     value: value,
@@ -1072,10 +1075,15 @@ export function getData(prefix, id = null) {
   }
 }
 
-// need app-specific ID if app wants to be able to name/address data (and thus 
-// share it or delete it). Maybe can also expose frida IDs if app wants to use
-// them? But this may require more change than necessary on developer-side
-//export function removeData(prefix, id) {}
+/**
+ * Removes the datum with prefix and id.
+ *
+ * @params {string} prefix data prefix
+ * @params {string} id data id (app-specific)
+ */
+export function removeData(prefix, id) {
+  db.remove(getDataKey(prefix, id));
+}
 
 /**
  * Stores data value at data key (where data value has group information).
@@ -1090,49 +1098,43 @@ function updateData({ key, value }) {
 }
 
 // TODO move up
-export function updateGroups(prefix, id, groupID) {
-  if (getGroup(groupID) === null) {
+export function shareData(prefix, id, toShareGroupID) {
+  if (getGroup(toShareGroupID) === null) {
     return;
   }
 
-  let curGroup = db.get(getDataKey(prefix, id))?.groupID ?? null;
-  if (curGroup !== null) {
-    console.log(curGroup);
+  let key = getDataKey(prefix, id);
+  let value = db.get(key);
+  let curGroupID = value?.groupID ?? null;
+  if (curGroupID !== null) {
     let newGroupID = getNewGroupID();
-    createGroup(newGroupID, null, [], [curGroup, groupID]);
-    addParent({ groupID: curGroup, parentID: newGroupID });
-    addParent({ groupID: groupID, parentID: newGroupID });
+    createGroup(newGroupID, null, [], [curGroupID, toShareGroupID]);
+    let newCurGroup = addParent({ groupID: curGroupID, parentID: newGroupID });
+    let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: newGroupID });
     let newGroupValue = getGroup(newGroupID);
     
     /* UPDATE SELF */
-    let restExistingPubkeys = resolveIDs([curGroup]);
-    sendMessage(restExistingPubkeys, {
+    let restNewMemberPubkeys = resolveIDs([curGroupID]).concat(resolveIDs([toShareGroupID]));
+    sendMessage(restNewMemberPubkeys, {
       msgType: UPDATE_GROUP,
       id: newGroupID,
       value: newGroupValue,
     });
-    sendMessage(restExistingPubkeys, {
-      msgType: ADD_PARENT,
-      groupID: curGroup,
-      parentID: newGroupID,
+    // TODO trade-off between adding parent once and sending result everywhere
+    // or modularly adding parent everywhere
+    sendMessage(restNewMemberPubkeys, {
+      msgType: UPDATE_GROUP,
+      id: curGroupID,
+      value: newCurGroup,
     });
-    sendMessage(restExistingPubkeys, {
-      msgType: ADD_PARENT,
-      groupID: groupID,
-      parentID: newGroupID,
+    sendMessage(restNewMemberPubkeys, {
+      msgType: UPDATE_GROUP,
+      id: toShareGroupID,
+      value: newToShareGroup,
     });
 
-    /* UPDATE OTHER */
-    if (curGroup === LINKED) {
-      curGroup = getLinkedName();
-    }
-    let newMemberPubkeys = resolveIDs([groupID]);
-    sendMessage(newMemberPubkeys, {
-      msgType: UPDATE_GROUP,
-      id: newGroupID,
-      value: newGroupValue,
-    });
-    // TODO can't just add parents, don't know what groups exist on other devices
+    // send actual data that group now points to
+    setDataHelper(key, value.data, newGroupID);
   }
 }
 

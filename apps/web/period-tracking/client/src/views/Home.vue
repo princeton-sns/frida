@@ -40,6 +40,7 @@
     <h3>Symptom history</h3>
     <div>
       <div v-for="symptom in oldSymptoms" :key="symptom">
+        <p class="remove" @click="removeSymptomDatum(symptom.id)">&#9746;</p>
         <p>Timestamp: {{ symptom.data.timestamp }}</p>
         <p>Symptoms: {{ symptom.data.symptoms }}</p>
         <div>
@@ -54,6 +55,7 @@
     <h3>Period history</h3>
     <div>
       <div v-for="period in oldPeriod" :key="period">
+        <p class="remove" @click="removePeriodDatum(period.id)">&#9746;</p>
         <p>Timestamp: {{ period.data.timestamp }}</p>
         <p>Period: {{ period.data.period }}</p>
         <div>
@@ -109,6 +111,7 @@ export default {
         timestamp: new Date(),
         symptoms: this.symptoms,
         id: crypto.randomUUID(),
+        remote: false,
       });
       this.symptoms = [];
     },
@@ -118,6 +121,7 @@ export default {
         timestamp: new Date(),
         period: this.period,
         id: crypto.randomUUID(),
+        remote: false,
       });
       this.period = null;
     },
@@ -125,6 +129,7 @@ export default {
       this.$store.commit("SHARE_SYMPTOMS", {
         id: id,
         friendName: this.shareSymptomFriendName,
+        remote: false,
       });
       this.shareSymptomFriendName = "";
     },
@@ -132,8 +137,21 @@ export default {
       this.$store.commit("SHARE_PERIOD", {
         id: id,
         friendName: this.sharePeriodFriendName,
+        remote: false,
       });
       this.sharePeriodFriendName = "";
+    },
+    removeSymptomDatum(id) {
+      this.$store.commit("REMOVE_SYMPTOMS", {
+        id: id,
+        remote: false,
+      });
+    },
+    removePeriodDatum(id) {
+      this.$store.commit("REMOVE_PERIOD", {
+        id: id,
+        remote: false,
+      });
     },
   },
 };

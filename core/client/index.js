@@ -36,6 +36,7 @@ const DELETE_GROUP          = "deleteGroup";
 const REQ_CONTACT           = "requestContact";
 const CONFIRM_CONTACT       = "confirmContact";
 const UPDATE_DATA           = "updateData";
+const DELETE_DATA           = "deleteData";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
@@ -49,6 +50,7 @@ const demuxMap = {
   [REQ_CONTACT]:           processRequestContact,
   [CONFIRM_CONTACT]:       confirmContact,
   [UPDATE_DATA]:           updateData,
+  [DELETE_DATA]:           deleteData,
 };
 
 export { GROUP_KEY_PREFIX as groupPrefix };
@@ -1024,6 +1026,7 @@ function getDataPrefix(prefix) {
  * Generates ID for data value, resolves the full key given the prefix, 
  * adds group information, stores value and sends to other devices
  * in the group to also store.
+ * TODO allow named groups from app.
  *
  * @params {string} prefix prefix name
  * @params {Object} data app-specific data object
@@ -1033,6 +1036,16 @@ export function setData(prefix, id, data) {
   setDataHelper(getDataKey(prefix, id), data, getLinkedName());
 }
 
+/**
+ * Function that handles propagating data to all members of the 
+ * group and storing the datum locally.
+ *
+ * @params {string} key data key
+ * @params {Object} data data value
+ * @params {string} groupID ID of group to propagate to
+ *
+ * @private
+ */
 function setDataHelper(key, data, groupID) {
   let value = {
     groupID: groupID,
@@ -1082,7 +1095,27 @@ export function getData(prefix, id = null) {
  * @params {string} id data id (app-specific)
  */
 export function removeData(prefix, id) {
-  db.remove(getDataKey(prefix, id));
+  removeDataHelper(getDataKey(prefix, id));
+}
+
+/**
+ * Function that handles propagating data removal to all members of the 
+ * group and deleting the datum locally.
+ *
+ * @params {string} key data key
+ *
+ * @private
+ */
+function removeDataHelper(key) {
+  let value = db.get(key);
+  console.log(value)
+  let groupID = value.groupID;
+  console.log(value.groupID);
+  db.remove(key);
+  sendMessage(resolveIDs([groupID]), {
+    msgType: DELETE_DATA,
+    key: key,
+  });
 }
 
 /**
@@ -1097,7 +1130,27 @@ function updateData({ key, value }) {
   db.set(key, value);
 }
 
-// TODO move up
+/**
+ * Deletes data key (and associated value).
+ *
+ * @params {string} key data key
+ *
+ * @private
+ */
+function deleteData({ key }) {
+  db.remove(key);
+}
+
+/**
+ * Shares data item by creating new group that subsumes both it's 
+ * current group and the new group to share with (commonly, a contact's 
+ * name). Then propagates the new group info to all members of that 
+ * group along with the data item itself.
+ *
+ * @params {string} prefix data prefix
+ * @params {string} id data id
+ * @params {string} toShareGroupID id with which to share data
+ */
 export function shareData(prefix, id, toShareGroupID) {
   if (getGroup(toShareGroupID) === null) {
     return;
@@ -1113,7 +1166,6 @@ export function shareData(prefix, id, toShareGroupID) {
     let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: newGroupID });
     let newGroupValue = getGroup(newGroupID);
     
-    /* UPDATE SELF */
     let restNewMemberPubkeys = resolveIDs([curGroupID]).concat(resolveIDs([toShareGroupID]));
     sendMessage(restNewMemberPubkeys, {
       msgType: UPDATE_GROUP,

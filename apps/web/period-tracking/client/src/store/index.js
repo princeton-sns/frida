@@ -67,7 +67,7 @@ const store = createStore({
   state: {
     pubkey: frida.getPubkey(),
     // TODO make these lists reactive
-    // TODO show human-readable names instead of pubkeys?
+    // TODO show human-readable names instead of pubkeys
     // deleteLinkedDevice would then have to take in the name, not the pubkey
     devices: frida.getLinkedDevices(),
     friends: frida.getContacts(),
@@ -78,14 +78,18 @@ const store = createStore({
   mutations: {
     /* App-specific mutations */
     ADD_SYMPTOMS(state, { timestamp, symptoms, id, remote }) {
+      let value = {
+        id: id,
+        timestamp: timestamp,
+        symptoms: symptoms,
+      };
       if (!remote) {
-        frida.setData(symptomPrefix, id, {
-          id: id,
-          timestamp: timestamp,
-          symptoms: symptoms,
-        });
+        frida.setData(symptomPrefix, id, value);
       }
-      // TODO update state
+      //state.symptoms.push(JSON.stringify({
+      //  id: id,
+      //  data: value,
+      //}));
     },
     ADD_PERIOD(state, { timestamp, period, id, remote }) {
       if (!remote) {

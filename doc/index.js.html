@@ -64,6 +64,7 @@ const DELETE_GROUP          = "deleteGroup";
 const REQ_CONTACT           = "requestContact";
 const CONFIRM_CONTACT       = "confirmContact";
 const UPDATE_DATA           = "updateData";
+const DELETE_DATA           = "deleteData";
 
 // demultiplexing map from message types to functions
 const demuxMap = {
@@ -77,6 +78,7 @@ const demuxMap = {
   [REQ_CONTACT]:           processRequestContact,
   [CONFIRM_CONTACT]:       confirmContact,
   [UPDATE_DATA]:           updateData,
+  [DELETE_DATA]:           deleteData,
 };
 
 export { GROUP_KEY_PREFIX as groupPrefix };
@@ -384,7 +386,6 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
   if (dstPubkey !== null) {
     let { pubkey, linkedName } = initDevice(null, deviceName);
     let linkedMembers = getAllSubgroups([linkedName]);
-    console.log(linkedMembers);
     // construct message that asks dstPubkey's device to link this device
     sendMessage([dstPubkey], {
       msgType: REQ_UPDATE_LINKED,
@@ -1052,20 +1053,36 @@ function getDataPrefix(prefix) {
  * Generates ID for data value, resolves the full key given the prefix, 
  * adds group information, stores value and sends to other devices
  * in the group to also store.
+ * TODO allow named groups from app.
  *
  * @params {string} prefix prefix name
  * @params {Object} data app-specific data object
  * @params {string} id app-specific object id
  */
 export function setData(prefix, id, data) {
-  let key = getDataKey(prefix, id);
+  setDataHelper(getDataKey(prefix, id), data, getLinkedName());
+}
+
+/**
+ * Function that handles propagating data to all members of the 
+ * group and storing the datum locally.
+ *
+ * @params {string} key data key
+ * @params {Object} data data value
+ * @params {string} groupID ID of group to propagate to
+ *
+ * @private
+ */
+function setDataHelper(key, data, groupID) {
   let value = {
-    groupID: LINKED,
+    groupID: groupID,
     data: data,
   };
   db.set(key, value);
+  let pubkey = getPubkey();
+  let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
   // send to other devices in groupID
-  sendMessage(resolveIDs([LINKED]), {
+  sendMessage(pubkeys, {
     msgType: UPDATE_DATA,
     key: key,
     value: value,
@@ -1100,10 +1117,41 @@ export function getData(prefix, id = null) {
   }
 }
 
-// need app-specific ID if app wants to be able to name/address data (and thus 
-// share it or delete it). Maybe can also expose frida IDs if app wants to use
-// them? But this may require more change than necessary on developer-side
-//export function removeData(prefix, id) {}
+/**
+ * Removes the datum with prefix and id.
+ *
+ * @params {string} prefix data prefix
+ * @params {string} id data id (app-specific)
+ */
+export function removeData(prefix, id) {
+  removeDataHelper(getDataKey(prefix, id));
+}
+
+/**
+ * Function that handles propagating data removal to all members of the 
+ * group and deleting the datum locally.
+ *
+ * @params {string} key data key
+ * @params {?string} groupID group ID to use for resolving pubkeys to delete from
+ *
+ * @private
+ */
+function removeDataHelper(key, deleteLocal = true, groupID = null) {
+  if (groupID === null) {
+    groupID = db.get(key)?.groupID;
+    // FIXME what if groupID null now?
+  }
+  if (deleteLocal) {
+    db.remove(key);
+  }
+  let pubkey = getPubkey();
+  let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
+  // send to other devices in groupID
+  sendMessage(pubkeys, {
+    msgType: DELETE_DATA,
+    key: key,
+  });
+}
 
 /**
  * Stores data value at data key (where data value has group information).
@@ -1117,51 +1165,155 @@ function updateData({ key, value }) {
   db.set(key, value);
 }
 
-// TODO move up
-export function updateGroups(prefix, id, groupID) {
-  if (getGroup(groupID) === null) {
+/**
+ * Deletes data key (and associated value).
+ *
+ * @params {string} key data key
+ *
+ * @private
+ */
+function deleteData({ key }) {
+  db.remove(key);
+}
+
+/**
+ * Shares data item by creating new group that subsumes both it's 
+ * current group and the new group to share with (commonly, a contact's 
+ * name). Then propagates the new group info to all members of that 
+ * group along with the data item itself.
+ *
+ * @params {string} prefix data prefix
+ * @params {string} id data id
+ * @params {string} toShareGroupID id with which to share data
+ */
+export function shareData(prefix, id, toShareGroupID) {
+  if (getGroup(toShareGroupID) === null) {
     return;
   }
 
-  let curGroup = db.get(getDataKey(prefix, id))?.groupID ?? null;
-  if (curGroup !== null) {
-    console.log(curGroup);
-    let newGroupID = getNewGroupID();
-    createGroup(newGroupID, null, [], [curGroup, groupID]);
-    addParent({ groupID: curGroup, parentID: newGroupID });
-    addParent({ groupID: groupID, parentID: newGroupID });
-    let newGroupValue = getGroup(newGroupID);
-    
-    /* UPDATE SELF */
-    let restExistingPubkeys = resolveIDs([curGroup]);
-    sendMessage(restExistingPubkeys, {
-      msgType: UPDATE_GROUP,
-      id: newGroupID,
-      value: newGroupValue,
-    });
-    sendMessage(restExistingPubkeys, {
-      msgType: ADD_PARENT,
-      groupID: curGroup,
-      parentID: newGroupID,
-    });
-    sendMessage(restExistingPubkeys, {
-      msgType: ADD_PARENT,
-      groupID: groupID,
-      parentID: newGroupID,
-    });
+  let key = getDataKey(prefix, id);
+  let value = db.get(key);
+  let curGroupID = value?.groupID ?? null;
+  if (curGroupID !== null) {
+    let newGroupID;
+    // only generate new group if underlying group is linkedName, otherwise
+    // augment underlying group FIXME will need to change with diff permissions
+    if (curGroupID === getLinkedName()) {
+      newGroupID = getNewGroupID();
+      createGroup(newGroupID, null, [], [curGroupID, toShareGroupID]);
+      let newCurGroup = addParent({ groupID: curGroupID, parentID: newGroupID });
+      let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: newGroupID });
+      let newGroupValue = getGroup(newGroupID);
 
-    /* UPDATE OTHER */
-    if (curGroup === LINKED) {
-      curGroup = getLinkedName();
+      let pubkey = getPubkey();
+      let restNewMemberPubkeys = resolveIDs([curGroupID]).concat(resolveIDs([toShareGroupID])).filter((x) => x != pubkey);
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: newGroupID,
+        value: newGroupValue,
+      });
+      // TODO trade-off between adding parent once and sending result everywhere
+      // or modularly adding parent everywhere
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: curGroupID,
+        value: newCurGroup,
+      });
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: toShareGroupID,
+        value: newToShareGroup,
+      });
+
+      // send actual data that group now points to
+      setDataHelper(key, value.data, newGroupID);
+    } else {
+      let newCurGroup = addChild(curGroupID, toShareGroupID);
+      let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: curGroupID });
+      let pubkey = getPubkey();
+      let restNewMemberPubkeys = resolveIDs([curGroupID]).filter((x) => x != pubkey);
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: curGroupID,
+        value: newCurGroup,
+      });
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: toShareGroupID,
+        value: newToShareGroup,
+      });
+      setDataHelper(key, value.data, curGroupID);
     }
-    let newMemberPubkeys = resolveIDs([groupID]);
-    sendMessage(newMemberPubkeys, {
-      msgType: UPDATE_GROUP,
-      id: newGroupID,
-      value: newGroupValue,
-    });
-    // TODO can't just add parents, don't know what groups exist on other devices
+  // TODO also share missing contact info? or else how to prevent group/data
+  // from getting out of sync due to holes in who-knows-who (assuming originating
+  // party does not make all modifications to shared object)
   }
+}
+
+/**
+ * Unshares data item by creating new group that excludes groupID (commonly
+ * a contact's name or any other subgroup). Propagates the new group info
+ * to the new group members and deletes old group and data from groupID's
+ * devices.
+ *
+ * @params {string} prefix data prefix
+ * @params {string} id data id
+ * @params {string} toUnshareGroupID id with which to unshare data
+ */
+export function unshareData(prefix, id, toUnshareGroupID) {
+  // check that group exists
+  if (getGroup(toUnshareGroupID) === null) {
+    return;
+  }
+
+  // check that data is currently shared with that group
+  let key = getDataKey(prefix, id);
+  let value = db.get(key);
+  let curGroupID = value?.groupID ?? null;
+  if (!isSubgroup(curGroupID, toUnshareGroupID)) {
+    return;
+  }
+
+  // unshare data with group
+  if (curGroupID !== null) {
+    // FIXME assuming simple structure, won't work if toUnshareGroupID is
+    // further than the first level down
+    let newChildren = getChildren(curGroupID).filter((x) => x != toUnshareGroupID);
+    if (newChildren.length === 1) {
+      setDataHelper(key, value.data, newChildren[0]);
+      removeDataHelper(key, toUnshareGroupID);
+      // TODO also delete old group on all devices in (old) curGroupID group
+    } else {
+      let newGroupID = getNewGroupID();
+      createGroup(newGroupID, null, [], newChildren);
+      setDataHelper(key, value.data, newGroupID);
+      removeDataHelper(key, false, toUnshareGroupID);
+      // OK to just remove toUnshareGroupID from group b/c unique group per
+      // object => don't need to worry about breaking the sharing of other 
+      // objects TODO unless eventually (for space efficiency) use one group
+      // for multiple objects
+    }
+  }
+}
+
+/**
+ * Checks if a groupID is a subgroup of another groupID.
+ *
+ * @params {string} groupID ID of group the function is traversing
+ * @params {string} toCheckGroupID ID of group to check for
+ * @returns {boolean}
+ *
+ * @private
+ */
+function isSubgroup(groupID, toCheckGroupID) {
+  if (groupID === toCheckGroupID) {
+    return true;
+  }
+  let isChildSubgroup = false;
+  getChildren(groupID).forEach((child) => {
+    isChildSubgroup |= isSubgroup(child, toCheckGroupID);
+  });
+  return isChildSubgroup;
 }
 
 /*
@@ -1221,13 +1373,13 @@ function setPrivkey(privkey) {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addChild">addChild</a></li><li><a href="global.html#addContact">addContact</a></li><li><a href="global.html#addParent">addParent</a></li><li><a href="global.html#confirmContact">confirmContact</a></li><li><a href="global.html#confirmUpdateLinked">confirmUpdateLinked</a></li><li><a href="global.html#connectDevice">connectDevice</a></li><li><a href="global.html#createDevice">createDevice</a></li><li><a href="global.html#createGroup">createGroup</a></li><li><a href="global.html#createKey">createKey</a></li><li><a href="global.html#createLinkedDevice">createLinkedDevice</a></li><li><a href="global.html#deleteAllLinkedDevices">deleteAllLinkedDevices</a></li><li><a href="global.html#deleteDevice">deleteDevice</a></li><li><a href="global.html#deleteGroup">deleteGroup</a></li><li><a href="global.html#deleteLinkedDevice">deleteLinkedDevice</a></li><li><a href="global.html#disconnectDevice">disconnectDevice</a></li><li><a href="global.html#getAllSubgroups">getAllSubgroups</a></li><li><a href="global.html#getChildren">getChildren</a></li><li><a href="global.html#getContacts">getContacts</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataKey">getDataKey</a></li><li><a href="global.html#getDataPrefix">getDataPrefix</a></li><li><a href="global.html#getGroup">getGroup</a></li><li><a href="global.html#getLinkedDevices">getLinkedDevices</a></li><li><a href="global.html#getLinkedName">getLinkedName</a></li><li><a href="global.html#getNewGroupID">getNewGroupID</a></li><li><a href="global.html#getParents">getParents</a></li><li><a href="global.html#getPendingContacts">getPendingContacts</a></li><li><a href="global.html#getPrivkey">getPrivkey</a></li><li><a href="global.html#getPubkey">getPubkey</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initDevice">initDevice</a></li><li><a href="global.html#isKey">isKey</a></li><li><a href="global.html#linkGroups">linkGroups</a></li><li><a href="global.html#onMessage">onMessage</a></li><li><a href="global.html#parseContactInfo">parseContactInfo</a></li><li><a href="global.html#processRequestContact">processRequestContact</a></li><li><a href="global.html#processUpdateLinkedRequest">processUpdateLinkedRequest</a></li><li><a href="global.html#removeChild">removeChild</a></li><li><a href="global.html#removeContact">removeContact</a></li><li><a href="global.html#removeGroup">removeGroup</a></li><li><a href="global.html#removeParent">removeParent</a></li><li><a href="global.html#resolveIDs">resolveIDs</a></li><li><a href="global.html#sendMessage">sendMessage</a></li><li><a href="global.html#setData">setData</a></li><li><a href="global.html#setGroup">setGroup</a></li><li><a href="global.html#setPrivkey">setPrivkey</a></li><li><a href="global.html#setPubkey">setPubkey</a></li><li><a href="global.html#setValidateCallback">setValidateCallback</a></li><li><a href="global.html#updateChildren">updateChildren</a></li><li><a href="global.html#updateData">updateData</a></li><li><a href="global.html#updateGroup">updateGroup</a></li><li><a href="global.html#updateParents">updateParents</a></li><li><a href="global.html#validate">validate</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addChild">addChild</a></li><li><a href="global.html#addContact">addContact</a></li><li><a href="global.html#addParent">addParent</a></li><li><a href="global.html#confirmContact">confirmContact</a></li><li><a href="global.html#confirmUpdateLinked">confirmUpdateLinked</a></li><li><a href="global.html#connectDevice">connectDevice</a></li><li><a href="global.html#createDevice">createDevice</a></li><li><a href="global.html#createGroup">createGroup</a></li><li><a href="global.html#createKey">createKey</a></li><li><a href="global.html#createLinkedDevice">createLinkedDevice</a></li><li><a href="global.html#deleteAllLinkedDevices">deleteAllLinkedDevices</a></li><li><a href="global.html#deleteData">deleteData</a></li><li><a href="global.html#deleteDevice">deleteDevice</a></li><li><a href="global.html#deleteGroup">deleteGroup</a></li><li><a href="global.html#deleteLinkedDevice">deleteLinkedDevice</a></li><li><a href="global.html#disconnectDevice">disconnectDevice</a></li><li><a href="global.html#getAllSubgroups">getAllSubgroups</a></li><li><a href="global.html#getChildren">getChildren</a></li><li><a href="global.html#getContacts">getContacts</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataKey">getDataKey</a></li><li><a href="global.html#getDataPrefix">getDataPrefix</a></li><li><a href="global.html#getGroup">getGroup</a></li><li><a href="global.html#getLinkedDevices">getLinkedDevices</a></li><li><a href="global.html#getLinkedName">getLinkedName</a></li><li><a href="global.html#getNewGroupID">getNewGroupID</a></li><li><a href="global.html#getParents">getParents</a></li><li><a href="global.html#getPendingContacts">getPendingContacts</a></li><li><a href="global.html#getPrivkey">getPrivkey</a></li><li><a href="global.html#getPubkey">getPubkey</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initDevice">initDevice</a></li><li><a href="global.html#isKey">isKey</a></li><li><a href="global.html#isSubgroup">isSubgroup</a></li><li><a href="global.html#linkGroups">linkGroups</a></li><li><a href="global.html#onMessage">onMessage</a></li><li><a href="global.html#parseContactInfo">parseContactInfo</a></li><li><a href="global.html#processRequestContact">processRequestContact</a></li><li><a href="global.html#processUpdateLinkedRequest">processUpdateLinkedRequest</a></li><li><a href="global.html#removeChild">removeChild</a></li><li><a href="global.html#removeContact">removeContact</a></li><li><a href="global.html#removeData">removeData</a></li><li><a href="global.html#removeDataHelper">removeDataHelper</a></li><li><a href="global.html#removeGroup">removeGroup</a></li><li><a href="global.html#removeParent">removeParent</a></li><li><a href="global.html#resolveIDs">resolveIDs</a></li><li><a href="global.html#sendMessage">sendMessage</a></li><li><a href="global.html#setData">setData</a></li><li><a href="global.html#setDataHelper">setDataHelper</a></li><li><a href="global.html#setGroup">setGroup</a></li><li><a href="global.html#setPrivkey">setPrivkey</a></li><li><a href="global.html#setPubkey">setPubkey</a></li><li><a href="global.html#setValidateCallback">setValidateCallback</a></li><li><a href="global.html#shareData">shareData</a></li><li><a href="global.html#unshareData">unshareData</a></li><li><a href="global.html#updateChildren">updateChildren</a></li><li><a href="global.html#updateData">updateData</a></li><li><a href="global.html#updateGroup">updateGroup</a></li><li><a href="global.html#updateParents">updateParents</a></li><li><a href="global.html#validate">validate</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Tue Sep 20 2022 18:46:58 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Wed Sep 21 2022 20:27:10 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -1268,6 +1268,15 @@ export function unshareData(prefix, id, toUnshareGroupID) {
   }
 }
 
+/**
+ * Checks if a groupID is a subgroup of another groupID.
+ *
+ * @params {string} groupID ID of group the function is traversing
+ * @params {string} toCheckGroupID ID of group to check for
+ * @returns {boolean}
+ *
+ * @private
+ */
 function isSubgroup(groupID, toCheckGroupID) {
   if (groupID === toCheckGroupID) {
     return true;

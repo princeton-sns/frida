@@ -21,9 +21,11 @@
 % form timing analysis on traffic patterns, e.g. to infer a social graph
 % between devices.
 
-We assume a threat model with an honest but curious server and 
+We assume a threat model with an honest \fix{what does honest mean}
+but curious server and 
 potentially malicious clients and network attackers. 
-Users trust the integrity of \name{} servers and client-side library,
+Users trust the integrity \fix{tie with "integrity"} 
+of \name{} servers and client-side library,
 as well as application code provided by developers. 
 
 \name{} servers are responsible for routing encrypted messages across
@@ -34,6 +36,6 @@ messages. \name{} also assumes that a network attacker may attempt
 to read or alter messages, but does not perform timing analysis on 
 traffic patterns.
 Byzantine clients may attempt to write unauthorized or incorrect data 
-to shared data but cannot violate application invariants or data 
-integrity on well-behaved devices. 
+to shared data but cannot violate application invariants \fix{what do invariants look like} or data 
+integrity on well-behaved clients. 
 

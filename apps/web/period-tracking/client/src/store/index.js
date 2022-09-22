@@ -111,6 +111,16 @@ const store = createStore({
         frida.shareData(periodPrefix, id, friendName);
       }
     },
+    UNSHARE_SYMPTOMS(state, { id, friendName, remote }) {
+      if (!remote) {
+        frida.unshareData(symptomPrefix, id, friendName);
+      }
+    },
+    UNSHARE_PERIOD(state, { id, friendName, remote }) {
+      if (!remote) {
+        frida.unshareData(periodPrefix, id, friendName);
+      }
+    },
     REMOVE_SYMPTOMS(state, { id, remote }) {
       if (!remote) {
         frida.removeData(symptomPrefix, id);

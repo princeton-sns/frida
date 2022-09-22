@@ -48,6 +48,10 @@
           <input v-model="shareSymptomFriendName" placeholder="friend name" />
         </div>
         <button @click="shareSymptoms(symptom.id)">Share Symptoms</button>
+        <div>
+          <input v-model="unshareSymptomFriendName" placeholder="friend name" />
+        </div>
+        <button @click="unshareSymptoms(symptom.id)">Unshare Symptoms</button>
         <br />
       </div>
     </div>
@@ -64,6 +68,10 @@
           <input v-model="sharePeriodFriendName" placeholder="friend name" />
         </div>
         <button @click="sharePeriod(period.id)">Share Period</button>
+        <div>
+          <input v-model="unsharePeriodFriendName" placeholder="friend name" />
+        </div>
+        <button @click="unsharePeriod(period.id)">Unshare Period</button>
         <br />
       </div>
     </div>
@@ -96,6 +104,7 @@ export default {
         irritability: "Irritability",
       },
       shareSymptomFriendName: "",
+      unshareSymptomFriendName: "",
       period: null,
       periodOptions: {
         spotting: "Spotting",
@@ -104,6 +113,7 @@ export default {
         high: "High",
       },
       sharePeriodFriendName: "",
+      unsharePeriodFriendName: "",
     };
   },
   methods: {
@@ -135,6 +145,14 @@ export default {
       });
       this.shareSymptomFriendName = "";
     },
+    unshareSymptoms(id) {
+      this.$store.commit("UNSHARE_SYMPTOMS", {
+        id: id,
+        friendName: this.unshareSymptomFriendName,
+        remote: false,
+      });
+      this.unshareSymptomFriendName = "";
+    },
     sharePeriod(id) {
       this.$store.commit("SHARE_PERIOD", {
         id: id,
@@ -142,6 +160,14 @@ export default {
         remote: false,
       });
       this.sharePeriodFriendName = "";
+    },
+    unsharePeriod(id) {
+      this.$store.commit("UNSHARE_PERIOD", {
+        id: id,
+        friendName: this.unsharePeriodFriendName,
+        remote: false,
+      });
+      this.unsharePeriodFriendName = "";
     },
     removeSymptomDatum(id) {
       this.$store.commit("REMOVE_SYMPTOMS", {

@@ -358,7 +358,6 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
   if (dstPubkey !== null) {
     let { pubkey, linkedName } = initDevice(null, deviceName);
     let linkedMembers = getAllSubgroups([linkedName]);
-    console.log(linkedMembers);
     // construct message that asks dstPubkey's device to link this device
     sendMessage([dstPubkey], {
       msgType: REQ_UPDATE_LINKED,
@@ -1052,8 +1051,10 @@ function setDataHelper(key, data, groupID) {
     data: data,
   };
   db.set(key, value);
+  let pubkey = getPubkey();
+  let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
   // send to other devices in groupID
-  sendMessage(resolveIDs([groupID]), {
+  sendMessage(pubkeys, {
     msgType: UPDATE_DATA,
     key: key,
     value: value,
@@ -1103,16 +1104,22 @@ export function removeData(prefix, id) {
  * group and deleting the datum locally.
  *
  * @params {string} key data key
+ * @params {?string} groupID group ID to use for resolving pubkeys to delete from
  *
  * @private
  */
-function removeDataHelper(key) {
-  let value = db.get(key);
-  console.log(value)
-  let groupID = value.groupID;
-  console.log(value.groupID);
-  db.remove(key);
-  sendMessage(resolveIDs([groupID]), {
+function removeDataHelper(key, deleteLocal = true, groupID = null) {
+  if (groupID === null) {
+    groupID = db.get(key)?.groupID;
+    // FIXME what if groupID null now?
+  }
+  if (deleteLocal) {
+    db.remove(key);
+  }
+  let pubkey = getPubkey();
+  let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
+  // send to other devices in groupID
+  sendMessage(pubkeys, {
     msgType: DELETE_DATA,
     key: key,
   });
@@ -1160,34 +1167,116 @@ export function shareData(prefix, id, toShareGroupID) {
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
   if (curGroupID !== null) {
-    let newGroupID = getNewGroupID();
-    createGroup(newGroupID, null, [], [curGroupID, toShareGroupID]);
-    let newCurGroup = addParent({ groupID: curGroupID, parentID: newGroupID });
-    let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: newGroupID });
-    let newGroupValue = getGroup(newGroupID);
-    
-    let restNewMemberPubkeys = resolveIDs([curGroupID]).concat(resolveIDs([toShareGroupID]));
-    sendMessage(restNewMemberPubkeys, {
-      msgType: UPDATE_GROUP,
-      id: newGroupID,
-      value: newGroupValue,
-    });
-    // TODO trade-off between adding parent once and sending result everywhere
-    // or modularly adding parent everywhere
-    sendMessage(restNewMemberPubkeys, {
-      msgType: UPDATE_GROUP,
-      id: curGroupID,
-      value: newCurGroup,
-    });
-    sendMessage(restNewMemberPubkeys, {
-      msgType: UPDATE_GROUP,
-      id: toShareGroupID,
-      value: newToShareGroup,
-    });
+    let newGroupID;
+    // only generate new group if underlying group is linkedName, otherwise
+    // augment underlying group FIXME will need to change with diff permissions
+    if (curGroupID === getLinkedName()) {
+      newGroupID = getNewGroupID();
+      createGroup(newGroupID, null, [], [curGroupID, toShareGroupID]);
+      let newCurGroup = addParent({ groupID: curGroupID, parentID: newGroupID });
+      let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: newGroupID });
+      let newGroupValue = getGroup(newGroupID);
 
-    // send actual data that group now points to
-    setDataHelper(key, value.data, newGroupID);
+      let pubkey = getPubkey();
+      let restNewMemberPubkeys = resolveIDs([curGroupID]).concat(resolveIDs([toShareGroupID])).filter((x) => x != pubkey);
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: newGroupID,
+        value: newGroupValue,
+      });
+      // TODO trade-off between adding parent once and sending result everywhere
+      // or modularly adding parent everywhere
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: curGroupID,
+        value: newCurGroup,
+      });
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: toShareGroupID,
+        value: newToShareGroup,
+      });
+
+      // send actual data that group now points to
+      setDataHelper(key, value.data, newGroupID);
+    } else {
+      let newCurGroup = addChild(curGroupID, toShareGroupID);
+      let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: curGroupID });
+      let pubkey = getPubkey();
+      let restNewMemberPubkeys = resolveIDs([curGroupID]).filter((x) => x != pubkey);
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: curGroupID,
+        value: newCurGroup,
+      });
+      sendMessage(restNewMemberPubkeys, {
+        msgType: UPDATE_GROUP,
+        id: toShareGroupID,
+        value: newToShareGroup,
+      });
+      setDataHelper(key, value.data, curGroupID);
+    }
+  // TODO also share missing contact info? or else how to prevent group/data
+  // from getting out of sync due to holes in who-knows-who (assuming originating
+  // party does not make all modifications to shared object)
   }
+}
+
+/**
+ * Unshares data item by creating new group that excludes groupID (commonly
+ * a contact's name or any other subgroup). Propagates the new group info
+ * to the new group members and deletes old group and data from groupID's
+ * devices.
+ *
+ * @params {string} prefix data prefix
+ * @params {string} id data id
+ * @params {string} toUnshareGroupID id with which to unshare data
+ */
+export function unshareData(prefix, id, toUnshareGroupID) {
+  // check that group exists
+  if (getGroup(toUnshareGroupID) === null) {
+    return;
+  }
+
+  // check that data is currently shared with that group
+  let key = getDataKey(prefix, id);
+  let value = db.get(key);
+  let curGroupID = value?.groupID ?? null;
+  if (!isSubgroup(curGroupID, toUnshareGroupID)) {
+    return;
+  }
+
+  // unshare data with group
+  if (curGroupID !== null) {
+    // FIXME assuming simple structure, won't work if toUnshareGroupID is
+    // further than the first level down
+    let newChildren = getChildren(curGroupID).filter((x) => x != toUnshareGroupID);
+    if (newChildren.length === 1) {
+      setDataHelper(key, value.data, newChildren[0]);
+      removeDataHelper(key, toUnshareGroupID);
+      // TODO also delete old group on all devices in (old) curGroupID group
+    } else {
+      let newGroupID = getNewGroupID();
+      createGroup(newGroupID, null, [], newChildren);
+      setDataHelper(key, value.data, newGroupID);
+      removeDataHelper(key, false, toUnshareGroupID);
+      // OK to just remove toUnshareGroupID from group b/c unique group per
+      // object => don't need to worry about breaking the sharing of other 
+      // objects TODO unless eventually (for space efficiency) use one group
+      // for multiple objects
+    }
+  }
+}
+
+function isSubgroup(groupID, toCheckGroupID) {
+  if (groupID === toCheckGroupID) {
+    return true;
+  }
+  let isChildSubgroup = false;
+  getChildren(groupID).forEach((child) => {
+    isChildSubgroup |= isSubgroup(child, toCheckGroupID);
+  });
+  return isChildSubgroup;
 }
 
 /*

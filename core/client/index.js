@@ -179,6 +179,8 @@ export function disconnectDevice() {
  *
  * @param {string[]} dstPubkeys public keys to send message to
  * @param {Object} payload message contents
+ *
+ * @private
  */
 function sendMessage(dstPubkeys, payload) {
   let batch = new Array();
@@ -363,6 +365,8 @@ function validate(payload) {
  *
  * @param {string[]} ids group IDs to resolve
  * @return {string[]}
+ *
+ * @private
  */
 function resolveIDs(ids) {
   let pubkeys = [];

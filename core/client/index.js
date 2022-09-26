@@ -594,6 +594,17 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
   }
 }
 
+function groupReplaceHelper(key, oldValue, fullGroup, IDToReplace, replacementID) {
+  if (oldValue?.includes(IDToReplace)) {
+    let updated = oldValue.filter((x) => x != IDToReplace);
+    updated.push(replacementID);
+    fullGroup.value = {
+      ...fullGroup.value,
+      [key]: updated,
+    };
+  }
+}
+
 function groupReplace(group, IDToReplace, replacementID) {
   let updatedGroup = group;
   if (group.id === IDToReplace) {
@@ -602,50 +613,10 @@ function groupReplace(group, IDToReplace, replacementID) {
       id: replacementID,
     };
   }
-  if (group.value.parents.includes(IDToReplace)) {
-    let updatedParents = group.value.parents.filter((x) => x != IDToReplace);
-    updatedParents.push(replacementID);
-    updatedGroup = {
-      ...updatedGroup,
-      value: {
-        ...updatedGroup.value,
-        parents: updatedParents,
-      },
-    };
-  }
-  if (group.value.children?.includes(IDToReplace)) {
-    let updatedChildren = group.value.children.filter((x) => x != IDToReplace);
-    updatedChildren.push(replacementID);
-    updatedGroup = {
-      ...updatedGroup,
-      value: {
-        ...updatedGroup.value,
-        children: updatedChildren,
-      },
-    };
-  }
-  if (group.value.admins.includes(IDToReplace)) {
-    let updatedAdmins = group.value.admins.filter((x) => x != IDToReplace);
-    updatedAdmins.push(replacementID);
-    updatedGroup = {
-      ...updatedGroup,
-      value: {
-        ...updatedGroup.value,
-        admins: updatedAdmins,
-      },
-    };
-  }
-  if (group.value.writers.includes(IDToReplace)) {
-    let updatedWriters = group.value.writers.filter((x) => x != IDToReplace);
-    updatedWriters.push(replacementID);
-    updatedGroup = {
-      ...updatedGroup,
-      value: {
-        ...updatedGroup.value,
-        writers: updatedWriters,
-      },
-    };
-  }
+  groupReplaceHelper("parents", group.value.parents, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("children", group.value.children, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("admins", group.value.admins, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("writers", group.value.writers, updatedGroup, IDToReplace, replacementID);
   return updatedGroup;
 }
 

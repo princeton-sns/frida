@@ -220,7 +220,7 @@ function sendMessage(dstPubkeys, payload) {
  *           nonce: string,
  *           srcPubkey: string }} msg message with encrypted contents
  */
-function onMessage(msg) {
+export function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
   let curPrivkey = getPrivkey();
   if (curPrivkey !== null) {

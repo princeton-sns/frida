@@ -285,7 +285,8 @@ function checkPermissions(payload, srcPubkey) {
         permissionsOK = true;
       }
       break;
-    } case UPDATE_GROUP: { // FIXME UPDATE_GROUP and NEW_GROUP have diff permission-checking logic (reason to separate)
+    } case UPDATE_GROUP: {
+      // UPDATE_GROUP and NEW_GROUP have diff permission-checking logic - separate?
       if (isMember(getAdmins(payload.groupID), srcPubkey) || isMember(getNearestAdmins(payload.value.parents), srcPubkey)) {
         permissionsOK = true;
       }
@@ -469,16 +470,38 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
   }
 }
 
+/**
+ * Helper that sets temporary state to help with permission checks when
+ * the current device has requested to be linked with another.
+ *
+ * @param {string} pubkey pubkey to link with and from which additional/updated
+ *   group information will come (and which this device should thus allow)
+ *
+ * @private
+ */
 function setOutstandingLinkPubkey(pubkey) {
   db.set(OUTSTANDING_PUBKEY, pubkey);
 }
 
+/**
+ * Helper for retrieving temporary state to help with permission checks when
+ * the current device has requested to be linked with another.
+ *
+ * @returns {string} the pubkey with which this device has requested to link
+ *
+ * @private
+ */
 function getOutstandingLinkPubkey() {
   return db.get(OUTSTANDING_PUBKEY);
 }
 
+/**
+ * Clears temporary state.
+ *
+ * @private
+ */
 function removeOutstandingLinkPubkey() {
-  return db.remove(OUTSTANDING_PUBKEY);
+  db.remove(OUTSTANDING_PUBKEY);
 }
 
 /**
@@ -594,9 +617,20 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
   }
 }
 
-function groupReplaceHelper(key, oldValue, fullGroup, IDToReplace, replacementID) {
-  if (oldValue?.includes(IDToReplace)) {
-    let updated = oldValue.filter((x) => x != IDToReplace);
+/**
+ * Helper function that replaces (in place) the specified ID in the specified 
+ * group field with another ID, modifying the group data in place.
+ *
+ * @param {string} key name of group field to update
+ * @param {Object} fullGroup actual group to modify
+ * @param {string} IDToReplace id to replace
+ * @param {string} replacementID replacement id
+ *
+ * @private
+ */
+function groupReplaceHelper(key, fullGroup, IDToReplace, replacementID) {
+  if (fullGroup.value[key]?.includes(IDToReplace)) {
+    let updated = fullGroup.value[key].filter((x) => x != IDToReplace);
     updated.push(replacementID);
     fullGroup.value = {
       ...fullGroup.value,
@@ -605,6 +639,17 @@ function groupReplaceHelper(key, oldValue, fullGroup, IDToReplace, replacementID
   }
 }
 
+/**
+ * Replaces specified ID with another ID in all fields of a group.
+ *
+ * @param {Object} group group to modify
+ * @param {string} IDToReplace id to replace
+ * @param {string} replacementID replacement id
+ * @returns {Object} new group with all instances of IDToReplace replaced with
+ *   replacementID
+ *
+ * @private
+ */
 function groupReplace(group, IDToReplace, replacementID) {
   let updatedGroup = group;
   if (group.id === IDToReplace) {
@@ -613,10 +658,10 @@ function groupReplace(group, IDToReplace, replacementID) {
       id: replacementID,
     };
   }
-  groupReplaceHelper("parents", group.value.parents, updatedGroup, IDToReplace, replacementID);
-  groupReplaceHelper("children", group.value.children, updatedGroup, IDToReplace, replacementID);
-  groupReplaceHelper("admins", group.value.admins, updatedGroup, IDToReplace, replacementID);
-  groupReplaceHelper("writers", group.value.writers, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("parents", updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("children", updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("admins", updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper("writers", updatedGroup, IDToReplace, replacementID);
   return updatedGroup;
 }
 
@@ -1060,11 +1105,26 @@ function updateParents(groupID, parentID, callback) {
   return newGroupValue;
 }
 
-// TODO doc
+/**
+ * Get admins list of group.
+ *
+ * @param {string} groupID id of group whose admins list to get
+ * @returns {string[]}
+ *
+ * @private
+ */
 function getAdmins(groupID) {
   return getGroup(groupID)?.admins ?? [];
 }
 
+/**
+ * Adds admin to admins list of a group (modifies group in place).
+ *
+ * @param {Object} oldGroupValue group value with admins list to update
+ * @param {string} adminID id of admin to add
+ *
+ * @private
+ */
 function addAdmin(oldGroupValue, adminID) {
   // deduplicate: only add adminID if doesn't already exist in list
   if (oldGroupValue.admins.indexOf(adminID) === -1) {
@@ -1074,9 +1134,17 @@ function addAdmin(oldGroupValue, adminID) {
   }
 }
 
+/**
+ * Gets the set of admins for a new group by getting the intersection of all
+ * the admins lists of all parent groups (since adding this new group will 
+ * presumably need to modify all parents).
+ *
+ * @param {string[]} parents list of parent ids
+ * @returns {string[]}
+ *
+ * @private
+ */
 function getNearestAdmins(parents) {
-  // return intersection of all admins of parent groups
-  // (intersection because will presumably need to modify _all_ parents to accomodate this group)
   let nearestAdmins = [];
   let calcAdmins = {};
   let ctr = 0;
@@ -1095,7 +1163,14 @@ function getNearestAdmins(parents) {
   return nearestAdmins;
 }
 
-// TODO doc
+/**
+ * Gets writers list of group.
+ *
+ * @param {string} groupID id of group to get writers list of
+ * @returns {string[]}
+ *
+ * @private
+ */
 function getWriters(groupID) {
   return getGroup(groupID)?.writers ?? [];
 }
@@ -1287,18 +1362,19 @@ export function removeData(prefix, id) {
 function removeDataHelper(key, deleteLocal = true, groupID = null) {
   if (groupID === null) {
     groupID = db.get(key)?.groupID;
-    // FIXME what if groupID null now?
   }
-  if (deleteLocal) {
-    db.remove(key);
+  if (groupID !== null) {
+    if (deleteLocal) {
+      db.remove(key);
+    }
+    let pubkey = getPubkey();
+    let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
+    // send to other devices in groupID
+    sendMessage(pubkeys, {
+      msgType: DELETE_DATA,
+      key: key,
+    });
   }
-  let pubkey = getPubkey();
-  let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
-  // send to other devices in groupID
-  sendMessage(pubkeys, {
-    msgType: DELETE_DATA,
-    key: key,
-  });
 }
 
 /**
@@ -1445,26 +1521,6 @@ export function unshareData(prefix, id, toUnshareGroupID) {
     }
   }
 }
-
-/*
- * Checks if a groupID is a subgroup of another groupID.
- *
- * @param {string} groupID ID of group the function is traversing
- * @param {string} toCheckGroupID ID of group to check for
- * @returns {boolean}
- *
- * @private
- */
-//function isSubgroup(groupID, toCheckGroupID) {
-//  if (groupID === toCheckGroupID) {
-//    return true;
-//  }
-//  let isChildSubgroup = false;
-//  getChildren(groupID).forEach((child) => {
-//    isChildSubgroup |= isSubgroup(child, toCheckGroupID);
-//  });
-//  return isChildSubgroup;
-//}
 
 /**
  * Checks if a groupID is a member of a group.

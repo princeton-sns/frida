@@ -17,7 +17,7 @@ export { db };
 const SLASH = "/";
 const DATA  = "__data";
 const GROUP = "__group";
-const GROUP_KEY_PREFIX = DATA + SLASH + GROUP + SLASH;
+//const GROUP_KEY_PREFIX = DATA + SLASH + GROUP + SLASH;
 const LINKED   = "__linked";
 const CONTACTS = "__contacts";
 const PUBKEY   = "pubkey";
@@ -58,7 +58,7 @@ const demuxMap = {
   [DELETE_DATA]:           deleteData,
 };
 
-export { GROUP_KEY_PREFIX as groupPrefix };
+//export { GROUP_KEY_PREFIX as groupPrefix };
 export { PUBKEY as pubkeyPrefix };
 
 // default auth/unauth functions do nothing
@@ -180,7 +180,7 @@ export function disconnectDevice() {
  * @param {string[]} dstPubkeys public keys to send message to
  * @param {Object} payload message contents
  */
-export function sendMessage(dstPubkeys, payload) {
+function sendMessage(dstPubkeys, payload) {
   let batch = new Array();
   let srcPubkey = getPubkey();
   let srcPrivkey = getPrivkey();
@@ -220,7 +220,7 @@ export function sendMessage(dstPubkeys, payload) {
  *           nonce: string,
  *           srcPubkey: string }} msg message with encrypted contents
  */
-export function onMessage(msg) {
+function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
   let curPrivkey = getPrivkey();
   if (curPrivkey !== null) {
@@ -233,7 +233,6 @@ export function onMessage(msg) {
       )
     );
 
-    //let demuxFunc = demuxMap[payload.msgType];
     let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcPubkey);
     if (demuxFunc === undefined) {
       console.log("ERROR UNKNOWN msgType: " + payload.msgType);
@@ -365,7 +364,7 @@ function validate(payload) {
  * @param {string[]} ids group IDs to resolve
  * @return {string[]}
  */
-export function resolveIDs(ids) {
+function resolveIDs(ids) {
   let pubkeys = [];
   ids.forEach((id) => {
     let group = getGroup(id);

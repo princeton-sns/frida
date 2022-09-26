@@ -6,11 +6,11 @@ all_methods:
 	node_modules/.bin/jsdoc --access all ${CLIENT_CORE}
 	mv out doc
 
-public_only:
+public:
 	node_modules/.bin/jsdoc ${CLIENT_CORE}
 	mv out doc
 
-private_only:
+private:
 	node_modules/.bin/jsdoc --access private ${CLIENT_CORE}
 	mv out doc
 

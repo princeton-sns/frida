@@ -22,6 +22,8 @@ const LINKED   = "__linked";
 const CONTACTS = "__contacts";
 const PUBKEY   = "pubkey";
 const PRIVKEY  = "privkey";
+const OUTSTANDING_PUBKEY = "__outstandingPubkey";
+
 
 // FIXME need new special name for LINKED group (confusing when linking non-LINKED groups)
 
@@ -29,7 +31,9 @@ const PRIVKEY  = "privkey";
 const REQ_UPDATE_LINKED     = "requestUpdateLinked";
 const CONFIRM_UPDATE_LINKED = "confirmUpdateLinked";
 const LINK_GROUPS           = "linkGroups";
-const ADD_PARENT            = "addParent";
+// TODO revert addParent from taking in an object to taking in several params?
+//const ADD_PARENT            = "addParent";
+const ADD_CHILD             = "addChild";
 const UPDATE_GROUP          = "updateGroup";
 const DELETE_SELF           = "deleteSelf";
 const DELETE_GROUP          = "deleteGroup";
@@ -43,7 +47,8 @@ const demuxMap = {
   [REQ_UPDATE_LINKED]:     processUpdateLinkedRequest,
   [CONFIRM_UPDATE_LINKED]: confirmUpdateLinked,
   [LINK_GROUPS]:           linkGroups,
-  [ADD_PARENT]:            addParent,
+  //[ADD_PARENT]:            addParent,
+  [ADD_CHILD]:             addChild,
   [UPDATE_GROUP]:          updateGroup,
   [DELETE_SELF]:           deleteDevice,
   [DELETE_GROUP]:          deleteGroup,
@@ -64,7 +69,8 @@ let onUnauth = () => {};
 let defaultValidateCallback = (payload) => {
   console.log("validating payload...");
   console.log(payload)
-};
+  return true;
+}
 let validateCallback = defaultValidateCallback;
 
 let storagePrefixes = [GROUP];
@@ -81,8 +87,13 @@ function makeGroup(fieldNames) {
 }
 
 /* doubly-linked tree, allows cycles */
-const Key   = makeGroup("name parents");
-const Group = makeGroup("name parents children");
+const Key   = makeGroup("name parents admins writers");
+// readers list isn't necessary, any member that isn't an admin
+// or writer can be assumed to be a reader
+// TODO also deduplicate admins and writers (any writer who is also an
+// admin can _just_ exist in the admin group, since admin abilities are a
+// superset of writer abilities
+const Group = makeGroup("name parents children admins writers");
 
 /* DB listener plugin */
 
@@ -222,12 +233,18 @@ export function onMessage(msg) {
       )
     );
 
-    // validate via callback
-    validate(payload);
-
-    let demuxFunc = demuxMap[payload.msgType];
+    //let demuxFunc = demuxMap[payload.msgType];
+    let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcPubkey);
     if (demuxFunc === undefined) {
       console.log("ERROR UNKNOWN msgType: " + payload.msgType);
+      return;
+    }
+    if (!permissionsOK) {
+      console.log("ERROR insufficient permissions");
+      return;
+    }
+    if (!validate(payload)) {
+      console.log("ERROR data invariant violated");
       return;
     }
     demuxFunc(payload);
@@ -235,10 +252,92 @@ export function onMessage(msg) {
 }
 
 /**
+ * Checks that sender has proper permissions according to group and resolves
+ * the dumultiplexing function.
+ *
+ * @param {Object} payload decrypted message contents
+ * @param {string} srcPubkey sender public key
+ * @returns {{ permissionsOK: boolean,
+ *             demuxFunc: callback }}
+ *
+ * @private
+ */
+function checkPermissions(payload, srcPubkey) {
+  let permissionsOK = false;
+  console.log(payload.msgType);
+
+  // no reader checks, any device that gets data should correctly be a reader
+  switch(payload.msgType) {
+    // special checks
+    case CONFIRM_UPDATE_LINKED: {
+      if (getOutstandingLinkPubkey() === srcPubkey) {
+        permissionsOK = true;
+      }
+      break;
+    // admin checks
+    } case LINK_GROUPS: {
+      if (isMember(getAdmins(payload.parentID), srcPubkey) && isMember(getAdmins(payload.childID), srcPubkey)) {
+        permissionsOK = true;
+      }
+      break;
+    } case DELETE_SELF: {
+      if (isMember(getAdmins(getPubkey()), srcPubkey)) {
+        permissionsOK = true;
+      }
+      break;
+    } case UPDATE_GROUP: { // FIXME UPDATE_GROUP and NEW_GROUP have diff permission-checking logic (reason to separate)
+      if (isMember(getAdmins(payload.groupID), srcPubkey) || isMember(getNearestAdmins(payload.value.parents), srcPubkey)) {
+        permissionsOK = true;
+      }
+      break;
+    //} case ADD_PARENT: {
+    //  if (isMember(getAdmins(payload.groupID), srcPubkey)) {
+    //    permissionsOK = true;
+    //  }
+    //  break;
+    } case ADD_CHILD: {
+      if (isMember(getAdmins(payload.groupID), srcPubkey)) {
+        permissionsOK = true;
+      }
+      break;
+    } case DELETE_GROUP: {
+      if (isMember(getAdmins(payload.groupID), srcPubkey) || getOutstandingLinkPubkey() === srcPubkey) {
+        permissionsOK = true;
+      }
+      break;
+    // writer checks
+    } case UPDATE_DATA: {
+      if (isMember(getWriters(payload.value.groupID), srcPubkey)) {
+        permissionsOK = true;
+      }
+      break;
+    } case DELETE_DATA: {
+      if (isMember(getWriters(db.get(payload.key)?.value.groupID), srcPubkey)) {
+        permissionsOK = true;
+      }
+      break;
+    }
+    case REQ_UPDATE_LINKED:
+    case REQ_CONTACT:
+    case CONFIRM_CONTACT:
+      permissionsOK = true;
+      break;
+    default:
+      console.log("UNDEFINED DEMUX");
+  }
+
+  return {
+    permissionsOK: permissionsOK,
+    demuxFunc: demuxMap[payload.msgType],
+  };
+}
+
+/**
  * Sets the callback function with which to perform message validation
  * for this application. 
  *
- * TODO validate newValidateCallback to ensure it only takes one arg (payload).
+ * TODO validate newValidateCallback to ensure it only takes one arg (payload)
+ * and returns boolean.
  *
  * @param {callback} newValidateCallback new validation callback
  */
@@ -256,7 +355,7 @@ export function setValidateCallback(callback) {
  * @private
  */
 function validate(payload) {
-  validateCallback(payload);
+  return validateCallback(payload);
 }
 
 /**
@@ -322,11 +421,11 @@ function initDevice(linkedName = null, deviceName = null) {
   if (linkedName === null) {
     linkedName = crypto.randomUUID();
   }
-  createGroup(LINKED, linkedName, [], [linkedName]);
-  createGroup(linkedName, null, [LINKED], [pubkey]);
-  createKey(pubkey, deviceName, [linkedName]);
+  createGroup(LINKED, linkedName, [], [linkedName], [linkedName], [linkedName]);
+  createGroup(linkedName, null, [LINKED], [pubkey], [linkedName], [linkedName]);
+  createKey(pubkey, deviceName, [linkedName], [linkedName], [linkedName]);
 
-  createGroup(CONTACTS, null, [], []);
+  createGroup(CONTACTS, null, [], [], [linkedName], [linkedName]);
 
   return {
     pubkey: pubkey,
@@ -359,6 +458,7 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
     let { pubkey, linkedName } = initDevice(null, deviceName);
     let linkedMembers = getAllSubgroups([linkedName]);
     // construct message that asks dstPubkey's device to link this device
+    setOutstandingLinkPubkey(dstPubkey);
     sendMessage([dstPubkey], {
       msgType: REQ_UPDATE_LINKED,
       tempName: linkedName,
@@ -367,6 +467,18 @@ export function createLinkedDevice(dstPubkey, deviceName = null) {
     });
     return pubkey;
   }
+}
+
+function setOutstandingLinkPubkey(pubkey) {
+  db.set(OUTSTANDING_PUBKEY, pubkey);
+}
+
+function getOutstandingLinkPubkey() {
+  return db.get(OUTSTANDING_PUBKEY);
+}
+
+function removeOutstandingLinkPubkey() {
+  return db.remove(OUTSTANDING_PUBKEY);
 }
 
 /**
@@ -412,34 +524,7 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
     // replace all occurrences of tempName with linkedName
     let updatedNewLinkedMembers = [];
     newLinkedMembers.forEach((newGroup) => {
-      if (newGroup.id === tempName) {
-        updatedNewLinkedMembers.push({
-          ...newGroup,
-          id: linkedName,
-        });
-      } else if (newGroup.value.parents.includes(tempName)) {
-        let updatedParents = newGroup.value.parents.filter((x) => x != tempName);
-        updatedParents.push(linkedName);
-        updatedNewLinkedMembers.push({
-          ...newGroup,
-          value: {
-            ...newGroup.value,
-            parents: updatedParents,
-          },
-        });
-      } else if (newGroup.value.children.includes(tempName)) {
-        let updatedChildren = newGroup.value.children.filter((x) => x != tempName);
-        updatedChildren.push(linkedName);
-        updatedNewLinkedMembers.push({
-          ...newGroup,
-          value: {
-            ...newGroup.value,
-            children: updatedChildren,
-          },
-        });
-      } else {
-        updatedNewLinkedMembers.push(newGroup);
-      }
+      updatedNewLinkedMembers.push(groupReplace(newGroup, tempName, linkedName));
     });
 
     updatedNewLinkedMembers.forEach((newGroup) => {
@@ -452,18 +537,18 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
           addParent({ groupID: linkedName, parentID: nonLinkedParent });
         });
         newGroup.value.children.forEach((child) => {
-          addChild(linkedName, child);
+          addChild({ groupID: linkedName, childID: child });
         });
         sendMessage(restLinkedPubkeys, {
           msgType: UPDATE_GROUP,
-          id: linkedName,
+          groupID: linkedName,
           value: getGroup(linkedName),
         });
       } else {
-        updateGroup({ id: newGroup.id, value: newGroup.value });
+        updateGroup({ groupID: newGroup.id, value: newGroup.value });
         sendMessage(restLinkedPubkeys, {
           msgType: UPDATE_GROUP,
-          id: newGroup.id,
+          groupID: newGroup.id,
           value: newGroup.value,
         });
       }
@@ -485,16 +570,83 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
 
     // notify contacts
     let contactPubkeys = resolveIDs([CONTACTS]);
-    // FIXME inefficient, calling this function twice
-    let contactGroups = getAllSubgroups([linkedName]);
-    contactGroups.forEach((contactGroup) => {
-      sendMessage(contactPubkeys, {
-        msgType: UPDATE_GROUP,
-        id: contactGroup.id,
-        value: contactGroup.value,
-      });
+    let contactNames = getChildren(CONTACTS);
+    updatedNewLinkedMembers.forEach((newGroup) => {
+      if (newGroup.id === linkedName) {
+        newGroup.value.children.forEach((child) => {
+          sendMessage(contactPubkeys, {
+            msgType: ADD_CHILD,
+            groupID: linkedName,
+            childID: child,
+          });
+        });
+      } else {
+        contactNames.forEach((contactName) => {
+          addAdmin(newGroup.value, contactName);
+          sendMessage(resolveIDs([contactName]), {
+            msgType: UPDATE_GROUP,
+            groupID: newGroup.id,
+            value: newGroup.value,
+          });
+        });
+      }
     });
   }
+}
+
+function groupReplace(group, IDToReplace, replacementID) {
+  let updatedGroup = group;
+  if (group.id === IDToReplace) {
+    updatedGroup = {
+      ...updatedGroup,
+      id: replacementID,
+    };
+  }
+  if (group.value.parents.includes(IDToReplace)) {
+    let updatedParents = group.value.parents.filter((x) => x != IDToReplace);
+    updatedParents.push(replacementID);
+    updatedGroup = {
+      ...updatedGroup,
+      value: {
+        ...updatedGroup.value,
+        parents: updatedParents,
+      },
+    };
+  }
+  if (group.value.children?.includes(IDToReplace)) {
+    let updatedChildren = group.value.children.filter((x) => x != IDToReplace);
+    updatedChildren.push(replacementID);
+    updatedGroup = {
+      ...updatedGroup,
+      value: {
+        ...updatedGroup.value,
+        children: updatedChildren,
+      },
+    };
+  }
+  if (group.value.admins.includes(IDToReplace)) {
+    let updatedAdmins = group.value.admins.filter((x) => x != IDToReplace);
+    updatedAdmins.push(replacementID);
+    updatedGroup = {
+      ...updatedGroup,
+      value: {
+        ...updatedGroup.value,
+        admins: updatedAdmins,
+      },
+    };
+  }
+  if (group.value.writers.includes(IDToReplace)) {
+    let updatedWriters = group.value.writers.filter((x) => x != IDToReplace);
+    updatedWriters.push(replacementID);
+    updatedGroup = {
+      ...updatedGroup,
+      value: {
+        ...updatedGroup.value,
+        writers: updatedWriters,
+      },
+    };
+  }
+  return updatedGroup;
 }
 
 /**
@@ -511,6 +663,7 @@ function confirmUpdateLinked({ existingSubgroups }) {
   existingSubgroups.forEach(({ id, value }) => {
     setGroup(id, value);
   });
+  removeOutstandingLinkPubkey();
   onAuth();
 }
 
@@ -525,19 +678,19 @@ function confirmUpdateLinked({ existingSubgroups }) {
  */
 function linkGroups({ parentID, childID }) {
   addParent({ groupID: childID, parentID: parentID });
-  return addChild(parentID, childID);
+  return addChild({ groupID: parentID, childID: childID });
 }
 
 /**
  * Updates group with new value.
  *
- * @param {string} id group ID
+ * @param {string} groupID group ID
  * @param {Object} value group value
  * 
  * @private
  */
-function updateGroup({ id, value }) {
-  setGroup(id, value);
+function updateGroup({ groupID, value }) {
+  setGroup(groupID, value);
 }
 
 /*
@@ -607,17 +760,26 @@ function confirmContact({ contactName, contactGroups }) {
  */
 function parseContactInfo(contactName, contactGroups) {
   let pubkey = getPubkey();
+  let linkedName = getLinkedName();
   let restLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
 
   contactGroups.forEach((contactGroup) => {
+    console.log(contactGroup);
+    let updatedContactGroup = groupReplace(contactGroup, LINKED, CONTACTS);
+    // add admin for enabling future deletion of this contact + groups
+    console.log(updatedContactGroup);
+    console.log(contactGroup);
+    // FIXME wtf is happening 
+    addAdmin(updatedContactGroup.value, linkedName);
+    console.log(updatedContactGroup);
     updateGroup({
-      id: contactGroup.id,
-      value: contactGroup.value,
+      groupID: updatedContactGroup.id,
+      value: updatedContactGroup.value,
     });
     sendMessage(restLinkedPubkeys, {
       msgType: UPDATE_GROUP,
-      id: contactGroup.id,
-      value: contactGroup.value,
+      groupID: updatedContactGroup.id,
+      value: updatedContactGroup.value,
     });
   });
 
@@ -678,6 +840,7 @@ export function getPendingContacts() {
 export function deleteDevice() {
   let pubkey = getPubkey();
   // get all groupIDs that directly point to this key
+  // TODO and indirectly (like contacts)
   sendMessage(resolveIDs(getParents(pubkey)), {
     msgType: DELETE_GROUP,
     groupID: pubkey,
@@ -696,6 +859,7 @@ export function deleteDevice() {
 export function deleteLinkedDevice(pubkey) {
   sendMessage([pubkey], {
     msgType: DELETE_SELF,
+    groupID: getLinkedName(),
   });
 }
 
@@ -705,6 +869,7 @@ export function deleteLinkedDevice(pubkey) {
 export function deleteAllLinkedDevices() {
   sendMessage(resolveIDs([LINKED]), {
     msgType: DELETE_SELF,
+    groupID: getLinkedName(),
   });
 }
 
@@ -751,8 +916,8 @@ function deleteGroup({ groupID }) {
  *
  * @private
  */
-function createGroup(ID, name, parents, children) {
-  setGroup(ID, new Group(name, parents, children));
+function createGroup(ID, name, parents, children, admins, writers) {
+  setGroup(ID, new Group(name, parents, children, admins, writers));
 }
 
 /**
@@ -765,8 +930,8 @@ function createGroup(ID, name, parents, children) {
  *
  * @private
  */
-function createKey(ID, name, parents) {
-  setGroup(ID, new Key(name, parents));
+function createKey(ID, name, parents, admins, writers) {
+  setGroup(ID, new Key(name, parents, admins, writers));
 }
 
 /**
@@ -815,7 +980,7 @@ function getAllSubgroups(groupIDs) {
  *
  * @private
  */
-function addChild(groupID, childID) {
+function addChild({ groupID, childID }) {
   return updateChildren(groupID, childID, (childID, newChildren) => {
     // deduplicate: only add parentID if doesn't already exist in list
     if (newChildren.indexOf(childID) === -1) newChildren.push(childID);
@@ -924,6 +1089,46 @@ function updateParents(groupID, parentID, callback) {
   return newGroupValue;
 }
 
+// TODO doc
+function getAdmins(groupID) {
+  return getGroup(groupID)?.admins ?? [];
+}
+
+function addAdmin(oldGroupValue, adminID) {
+  // deduplicate: only add adminID if doesn't already exist in list
+  if (oldGroupValue.admins.indexOf(adminID) === -1) {
+    console.log("ADDING ADMIN");
+    console.log(adminID);
+    oldGroupValue.admins.push(adminID);
+  }
+}
+
+function getNearestAdmins(parents) {
+  // return intersection of all admins of parent groups
+  // (intersection because will presumably need to modify _all_ parents to accomodate this group)
+  let nearestAdmins = [];
+  let calcAdmins = {};
+  let ctr = 0;
+  parents.forEach((parentID) => {
+    ctr += 1;
+    getAdmins(parentID).forEach((admin) => {
+      let curval = calcAdmins[admin]
+      calcAdmins[admin] = curval ? curval + 1 : 1;
+    });
+  });
+  Object.keys(calcAdmins).forEach((admin) => {
+    if (calcAdmins[admin] === ctr) {
+      nearestAdmins.push(admin);
+    }
+  });
+  return nearestAdmins;
+}
+
+// TODO doc
+function getWriters(groupID) {
+  return getGroup(groupID)?.writers ?? [];
+}
+
 /**
  * Group getter.
  *
@@ -999,8 +1204,8 @@ function getLinkedName() {
 /**
  * Get storage key for item given prefix and id.
  *
- * @params {string} prefix key prefix (GROUPS or app-specific)
- * @params {string} id auto-incremented id
+ * @param {string} prefix key prefix (GROUPS or app-specific)
+ * @param {string} id auto-incremented id
  * @returns {string}
  *
  * @private
@@ -1027,9 +1232,9 @@ function getDataPrefix(prefix) {
  * in the group to also store.
  * TODO allow named groups from app.
  *
- * @params {string} prefix prefix name
- * @params {Object} data app-specific data object
- * @params {string} id app-specific object id
+ * @param {string} prefix prefix name
+ * @param {Object} data app-specific data object
+ * @param {string} id app-specific object id
  */
 export function setData(prefix, id, data) {
   setDataHelper(getDataKey(prefix, id), data, getLinkedName());
@@ -1039,9 +1244,9 @@ export function setData(prefix, id, data) {
  * Function that handles propagating data to all members of the 
  * group and storing the datum locally.
  *
- * @params {string} key data key
- * @params {Object} data data value
- * @params {string} groupID ID of group to propagate to
+ * @param {string} key data key
+ * @param {Object} data data value
+ * @param {string} groupID ID of group to propagate to
  *
  * @private
  */
@@ -1067,8 +1272,8 @@ function setDataHelper(key, data, groupID) {
  * TODO consider pros/cons of only processing one prefix at a time
  * (efficiency in cases where want data from more than one prefix).
  *
- * @params {string} prefix data prefix
- * @params {?string} id app-specific object id
+ * @param {string} prefix data prefix
+ * @param {?string} id app-specific object id
  * @returns {Object|Object[]|null}
  */
 export function getData(prefix, id = null) {
@@ -1092,8 +1297,8 @@ export function getData(prefix, id = null) {
 /**
  * Removes the datum with prefix and id.
  *
- * @params {string} prefix data prefix
- * @params {string} id data id (app-specific)
+ * @param {string} prefix data prefix
+ * @param {string} id data id (app-specific)
  */
 export function removeData(prefix, id) {
   removeDataHelper(getDataKey(prefix, id));
@@ -1103,8 +1308,8 @@ export function removeData(prefix, id) {
  * Function that handles propagating data removal to all members of the 
  * group and deleting the datum locally.
  *
- * @params {string} key data key
- * @params {?string} groupID group ID to use for resolving pubkeys to delete from
+ * @param {string} key data key
+ * @param {?string} groupID group ID to use for resolving pubkeys to delete from
  *
  * @private
  */
@@ -1128,8 +1333,8 @@ function removeDataHelper(key, deleteLocal = true, groupID = null) {
 /**
  * Stores data value at data key (where data value has group information).
  *
- * @params {string} key data key
- * @params {Object} value data value
+ * @param {string} key data key
+ * @param {Object} value data value
  *
  * @private
  */
@@ -1140,7 +1345,7 @@ function updateData({ key, value }) {
 /**
  * Deletes data key (and associated value).
  *
- * @params {string} key data key
+ * @param {string} key data key
  *
  * @private
  */
@@ -1154,9 +1359,9 @@ function deleteData({ key }) {
  * name). Then propagates the new group info to all members of that 
  * group along with the data item itself.
  *
- * @params {string} prefix data prefix
- * @params {string} id data id
- * @params {string} toShareGroupID id with which to share data
+ * @param {string} prefix data prefix
+ * @param {string} id data id
+ * @param {string} toShareGroupID id with which to share data
  */
 export function shareData(prefix, id, toShareGroupID) {
   if (getGroup(toShareGroupID) === null) {
@@ -1170,9 +1375,10 @@ export function shareData(prefix, id, toShareGroupID) {
     let newGroupID;
     // only generate new group if underlying group is linkedName, otherwise
     // augment underlying group FIXME will need to change with diff permissions
-    if (curGroupID === getLinkedName()) {
+    let linkedName = getLinkedName();
+    if (curGroupID === linkedName) {
       newGroupID = getNewGroupID();
-      createGroup(newGroupID, null, [], [curGroupID, toShareGroupID]);
+      createGroup(newGroupID, null, [], [curGroupID, toShareGroupID], [linkedName], [linkedName]);
       let newCurGroup = addParent({ groupID: curGroupID, parentID: newGroupID });
       let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: newGroupID });
       let newGroupValue = getGroup(newGroupID);
@@ -1181,37 +1387,37 @@ export function shareData(prefix, id, toShareGroupID) {
       let restNewMemberPubkeys = resolveIDs([curGroupID]).concat(resolveIDs([toShareGroupID])).filter((x) => x != pubkey);
       sendMessage(restNewMemberPubkeys, {
         msgType: UPDATE_GROUP,
-        id: newGroupID,
+        groupID: newGroupID,
         value: newGroupValue,
       });
       // TODO trade-off between adding parent once and sending result everywhere
       // or modularly adding parent everywhere
       sendMessage(restNewMemberPubkeys, {
         msgType: UPDATE_GROUP,
-        id: curGroupID,
+        groupID: curGroupID,
         value: newCurGroup,
       });
       sendMessage(restNewMemberPubkeys, {
         msgType: UPDATE_GROUP,
-        id: toShareGroupID,
+        groupID: toShareGroupID,
         value: newToShareGroup,
       });
 
       // send actual data that group now points to
       setDataHelper(key, value.data, newGroupID);
     } else {
-      let newCurGroup = addChild(curGroupID, toShareGroupID);
+      let newCurGroup = addChild({ groupID: curGroupID, childID: toShareGroupID });
       let newToShareGroup = addParent({ groupID: toShareGroupID, parentID: curGroupID });
       let pubkey = getPubkey();
       let restNewMemberPubkeys = resolveIDs([curGroupID]).filter((x) => x != pubkey);
       sendMessage(restNewMemberPubkeys, {
         msgType: UPDATE_GROUP,
-        id: curGroupID,
+        groupID: curGroupID,
         value: newCurGroup,
       });
       sendMessage(restNewMemberPubkeys, {
         msgType: UPDATE_GROUP,
-        id: toShareGroupID,
+        groupID: toShareGroupID,
         value: newToShareGroup,
       });
       setDataHelper(key, value.data, curGroupID);
@@ -1228,9 +1434,9 @@ export function shareData(prefix, id, toShareGroupID) {
  * to the new group members and deletes old group and data from groupID's
  * devices.
  *
- * @params {string} prefix data prefix
- * @params {string} id data id
- * @params {string} toUnshareGroupID id with which to unshare data
+ * @param {string} prefix data prefix
+ * @param {string} id data id
+ * @param {string} toUnshareGroupID id with which to unshare data
  */
 export function unshareData(prefix, id, toUnshareGroupID) {
   // check that group exists
@@ -1242,7 +1448,7 @@ export function unshareData(prefix, id, toUnshareGroupID) {
   let key = getDataKey(prefix, id);
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
-  if (!isSubgroup(curGroupID, toUnshareGroupID)) {
+  if (!isMember([curGroupID], toUnshareGroupID)) {
     return;
   }
 
@@ -1257,7 +1463,8 @@ export function unshareData(prefix, id, toUnshareGroupID) {
       // TODO also delete old group on all devices in (old) curGroupID group
     } else {
       let newGroupID = getNewGroupID();
-      createGroup(newGroupID, null, [], newChildren);
+      let linkedName = getLinkedName();
+      createGroup(newGroupID, null, [], newChildren, [linkedName], [linkedName]);
       setDataHelper(key, value.data, newGroupID);
       removeDataHelper(key, false, toUnshareGroupID);
       // OK to just remove toUnshareGroupID from group b/c unique group per
@@ -1268,24 +1475,45 @@ export function unshareData(prefix, id, toUnshareGroupID) {
   }
 }
 
-/**
+/*
  * Checks if a groupID is a subgroup of another groupID.
  *
- * @params {string} groupID ID of group the function is traversing
- * @params {string} toCheckGroupID ID of group to check for
+ * @param {string} groupID ID of group the function is traversing
+ * @param {string} toCheckGroupID ID of group to check for
  * @returns {boolean}
  *
  * @private
  */
-function isSubgroup(groupID, toCheckGroupID) {
-  if (groupID === toCheckGroupID) {
-    return true;
-  }
-  let isChildSubgroup = false;
-  getChildren(groupID).forEach((child) => {
-    isChildSubgroup |= isSubgroup(child, toCheckGroupID);
+//function isSubgroup(groupID, toCheckGroupID) {
+//  if (groupID === toCheckGroupID) {
+//    return true;
+//  }
+//  let isChildSubgroup = false;
+//  getChildren(groupID).forEach((child) => {
+//    isChildSubgroup |= isSubgroup(child, toCheckGroupID);
+//  });
+//  return isChildSubgroup;
+//}
+
+/**
+ * Checks if a groupID is a member of a group.
+ *
+ * @param {string[]} groupIDList list of group IDs to check all children of
+ * @param {string} toCheckGroupID ID of group to check for
+ * @returns {boolean}
+ *
+ * @private
+ */
+function isMember(groupIDList, toCheckGroupID) {
+  let isMemberRetval = false;
+  groupIDList.forEach((groupID) => {
+    if (groupID === toCheckGroupID) {
+      isMemberRetval |= true;
+      return;
+    }
+    isMemberRetval |= isMember(getChildren(groupID), toCheckGroupID);
   });
-  return isChildSubgroup;
+  return isMemberRetval;
 }
 
 /*

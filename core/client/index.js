@@ -275,6 +275,7 @@ export function onMessage(msg) {
  */
 function checkPermissions(payload, srcPubkey) {
   let permissionsOK = false;
+  console.log(payload);
 
   // no reader checks, any device that gets data should correctly be a reader
   switch(payload.msgType) {
@@ -296,7 +297,9 @@ function checkPermissions(payload, srcPubkey) {
       }
       break;
     } case NEW_GROUP: {
-      if (isMember(getNearestAdmins(payload.value.admins), srcPubkey)) {
+      if (isMember(getNearestAdmins(payload.value.parents), srcPubkey)) {
+        permissionsOK = true;
+      } else if (isMember(getNearestAdmins(payload.value.admins), srcPubkey)) {
         permissionsOK = true;
       }
       break;
@@ -877,10 +880,9 @@ export function getPendingContacts() {
  * TODO validate that this message is coming from a known device.
  */
 export function deleteDevice() {
+  // notify all direct parents and contacts that this group should be removed
   let pubkey = getPubkey();
-  // get all groupIDs that directly point to this key
-  // TODO and indirectly (like contacts)
-  sendMessage(resolveIDs(getParents(pubkey)), {
+  sendMessage(resolveIDs(getParents(pubkey).concat([CONTACTS])), {
     msgType: DELETE_GROUP,
     groupID: pubkey,
   });
@@ -936,6 +938,7 @@ function deleteGroup({ groupID }) {
   // delete group
   removeGroup(groupID);
   // TODO more GC?
+  // TODO when contact children's list is empty -> remove contact
 }
 
 /*
@@ -1149,8 +1152,10 @@ function getAdmins(groupID) {
  * @private
  */
 function addAdmin(oldGroupValue, adminID) {
+  console.log(oldGroupValue);
+  console.log(adminID);
   // deduplicate: only add adminID if doesn't already exist in list
-  if (oldGroupValue.admins.indexOf(adminID) === -1) {
+  if (oldGroupValue?.admins.indexOf(adminID) === -1) {
     console.log("ADDING ADMIN");
     console.log(adminID);
     oldGroupValue.admins.push(adminID);
@@ -1161,6 +1166,8 @@ function addAdmin(oldGroupValue, adminID) {
  * Gets the set of admins for a new group by getting the intersection of all
  * the admins lists of all parent groups (since adding this new group will 
  * presumably need to modify all parents).
+ *
+ * TODO port to use listIntersect
  *
  * @param {string[]} parents list of parent ids
  * @returns {string[]}
@@ -1261,7 +1268,7 @@ export function getLinkedDevices() {
  * @private
  */
 function getLinkedName() {
-  return getGroup(LINKED).name;
+  return getGroup(LINKED)?.name ?? null;
 }
 
 /*
@@ -1346,14 +1353,19 @@ function setDataHelper(key, data, groupID) {
  * @returns {Object|Object[]|null}
  */
 export function getData(prefix, id = null) {
+  let topLevelNames = getChildren(CONTACTS).concat([getLinkedName()]);
   if (id === null) {
     // get all data within prefix
     let results = [];
     let intermediate = db.getMany(getDataPrefix(prefix));
     intermediate.forEach(({ key, value }) => {
+      let admins = listIntersect(topLevelNames, getAdmins(value.groupID));
+      let children = listIntersect(topLevelNames, getChildren(value.groupID).filter((x) => !admins.includes(x)));
       results.push({
         id: key.split(SLASH)[2],
         data: value.data,
+        admins: admins,
+        children: children,
       });
     });
     return results;
@@ -1361,6 +1373,23 @@ export function getData(prefix, id = null) {
     // get single data item
     return db.get(getDataKey(prefix, id))?.data ?? null;
   }
+}
+
+/**
+ * Helper function for determining the intersection between two lists.
+ *
+ * @param {string[]} list1
+ * @param {string[]} list2
+ * @returns {string[]} intersection of list1 and list2
+ *
+ * @private
+ */
+function listIntersect(list1, list2) {
+  let intersection = [];
+  list1.forEach((e) => {
+    if (list2.includes(e)) intersection.push(e);
+  });
+  return intersection;
 }
 
 /**

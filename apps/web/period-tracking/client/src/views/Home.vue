@@ -43,7 +43,9 @@
         <p class="remove" @click="removeSymptomDatum(symptom.id)">&#9746;</p>
         <p>Timestamp: {{ symptom.data.timestamp }}</p>
         <p>Symptoms: {{ symptom.data.symptoms }}</p>
-        <p>Raw object: {{ symptom }}</p>
+        <p>Owned by: {{ symptom.admins }}</p>
+        <p>Shared with: {{ symptom.children }}</p>
+        <!--<p>Raw object: {{ symptom }}</p>-->
         <div>
           <input v-model="shareSymptomFriendName" placeholder="friend name" />
         </div>
@@ -63,7 +65,9 @@
         <p class="remove" @click="removePeriodDatum(period.id)">&#9746;</p>
         <p>Timestamp: {{ period.data.timestamp }}</p>
         <p>Period: {{ period.data.period }}</p>
-        <p>Raw object: {{ period }}</p>
+        <p>Owned by: {{ period.admins }}</p>
+        <p>Shared with: {{ period.children }}</p>
+        <!--<p>Raw object: {{ period }}</p>-->
         <div>
           <input v-model="sharePeriodFriendName" placeholder="friend name" />
         </div>

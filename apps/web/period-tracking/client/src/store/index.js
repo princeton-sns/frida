@@ -33,28 +33,28 @@ function createAppDBListenerPlugin() {
       } else if (e.key.includes(symptomPrefix)) {
         if (e.newValue == null && e.oldValue) {
           store.commit("REMOVE_SYMPTOMS", {
-            id: JSON.parse(e.oldValue).data.id,
+            id: frida.db.fromString(e.oldValue).data.id,
             remote: true,
           });
         } else {
           store.commit("ADD_SYMPTOM", {
-            timestamp: JSON.parse(e.newValue).data.timestamp,
-            symptoms: JSON.parse(e.newValue).data.symptoms,
-            id: JSON.parse(e.newValue).data.id,
+            timestamp: frida.db.fromString(e.newValue).data.timestamp,
+            symptoms: frida.db.fromString(e.newValue).data.symptoms,
+            id: frida.db.fromString(e.newValue).data.id,
             remote: true,
           });
         }
       } else if (e.key.includes(periodPrefix)) {
         if (e.newValue == null && e.oldValue) {
           store.commit("REMOVE_PERIOD", {
-            id: JSON.parse(e.oldValue).data.id,
+            id: frida.db.fromString(e.oldValue).data.id,
             remote: true,
           });
         } else {
           store.commit("ADD_PERIOD", {
-            timestamp: JSON.parse(e.newValue).data.timestamp,
-            period: JSON.parse(e.newValue).data.period,
-            id: JSON.parse(e.newValue).data.id,
+            timestamp: frida.db.fromString(e.newValue).data.timestamp,
+            period: frida.db.fromString(e.newValue).data.period,
+            id: frida.db.fromString(e.newValue).data.id,
             remote: true,
           });
         }
@@ -75,6 +75,14 @@ const store = createStore({
     symptoms: frida.getData(symptomPrefix),
     period: frida.getData(periodPrefix),
   },
+  //getters: {
+  //  getSymptomSharedList(id) {
+  //    console.log(frida.getSharedList(symptomPrefix, id));
+  //  },
+  //  getPeriodSharedList(id) {
+  //    console.log(frida.getSharedList(periodPrefix, id));
+  //  },
+  //},
   mutations: {
     /* App-specific mutations */
     ADD_SYMPTOMS(state, { timestamp, symptoms, id, remote }) {
@@ -86,7 +94,7 @@ const store = createStore({
       if (!remote) {
         frida.setData(symptomPrefix, id, value);
       }
-      //state.symptoms.push(JSON.stringify({
+      //state.symptoms.push(frida.db.toString({
       //  id: id,
       //  data: value,
       //}));
@@ -136,8 +144,18 @@ const store = createStore({
     ADD_FRIEND(state, { pubkey }) {
       frida.addContact(pubkey);
       //let friendName = frida.addContact(pubkey);
-      //pendingFriends.push(friendName);
+      //state.pendingFriends.push(friendName);
     },
+    //CONFIRM_FRIEND(state, { name }) {
+    //  if (state.friends.indexOf(name) === -1) state.friends.push(name);
+    //  let idx = state.pendingFriends.indexOf(name);
+    //  if (idx !== -1) {
+    //    state.pendingFriends.splice(idx, 1);
+    //  } else {
+    //    // bug, should have been in pendingFriends list
+    //    console.log("bug");
+    //  }
+    //},
     REMOVE_FRIEND(state, { name }) {
       frida.removeContact(name);
       let idx = state.friends.indexOf(name);

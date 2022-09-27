@@ -69,8 +69,8 @@ const demuxMap = {
 export { PUBKEY as pubkeyPrefix };
 
 // default auth/unauth functions do nothing
-let onAuth   = () => {};
-let onUnauth = () => {};
+let defaultOnAuth   = () => {};
+let defaultOnUnauth = () => {};
 
 // default callback
 let defaultValidateCallback = (payload) => {
@@ -78,9 +78,13 @@ let defaultValidateCallback = (payload) => {
   console.log(payload)
   return true;
 }
-let validateCallback = defaultValidateCallback;
 
+// init options
 let storagePrefixes = [GROUP];
+let onAuth;
+let onUnauth;
+let validateCallback;
+let encrypt;
 
 function makeGroup(fieldNames) {
   fieldNames = fieldNames.split(' ');
@@ -135,15 +139,10 @@ export { createDBListenerPlugin as dbListenerPlugin };
  */
 export function init(ip, port, config) {
   sc.init(ip, port);
-  if (config.onAuth) {
-    onAuth = config.onAuth;
-  }
-  if (config.onUnauth) {
-    onUnauth = config.onUnauth;
-  }
-  if (config.validateCallback) {
-    validateCallback = config.validateCallback;
-  }
+  onAuth = config.onAuth ?? defaultOnAuth;
+  onUnauth = config.onUnauth ?? defaultOnUnauth;
+  validateCallback = config.validateCallback ?? defaultValidateCallback;
+  encrypt = config.encrypt ?? true;
   if (config.storagePrefixes) {
     config.storagePrefixes.forEach((prefix) => {
       storagePrefixes.push(prefix);
@@ -199,7 +198,8 @@ function sendMessage(dstPubkeys, payload) {
     let { ciphertext: encPayload, nonce: nonce } = c.signAndEncrypt(
       dstPubkey,
       srcPrivkey,
-      db.toString(payload)
+      db.toString(payload),
+      encrypt
     );
     batch.push({
       dstPubkey: dstPubkey,
@@ -240,7 +240,8 @@ export function onMessage(msg) {
         msg.encPayload,
         msg.nonce,
         msg.srcPubkey,
-        curPrivkey
+        curPrivkey,
+        encrypt
       )
     );
 

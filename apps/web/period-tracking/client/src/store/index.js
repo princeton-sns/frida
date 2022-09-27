@@ -16,6 +16,7 @@ frida.init(serverIP, serverPort, {
     router.push("/register");
   },
   storagePrefixes: [symptomPrefix, periodPrefix],
+  encrypt: false,
 });
 
 function createAppDBListenerPlugin() {

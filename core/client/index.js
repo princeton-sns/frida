@@ -606,7 +606,7 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
 
     /* UPDATE NEW SELF */
 
-    // notify new group member successful link and piggyback existing group info
+    // notify new group member of successful link and piggyback existing group info
     sendMessage([srcPubkey], {
       msgType: DELETE_GROUP,
       groupID: tempName,
@@ -614,6 +614,15 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
     sendMessage([srcPubkey], {
       msgType: CONFIRM_UPDATE_LINKED,
       existingSubgroups: getAllSubgroups([LINKED, CONTACTS]),
+    });
+    // send existing data to new linked group member
+    let dataArr = getData();
+    dataArr.forEach((dataElem) => {
+      sendMessage([srcPubkey], {
+        msgType: UPDATE_DATA,
+        key: dataElem.key,
+        value: dataElem.value,
+      });
     });
 
     /* UPDATE OTHER */
@@ -1349,15 +1358,29 @@ function setDataHelper(key, data, groupID) {
  * TODO consider pros/cons of only processing one prefix at a time
  * (efficiency in cases where want data from more than one prefix).
  *
- * @param {string} prefix data prefix
+ * @param {?string} prefix data prefix
  * @param {?string} id app-specific object id
  * @returns {Object|Object[]|null}
  */
-export function getData(prefix, id = null) {
-  let topLevelNames = getChildren(CONTACTS).concat([getLinkedName()]);
+export function getData(prefix = null, id = null) {
+  if (prefix === null) {
+    // get all app data
+    let results = [];
+    let appPrefixes = storagePrefixes.filter((x) => x != GROUP);
+    appPrefixes.forEach((appPrefix) => {
+      db.getMany(getDataPrefix(appPrefix)).forEach((dataObj) => {
+        results.push({
+          key: dataObj.key,
+          value: dataObj.value,
+        });
+      });
+    });
+    return results;
+  }
   if (id === null) {
     // get all data within prefix
     let results = [];
+    let topLevelNames = getChildren(CONTACTS).concat([getLinkedName()]);
     let intermediate = db.getMany(getDataPrefix(prefix));
     intermediate.forEach(({ key, value }) => {
       let admins = listIntersect(topLevelNames, getAdmins(value.groupID));
@@ -1370,10 +1393,9 @@ export function getData(prefix, id = null) {
       });
     });
     return results;
-  } else {
-    // get single data item
-    return db.get(getDataKey(prefix, id))?.data ?? null;
   }
+  // get single data item
+  return db.get(getDataKey(prefix, id))?.data ?? null;
 }
 
 /**

@@ -5,16 +5,15 @@ be difficult and impractical. So much so that even billion-dollar companies get
 it wrong (insert data breaches here). This is largely due to the three-tiered 
 architecture used to build applications today. 
 
-In traditional three-tier architected applications, a centralized server 
-is fully trusted to implement necessary functionality (application logic, 
-storing ground truth data, performing access control, etc). In other words, the 
-server must directly operate on user data. Consequently, user data is 
-vulnerable to any entity that gains access to the server (curious administrator, 
-hacker, government). Various solutions for hardening this architecture must rely 
-on homomorphic encryption \cite{cryptdb} or \dots Thus developers of 
-applications that want privacy end up needing to be experts in cryptography, 
-practically limiting the number of applications that can successfully uphold 
-user privacy.
+In traditional three-tier architected applications, a centralized server is
+fully trusted to implement necessary functionality (application logic, storing
+ground truth data, performing access control, etc). In other words, theserver
+must directly operate on user data. Consequently, user data is vulnerable to any
+entity that gains access to the server (curious administrator, hacker,
+government). Various solutions for hardening this architecture must rely on
+homomorphic encryption \cite{cryptdb} or \dots Thus developers of applications
+that want privacy end up needing to be experts in cryptography, practically
+limiting the number of applications that can successfully uphold user privacy.
 
 An increasingly common architecture for building applications primarily relies 
 on the \textit{client} to implement necessary functionality. Firebase 

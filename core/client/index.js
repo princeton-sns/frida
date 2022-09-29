@@ -6,6 +6,16 @@
  ************
  */
 
+// TODO thoughts: should permission checks happen at the
+// database layer?
+// e.g. any local database modifications should either be
+// checked (it is possible they come from an external party)
+// or unchecked (it is impossible for them to come from an
+// external party)
+// how hard is reasoning about this?
+
+// TODO add permission checks for setting cryptographic keys
+
 import * as sc from "./serverComm/socketIO.js";
 import * as c from  "./crypto/libSodium.js";
 import * as db from "./db/localStorage.js";
@@ -1398,7 +1408,7 @@ export function getData(prefix = null, id = null) {
         id: key.split(SLASH)[2],
         data: value.data,
         admins: admins,
-        children: children,
+        readers: children,
       });
     });
     return results;
@@ -1443,29 +1453,38 @@ export function removeData(prefix, id) {
  *
  * @private
  */
-function removeDataHelper(key, deleteLocal = true, groupID = null) {
-  if (groupID === null) {
-    groupID = db.get(key)?.groupID;
+function removeDataHelper(key, deleteLocal = true, curGroupID = null, toUnshareGroupID = null) {
+  if (curGroupID === null) {
+    curGroupID = db.get(key)?.groupID;
   }
-  if (groupID !== null) {
+  if (curGroupID !== null) {
     let pubkey = getPubkey();
     // TODO encapsulate in a cleaner function
-    if (!isMember(getWriters(groupID), pubkey)) {
+    if (!isMember(getWriters(curGroupID), pubkey)) {
       console.log("----------ERROR insufficient permissions for modifying data");
       console.log(key);
-      console.log(groupID);
+      console.log(curGroupID);
       return;
     }
 
     if (deleteLocal) {
       db.remove(key);
     }
-    let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
-    // send to other devices in groupID
-    sendMessage(pubkeys, {
-      msgType: DELETE_DATA,
-      key: key,
-    });
+    if (toUnshareGroupID !== null) {
+      let pubkeys = resolveIDs([toUnshareGroupID]).filter((x) => x != pubkey);
+      // send to other devices in groupID
+      sendMessage(pubkeys, {
+        msgType: DELETE_DATA,
+        key: key,
+      });
+    } else {
+      let pubkeys = resolveIDs([curGroupID]).filter((x) => x != pubkey);
+      // send to other devices in groupID
+      sendMessage(pubkeys, {
+        msgType: DELETE_DATA,
+        key: key,
+      });
+    }
   }
 }
 
@@ -1510,8 +1529,9 @@ export function getSharedList(prefix, id) {
  * @param {string} prefix data prefix
  * @param {string} id data id
  * @param {string} toShareGroupID id with which to share data
+ * @param {number} priv 0 = reader, 1 = writer, 2 = admin
  */
-export function shareData(prefix, id, toShareGroupID) {
+export function shareData(prefix, id, toShareGroupID, priv) {
   if (getGroup(toShareGroupID) === null) {
     return;
   }
@@ -1542,7 +1562,13 @@ export function shareData(prefix, id, toShareGroupID) {
       sharingGroupID = getNewGroupID();
 
       // create new sharing group
-      createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
+      if (priv === 0) {
+        createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
+      } else if (priv === 1) {
+        createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID, toShareGroupID]);
+      } else if (priv === 2) {
+        createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID, toShareGroupID], [curGroupID, toShareGroupID]);
+      }
       sendMessage(restNewMemberPubkeys, {
         msgType: NEW_GROUP,
         groupID: sharingGroupID,
@@ -1596,6 +1622,12 @@ export function shareData(prefix, id, toShareGroupID) {
         groupID: toShareGroupID,
         parentID: curGroupID,
       });
+
+      //if (priv === 1) {
+      //  addWriter();
+      //} else if (priv === 2) {
+      //  addAdmin();
+      //}
 
       // send actual data that group now points to (curGroupID == sharingGroupID)
       setDataHelper(key, value.data, curGroupID);
@@ -1658,7 +1690,7 @@ export function unshareData(prefix, id, toUnshareGroupID) {
     // delete data from toUnshareGroupID devices
     // do this first because need old group info to check that this device
     // can indeed unshare
-    removeDataHelper(key, false, toUnshareGroupID);
+    removeDataHelper(key, false, curGroupID, toUnshareGroupID);
     // unlink and delete curGroupID group on toUnshareGroupID devices
     sendMessage(toUnsharePubkeys, {
       msgType: REMOVE_PARENT,

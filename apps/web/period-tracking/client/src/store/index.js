@@ -112,12 +112,12 @@ const store = createStore({
     },
     SHARE_SYMPTOMS(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.shareData(symptomPrefix, id, friendName);
+        frida.shareData(symptomPrefix, id, friendName, 0);
       }
     },
     SHARE_PERIOD(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.shareData(periodPrefix, id, friendName);
+        frida.shareData(periodPrefix, id, friendName, 0);
       }
     },
     UNSHARE_SYMPTOMS(state, { id, friendName, remote }) {

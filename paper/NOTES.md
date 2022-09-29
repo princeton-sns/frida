@@ -85,5 +85,16 @@ A third way would be to somehow say that the category of apps we target turns ou
 to be the largest category of apps. But again, this would require some sort of 
 survey of apps, which may not be worth it.
 
+A fourth way would be to focus on apps where most of the data involved is user-
+generated from the get-go. A lot of attention has been paid to instant messaging
+for this reason, but there are many more apps that have similar privacy 
+considerations and have not gotten the same amount of attention (perhaps because,
+individually, these apps do not comprise a large-enough portion of apps to 
+warrant this attention, unlike messaging which is very common). However, 
+together, we argue that these applications are just as important to make private 
+as instant messaging. And then here maybe insert citations that show that these 
+kinds of apps do actually want privacy (if we can find sources, don't think this 
+is seminal to the argument).
+
 This motivation is also probably not _that_ important, and it may just be sufficient 
 to go about it the way we've been going about it.

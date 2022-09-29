@@ -1337,12 +1337,21 @@ export function setData(prefix, id, data) {
  * @private
  */
 function setDataHelper(key, data, groupID) {
+  // check permissions
+  let pubkey = getPubkey();
   let value = {
     groupID: groupID,
     data: data,
   };
+  // TODO encapsulate in a cleaner function
+  if (!isMember(getWriters(groupID), pubkey)) {
+    console.log("----------ERROR insufficient permissions for modifying data");
+    console.log(key);
+    console.log(value);
+    return;
+  }
+
   db.set(key, value);
-  let pubkey = getPubkey();
   let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
   // send to other devices in groupID
   sendMessage(pubkeys, {
@@ -1439,10 +1448,18 @@ function removeDataHelper(key, deleteLocal = true, groupID = null) {
     groupID = db.get(key)?.groupID;
   }
   if (groupID !== null) {
+    let pubkey = getPubkey();
+    // TODO encapsulate in a cleaner function
+    if (!isMember(getWriters(groupID), pubkey)) {
+      console.log("----------ERROR insufficient permissions for modifying data");
+      console.log(key);
+      console.log(groupID);
+      return;
+    }
+
     if (deleteLocal) {
       db.remove(key);
     }
-    let pubkey = getPubkey();
     let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
     // send to other devices in groupID
     sendMessage(pubkeys, {
@@ -1504,9 +1521,18 @@ export function shareData(prefix, id, toShareGroupID) {
   let curGroupID = value?.groupID ?? null;
 
   if (curGroupID !== null) {
+    // TODO encapsulate in cleaner function
+    // check that current device can modify this group
+    let pubkey = getPubkey();
+    if (!isMember(getAdmins(curGroupID), pubkey)) {
+      console.log("----------ERROR insufficient permissions for modifying group");
+      console.log(key);
+      console.log(value);
+      return;
+    }
+
     let sharingGroupID;
     let linkedName = getLinkedName();
-    let pubkey = getPubkey();
     let restNewMemberPubkeys = resolveIDs([curGroupID, toShareGroupID]).filter((x) => x != pubkey);
 
     // TODO currently all sharing is read-only, enable adding writers/admins
@@ -1615,6 +1641,15 @@ export function unshareData(prefix, id, toUnshareGroupID) {
 
   // unshare data with group
   if (curGroupID !== null) {
+    // TODO encapsulate in cleaner function
+    // check that current device can modify group
+    if (!isMember(getAdmins(curGroupID), getPubkey())) {
+      console.log("----------ERROR insufficient permissions for modifying group");
+      console.log(key);
+      console.log(value);
+      return;
+    }
+
     // FIXME assuming simple structure, won't work if toUnshareGroupID is
     // further than the first level down
     let newChildren = getChildren(curGroupID).filter((x) => x != toUnshareGroupID);

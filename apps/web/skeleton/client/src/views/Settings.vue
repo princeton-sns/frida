@@ -1,8 +1,10 @@
 <template>
   <div class="settings">
-    <p>pubkey:</p>
+    <p><u>top name:</u></p>
+    <p>{{ name }}</p>
+    <p><u>pubkey:</u></p>
     <p>{{ pubkey }}</p>
-    <p>devices:</p>
+    <p><u>devices:</u></p>
     <p>{{ devices }}</p>
     <div>
       <button @click="deleteDevice">Delete This Device</button>
@@ -43,6 +45,7 @@ export default {
   },
   computed: {
     ...mapState({
+      name: "name",
       pubkey: "pubkey",
       devices: "devices",
     }),

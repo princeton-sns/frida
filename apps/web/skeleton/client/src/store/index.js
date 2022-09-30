@@ -52,6 +52,7 @@ function createAppDBListenerPlugin() {
 
 const store = createStore({
   state: {
+    name: frida.getLinkedName(),
     pubkey: frida.getPubkey(),
     // TODO make these lists reactive
     // TODO show human-readable names instead of pubkeys

@@ -766,13 +766,18 @@ function updateGroup({ groupID, value }) {
  * @param {string} contactPubkey hex-formatted public key
  */
 export function addContact(contactPubkey) {
-  // piggyback own contact info when requesting others contact info
+  // only add contact if not self
   let linkedName = getLinkedName();
-  sendMessage([contactPubkey], {
-    msgType: REQ_CONTACT,
-    reqContactName: linkedName,
-    reqContactGroups: getAllSubgroups([linkedName]),
-  });
+  if (!isMember([linkedName], contactPubkey)) {
+    // piggyback own contact info when requesting others contact info
+    sendMessage([contactPubkey], {
+      msgType: REQ_CONTACT,
+      reqContactName: linkedName,
+      reqContactGroups: getAllSubgroups([linkedName]),
+    });
+  } else {
+    console.log("----------ERROR cannot add self as contact");
+  }
 }
 
 /**
@@ -1277,7 +1282,7 @@ export function getLinkedDevices() {
  *
  * @private
  */
-function getLinkedName() {
+export function getLinkedName() {
   return getGroup(LINKED)?.name ?? null;
 }
 

@@ -15,12 +15,12 @@
     </div>
     <br />
     <div class="list-friends">
-      <h3>Friends:</h3>
+      <p><u>Friends:</u></p>
       <div v-for="friend in friends" :key="friend">{{ friend }}</div>
     </div>
     <br />
     <div class="pending-friends">
-      <h3>Pending:</h3>
+      <p><u>Pending:</u></p>
       <div v-for="pending in pendingFriends" :key="pending">{{ pending }}</div>
     </div>
   </div>

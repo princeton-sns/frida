@@ -286,7 +286,6 @@ export function onMessage(msg) {
  */
 function checkPermissions(payload, srcPubkey) {
   let permissionsOK = false;
-  console.log(payload);
 
   // no reader checks, any device that gets data should correctly be a reader
   switch(payload.msgType) {
@@ -359,7 +358,6 @@ function checkPermissions(payload, srcPubkey) {
       permissionsOK = true;
       break;
     default:
-      console.log("UNDEFINED DEMUX");
   }
 
   return {
@@ -826,14 +824,10 @@ function parseContactInfo(contactName, contactGroups) {
   let restLinkedPubkeys = resolveIDs([LINKED]).filter((x) => x != pubkey);
 
   contactGroups.forEach((contactGroup) => {
-    console.log(contactGroup);
     let updatedContactGroup = groupReplace(contactGroup, LINKED, CONTACTS);
     // add admin for enabling future deletion of this contact + groups
-    console.log(updatedContactGroup);
-    console.log(contactGroup);
     // FIXME wtf is happening 
     addAdmin(updatedContactGroup.value, linkedName);
-    console.log(updatedContactGroup);
     updateGroup({
       groupID: updatedContactGroup.id,
       value: updatedContactGroup.value,
@@ -1172,12 +1166,8 @@ function getAdmins(groupID) {
  * @private
  */
 function addAdmin(oldGroupValue, adminID) {
-  console.log(oldGroupValue);
-  console.log(adminID);
   // deduplicate: only add adminID if doesn't already exist in list
   if (oldGroupValue?.admins.indexOf(adminID) === -1) {
-    console.log("ADDING ADMIN");
-    console.log(adminID);
     oldGroupValue.admins.push(adminID);
   }
 }
@@ -1356,8 +1346,6 @@ function setDataHelper(key, data, groupID) {
   // TODO encapsulate in a cleaner function
   if (!isMember(getWriters(groupID), pubkey)) {
     console.log("----------ERROR insufficient permissions for modifying data");
-    console.log(key);
-    console.log(value);
     return;
   }
 
@@ -1462,8 +1450,6 @@ function removeDataHelper(key, deleteLocal = true, curGroupID = null, toUnshareG
     // TODO encapsulate in a cleaner function
     if (!isMember(getWriters(curGroupID), pubkey)) {
       console.log("----------ERROR insufficient permissions for modifying data");
-      console.log(key);
-      console.log(curGroupID);
       return;
     }
 
@@ -1546,8 +1532,6 @@ export function shareData(prefix, id, toShareGroupID, priv) {
     let pubkey = getPubkey();
     if (!isMember(getAdmins(curGroupID), pubkey)) {
       console.log("----------ERROR insufficient permissions for modifying group");
-      console.log(key);
-      console.log(value);
       return;
     }
 
@@ -1677,8 +1661,6 @@ export function unshareData(prefix, id, toUnshareGroupID) {
     // check that current device can modify group
     if (!isMember(getAdmins(curGroupID), getPubkey())) {
       console.log("----------ERROR insufficient permissions for modifying group");
-      console.log(key);
-      console.log(value);
       return;
     }
 

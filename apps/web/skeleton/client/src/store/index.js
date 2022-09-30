@@ -16,7 +16,7 @@ frida.init(serverIP, serverPort, {
   },
   storagePrefixes: [skeletonPrefix],
   // toggle encryption for benchmarking
-  encrypt: false,
+  //encrypt: false,
 });
 
 function createAppDBListenerPlugin() {

@@ -9,15 +9,15 @@ to separate localStorage instances (the back-end database that Frida is currentl
 using). You will also need Firefox if you don't already have it. 
 
 Once this extension is added to Firefox, you can open a new container tab by 
-holding down the `+` button when opening a new tab or going to File > New 
-Container Tab. By default there are four containers, so you can effectively 
+holding down the `+` button when opening a new tab or going to `File` > `New 
+Container Tab`. By default there are four containers, so you can effectively 
 simulate five separate devices without changing container settings (the fifth 
 would be in a non-container tab, which also has separate storage from any of 
-the containers). 
+the containers). You can also re-configure/add new containers to fit your 
+needs.
 
-For the remainder of these instructions, any time a "device" is referenced, 
-this actually refers to a Frida-client instance with isolated storage (e.g., 
-a contained browser tab).
+In the remainder of these instructions, a "device" refers to a Frida-client
+instance with isolated storage (e.g., a contained browser tab).
 
 ## Start the server
 
@@ -49,10 +49,11 @@ all of the device public keys that are linked with the current device
 
 ### Link new device with existing device
 
-On a new, unregistered device, paste the value of the `pubkey` field on the 
-device you wish to link with into the "public key to link with" field, then
-click `New Linked Device`. A pop-up should appear on the device with the 
-pasted pubkey, asking if a new LINKED member should be authenticated. Press `OK`.
-Refresh both devices (and navigate to the `Settings` tab on the newly-linked
-device). Both devices should now have the same `devices` fields with two fields,
-one for each of the linked devices.
+On a new, unregistered device, paste the value of the `pubkey` field of the 
+device you wish to link with into the "public key to link with" field on the
+currently-unregistered device, and then click `New Linked Device`. A pop-up 
+should appear on the device associated with the pasted pubkey, asking if a new
+LINKED member should be authenticated. Press `OK`. Refresh both devices and 
+navigate to the `Settings` tab on the newly-linked device. Both devices should 
+now have the same `devices` value: an array with two fields, one for each of 
+the linked devices.

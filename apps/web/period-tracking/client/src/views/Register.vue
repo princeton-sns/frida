@@ -12,7 +12,7 @@
     <br />
     <div>
       <div>
-        <input v-model="pubkey" placeholder="public key to link with" />
+        <input v-model="idkey" placeholder="id key to link with" />
       </div>
       <div>
         <input v-model="nextDeviceName" placeholder="device name (optional)" />
@@ -29,7 +29,7 @@ export default {
       topName: null,
       firstDeviceName: null,
       nextDeviceName: null,
-      pubkey: null,
+      idkey: null,
     };
   },
   methods: {
@@ -46,9 +46,9 @@ export default {
       console.log(event);
       this.$store.commit("NEW_LINKED_DEVICE", {
         deviceName: this.nextDeviceName,
-        pubkey: this.pubkey,
+        idkey: this.idkey,
       });
-      this.pubkey = "";
+      this.idkey = "";
       this.nextDeviceName = "";
     },
   },

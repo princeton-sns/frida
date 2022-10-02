@@ -2,7 +2,7 @@
   <div class="friends">
     <div class="add-friend">
       <div>
-        <input v-model="devicePublicKey" placeholder="device public key" />
+        <input v-model="deviceIdkey" placeholder="device id key" />
       </div>
       <button @click="addFriend">Add Friend</button>
     </div>
@@ -38,7 +38,7 @@ export default {
   },
   data() {
     return {
-      devicePublicKey: null,
+      deviceIdkey: null,
       friendName: null,
     };
   },
@@ -46,9 +46,9 @@ export default {
     addFriend(event) {
       console.log(event);
       this.$store.commit("ADD_FRIEND", {
-        pubkey: this.devicePublicKey,
+        idkey: this.deviceIdkey,
       });
-      this.devicePublicKey = "";
+      this.deviceIdkey = "";
     },
     removeFriend(event) {
       console.log(event);

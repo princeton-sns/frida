@@ -5,7 +5,7 @@
  */
 
 import io from "socket.io-client";
-import { onMessage, getPubkey } from "../index.js";
+import { onMessage, getIdkey } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
@@ -17,9 +17,9 @@ export function init(ip, port) {
   socket = io(url);
 
   socket.on("connect", () => {
-    let pubkey = getPubkey();
-    if (pubkey) {
-      connect(pubkey);
+    let idkey = getIdkey();
+    if (idkey) {
+      connect(idkey);
     }
   });
 
@@ -28,22 +28,22 @@ export function init(ip, port) {
   });
 }
 
-export function connect(pubkey) {
-  socket.emit("linkSocket", pubkey);
+export function connect(idkey) {
+  socket.emit("linkSocket", idkey);
 }
 
-export function disconnect(pubkey) {
-  socket.emit("unlinkSocket", pubkey);
+export function disconnect(idkey) {
+  socket.emit("unlinkSocket", idkey);
 }
 
 export function sendMessage(msg) {
   socket.emit("noiseMessage", msg);
 }
 
-export function addDevice(pubkey) {
-  socket.emit("addDevice", pubkey);
+export function addDevice(idkey) {
+  socket.emit("addDevice", idkey);
 }
 
-export function removeDevice(pubkey) {
-  socket.emit("removeDevice", pubkey);
+export function removeDevice(idkey) {
+  socket.emit("removeDevice", idkey);
 }

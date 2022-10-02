@@ -133,8 +133,12 @@ io.on("connection", (socket) => {
       srcPubkey,
       batch,
     }) => {
+      console.log("RECEIVED NOISE MESSAGE");
       let curSeqID = seqID++;
       batch.forEach(({ dstPubkey, encPayload, nonce }) => {
+        console.log(dstPubkey);
+        console.log(encPayload);
+        console.log(nonce);
         handleOffline(dstPubkey, "noiseMessage", {
           srcPubkey: srcPubkey,
           seqID: curSeqID,

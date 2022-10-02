@@ -14,7 +14,7 @@
 // external party)
 // how hard is reasoning about this?
 
-// TODO add permission checks for setting cryptographic keys
+// TODO add permission checks for setting cryptographic keys?
 
 import * as sc from "./serverComm/socketIO.js";
 import * as c from  "./crypto/libSodium.js";
@@ -27,7 +27,6 @@ export { db };
 const SLASH = "/";
 const DATA  = "__data";
 const GROUP = "__group";
-//const GROUP_KEY_PREFIX = DATA + SLASH + GROUP + SLASH;
 const LINKED   = "__linked";
 const CONTACTS = "__contacts";
 const PUBKEY   = "pubkey";
@@ -75,7 +74,6 @@ const demuxMap = {
   [DELETE_DATA]:           deleteData,
 };
 
-//export { GROUP_KEY_PREFIX as groupPrefix };
 export { PUBKEY as pubkeyPrefix };
 
 // default auth/unauth functions do nothing
@@ -131,6 +129,32 @@ function createDBListenerPlugin() {
 }
 
 export { createDBListenerPlugin as dbListenerPlugin };
+
+/* Error messages */
+
+function printBadMessageError(msgType) {
+  console.log("----------ERROR unknown msgType: " + msgType);
+}
+
+function printBadPermissionsError() {
+  console.log("----------ERROR insufficient permissions");
+}
+
+function printBadDataError() {
+  console.log("----------ERROR data invariant violated");
+}
+
+function printBadContactError() {
+  console.log("----------ERROR cannot add self as contact");
+}
+
+function printBadDataPermissionsError() {
+  console.log("----------ERROR insufficient permissions for modifying data");
+}
+
+function printBadGroupPermissionsError() {
+  console.log("----------ERROR insufficient permissions for modifying group");
+}
 
 /*
  *********************
@@ -190,8 +214,6 @@ export function disconnectDevice() {
 /**
  * Called like: sendMessage(resolveIDs(id), payload) (see example in 
  * deleteAllLinkedDevices()).
- *
- * TODO better to take in the current device's pub/priv-keys as arguments? 
  *
  * @param {string[]} dstPubkeys public keys to send message to
  * @param {Object} payload message contents
@@ -271,122 +293,6 @@ export function onMessage(msg) {
     console.log("SUCCESS");
     demuxFunc(payload);
   }
-}
-
-function printBadMessageError(msgType) {
-  console.log("----------ERROR UNKNOWN msgType: " + msgType);
-}
-
-function printBadPermissionsError() {
-  console.log("----------ERROR insufficient permissions");
-}
-
-function printBadDataError() {
-  console.log("----------ERROR data invariant violated");
-}
-
-/**
- * Checks that sender has proper permissions according to group and resolves
- * the dumultiplexing function.
- *
- * @param {Object} payload decrypted message contents
- * @param {string} srcPubkey sender public key
- * @returns {{ permissionsOK: boolean,
- *             demuxFunc: callback }}
- *
- * @private
- */
-function checkPermissions(payload, srcPubkey) {
-  let permissionsOK = false;
-
-  // no reader checks, any device that gets data should correctly be a reader
-  switch(payload.msgType) {
-    // special checks
-    case CONFIRM_UPDATE_LINKED: {
-      if (getOutstandingLinkPubkey() === srcPubkey) {
-        permissionsOK = true;
-      }
-      break;
-    // admin checks
-    } case LINK_GROUPS: {
-      if (hasAdminPriv(srcPubkey, payload.parentID) && hasAdminPriv(srcPubkey, payload.childID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case DELETE_SELF: {
-      if (hasAdminPriv(srcPubkey, getPubkey())) {
-        permissionsOK = true;
-      }
-      break;
-    } case NEW_GROUP: {
-      if (hasAdminPriv(srcPubkey, payload.value.parents, false)) {
-        permissionsOK = true;
-      } else if (hasAdminPriv(srcPubkey, payload.value.admins, false)) {
-        permissionsOK = true;
-      }
-      break;
-    } case UPDATE_GROUP: {
-      if (hasAdminPriv(srcPubkey, payload.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case ADD_PARENT: {
-      // ok to add parent (e.g. send this group data)
-      // not ok to add child (e.g. have this group send data to me)
-      if (hasAdminPriv(srcPubkey, payload.parentID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case ADD_CHILD: {
-      if (hasAdminPriv(srcPubkey, payload.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case REMOVE_PARENT: {
-      if (hasAdminPriv(srcPubkey, payload.parentID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case DELETE_GROUP: {
-      if (hasAdminPriv(srcPubkey, payload.groupID) || getOutstandingLinkPubkey() === srcPubkey) {
-        permissionsOK = true;
-      }
-      break;
-    // writer checks
-    } case UPDATE_DATA: {
-      if (hasWriterPriv(srcPubkey, payload.value.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case DELETE_DATA: {
-      if (hasWriterPriv(srcPubkey, db.get(payload.key)?.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    }
-    case REQ_UPDATE_LINKED:
-    case REQ_CONTACT:
-    case CONFIRM_CONTACT:
-      permissionsOK = true;
-      break;
-    default:
-  }
-
-  return {
-    permissionsOK: permissionsOK,
-    demuxFunc: demuxMap[payload.msgType],
-  };
-}
-
-function hasAdminPriv(toCheckID, groupID, inDB = true) {
-  if (!inDB) {
-    return isMember(toCheckID, getNearestAdmins(groupID));
-  }
-  return isMember(toCheckID, getAdmins(groupID));
-}
-
-function hasWriterPriv(toCheckID, groupID) {
-  return isMember(toCheckID, getWriters(groupID));
 }
 
 /**
@@ -791,7 +697,7 @@ function updateGroup({ groupID, value }) {
 export function addContact(contactPubkey) {
   // only add contact if not self
   let linkedName = getLinkedName();
-  if (!isMember([linkedName], contactPubkey)) {
+  if (!isMember(contactPubkey, [linkedName])) {
     // piggyback own contact info when requesting others contact info
     sendMessage([contactPubkey], {
       msgType: REQ_CONTACT,
@@ -799,7 +705,7 @@ export function addContact(contactPubkey) {
       reqContactGroups: getAllSubgroups([linkedName]),
     });
   } else {
-    console.log("----------ERROR cannot add self as contact");
+    printBadContactError();
   }
 }
 
@@ -1186,6 +1092,28 @@ function getAdmins(groupID) {
 }
 
 /**
+ * Gets the set of admins for a new group by getting the intersection of all
+ * the admins lists of all parent groups (since adding this new group will 
+ * presumably need to modify all parents).
+ *
+ * @param {string[]} groupIDs list of group ids to check across
+ * @returns {string[]}
+ *
+ * @private
+ */
+function getAdminsMem(groupIDs) {
+  let adminSet;
+  groupIDs.forEach((groupID) => {
+    if (adminSet === undefined) {
+      adminSet = getAdmins(groupID);
+    } else {
+      adminSet = listIntersect(adminSet, getAdmins(groupID));
+    }
+  });
+  return adminSet ?? []; 
+}
+
+/**
  * Adds admin to admins list of a group (modifies group in place).
  *
  * @param {Object} oldGroupValue group value with admins list to update
@@ -1198,38 +1126,6 @@ function addAdmin(oldGroupValue, adminID) {
   if (oldGroupValue?.admins.indexOf(adminID) === -1) {
     oldGroupValue.admins.push(adminID);
   }
-}
-
-/**
- * Gets the set of admins for a new group by getting the intersection of all
- * the admins lists of all parent groups (since adding this new group will 
- * presumably need to modify all parents).
- *
- * TODO port to use listIntersect
- *
- * @param {string[]} parents list of parent ids
- * @returns {string[]}
- *
- * @private
- */
-// TODO rename
-function getNearestAdmins(parents) {
-  let nearestAdmins = [];
-  let calcAdmins = {};
-  let ctr = 0;
-  parents.forEach((parentID) => {
-    ctr += 1;
-    getAdmins(parentID).forEach((admin) => {
-      let curval = calcAdmins[admin]
-      calcAdmins[admin] = curval ? curval + 1 : 1;
-    });
-  });
-  Object.keys(calcAdmins).forEach((admin) => {
-    if (calcAdmins[admin] === ctr) {
-      nearestAdmins.push(admin);
-    }
-  });
-  return nearestAdmins;
 }
 
 /**
@@ -1374,7 +1270,7 @@ function setDataHelper(key, data, groupID) {
   };
   // TODO encapsulate in a cleaner function
   if (!hasWriterPriv(pubkey, groupID)) {
-    console.log("----------ERROR insufficient permissions for modifying data");
+    printBadDataPermissionsError();
     return;
   }
 
@@ -1478,7 +1374,7 @@ function removeDataHelper(key, deleteLocal = true, curGroupID = null, toUnshareG
     let pubkey = getPubkey();
     // TODO encapsulate in a cleaner function
     if (!hasWriterPriv(pubkey, curGroupID)) {
-      console.log("----------ERROR insufficient permissions for modifying data");
+      printBadDataPermissionsError();
       return;
     }
 
@@ -1526,15 +1422,6 @@ function deleteData({ key }) {
   db.remove(key);
 }
 
-export function getSharedList(prefix, id) {
-  let groupID = db.get(getDataKey(prefix, id))?.groupID ?? null;
-  if (groupID !== null) {
-    // TODO intersect with getChildren(CONTACTS);
-    return getChildren(groupID);
-  }
-  return [];
-}
-
 /**
  * Shares data item by creating new group that subsumes both it's 
  * current group and the new group to share with (commonly, a contact's 
@@ -1560,7 +1447,7 @@ export function shareData(prefix, id, toShareGroupID, priv) {
     // check that current device can modify this group
     let pubkey = getPubkey();
     if (!hasAdminPriv(pubkey, curGroupID)) {
-      console.log("----------ERROR insufficient permissions for modifying group");
+      printBadGroupPermissionsError();
       return;
     }
 
@@ -1689,7 +1576,7 @@ export function unshareData(prefix, id, toUnshareGroupID) {
     // TODO encapsulate in cleaner function
     // check that current device can modify group
     if (!hasAdminPriv(getPubkey(), curGroupID)) {
-      console.log("----------ERROR insufficient permissions for modifying group");
+      printBadGroupPermissionsError();
       return;
     }
 
@@ -1769,6 +1656,139 @@ export function unshareData(prefix, id, toUnshareGroupID) {
       // for multiple objects
     }
   }
+}
+
+/*
+ ***************
+ * Permissions *
+ ***************
+ */
+
+/**
+ * Checks that sender has proper permissions according to group and resolves
+ * the dumultiplexing function.
+ *
+ * @param {Object} payload decrypted message contents
+ * @param {string} srcPubkey sender public key
+ * @returns {{ permissionsOK: boolean,
+ *             demuxFunc: callback }}
+ *
+ * @private
+ */
+function checkPermissions(payload, srcPubkey) {
+  let permissionsOK = false;
+
+  // no reader checks, any device that gets data should correctly be a reader
+  switch(payload.msgType) {
+    /* special checks */
+    case CONFIRM_UPDATE_LINKED: {
+      if (getOutstandingLinkPubkey() === srcPubkey) {
+        permissionsOK = true;
+      }
+      break;
+    /* admin checks */
+    } case LINK_GROUPS: {
+      if (hasAdminPriv(srcPubkey, payload.parentID) && hasAdminPriv(srcPubkey, payload.childID)) {
+        permissionsOK = true;
+      }
+      break;
+    } case DELETE_SELF: {
+      if (hasAdminPriv(srcPubkey, getPubkey())) {
+        permissionsOK = true;
+      }
+      break;
+    } case NEW_GROUP: {
+      console.log("checking parents");
+      if (hasAdminPriv(srcPubkey, payload.value.parents, false)) {
+        permissionsOK = true;
+      }
+      console.log("checking self");
+      if (hasAdminPriv(srcPubkey, payload.value.admins, false)) {
+        permissionsOK = true;
+      }
+      break;
+    } case UPDATE_GROUP: {
+      if (hasAdminPriv(srcPubkey, payload.groupID)) {
+        permissionsOK = true;
+      }
+      break;
+    } case ADD_PARENT: {
+      // ok to add parent (e.g. send this group data)
+      // not ok to add child (e.g. have this group send data to me)
+      if (hasAdminPriv(srcPubkey, payload.parentID)) {
+        permissionsOK = true;
+      }
+      break;
+    } case ADD_CHILD: {
+      if (hasAdminPriv(srcPubkey, payload.groupID)) {
+        permissionsOK = true;
+      }
+      break;
+    } case REMOVE_PARENT: {
+      if (hasAdminPriv(srcPubkey, payload.parentID)) {
+        permissionsOK = true;
+      }
+      break;
+    } case DELETE_GROUP: {
+      if (hasAdminPriv(srcPubkey, payload.groupID) || getOutstandingLinkPubkey() === srcPubkey) {
+        permissionsOK = true;
+      }
+      break;
+    /* writer checks */
+    } case UPDATE_DATA: {
+      if (hasWriterPriv(srcPubkey, payload.value.groupID)) {
+        permissionsOK = true;
+      }
+      break;
+    } case DELETE_DATA: {
+      if (hasWriterPriv(srcPubkey, db.get(payload.key)?.groupID)) {
+        permissionsOK = true;
+      }
+      break;
+    }
+    case REQ_UPDATE_LINKED:
+    case REQ_CONTACT:
+    case CONFIRM_CONTACT:
+      permissionsOK = true;
+      break;
+    default:
+  }
+
+  return {
+    permissionsOK: permissionsOK,
+    demuxFunc: demuxMap[payload.msgType],
+  };
+}
+
+/**
+ * Check if one groupID has admin privileges for another groupID.
+ * 
+ * @param {string} toCheckID id to check if has permissions
+ * @param {string} groupID id to use for checking permissions
+ * @param {boolean} inDB boolean used to encode the need for an in-memory 
+ *   admin-privilege-checking function, rather than one that queries storage
+ * @returns {boolean}
+ *
+ * @private
+ */
+function hasAdminPriv(toCheckID, groupID, inDB = true) {
+  if (!inDB) {
+    return isMember(toCheckID, getAdminsMem(groupID));
+  }
+  return isMember(toCheckID, getAdmins(groupID));
+}
+
+/**
+ * Check if one groupID has writer privileges for another groupID.
+ *
+ * @param {string} toCheckID is to check if has permissions
+ * @param {string} groupID id to use for checking permissions
+ * @returns {boolean}
+ *
+ * @private
+ */
+function hasWriterPriv(toCheckID, groupID) {
+  return isMember(toCheckID, getWriters(groupID));
 }
 
 /**

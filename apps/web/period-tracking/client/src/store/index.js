@@ -76,14 +76,6 @@ const store = createStore({
     symptoms: frida.getData(symptomPrefix),
     period: frida.getData(periodPrefix),
   },
-  //getters: {
-  //  getSymptomSharedList(id) {
-  //    console.log(frida.getSharedList(symptomPrefix, id));
-  //  },
-  //  getPeriodSharedList(id) {
-  //    console.log(frida.getSharedList(periodPrefix, id));
-  //  },
-  //},
   mutations: {
     /* App-specific mutations */
     ADD_SYMPTOMS(state, { timestamp, symptoms, id, remote }) {

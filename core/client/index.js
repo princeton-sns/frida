@@ -257,20 +257,32 @@ export function onMessage(msg) {
 
     let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcPubkey);
     if (demuxFunc === undefined) {
-      console.log("----------ERROR UNKNOWN msgType: " + payload.msgType);
+      printBadMessageError(payload.msgType);
       return;
     }
     if (!permissionsOK) {
-      console.log("----------ERROR insufficient permissions");
+      printBadPermissionsError();
       return;
     }
     if (!validate(payload)) {
-      console.log("----------ERROR data invariant violated");
+      printBadDataError();
       return;
     }
     console.log("SUCCESS");
     demuxFunc(payload);
   }
+}
+
+function printBadMessageError(msgType) {
+  console.log("----------ERROR UNKNOWN msgType: " + msgType);
+}
+
+function printBadPermissionsError() {
+  console.log("----------ERROR insufficient permissions");
+}
+
+function printBadDataError() {
+  console.log("----------ERROR data invariant violated");
 }
 
 /**
@@ -297,57 +309,57 @@ function checkPermissions(payload, srcPubkey) {
       break;
     // admin checks
     } case LINK_GROUPS: {
-      if (isMember(getAdmins(payload.parentID), srcPubkey) && isMember(getAdmins(payload.childID), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, payload.parentID) && hasAdminPriv(srcPubkey, payload.childID)) {
         permissionsOK = true;
       }
       break;
     } case DELETE_SELF: {
-      if (isMember(getAdmins(getPubkey()), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, getPubkey())) {
         permissionsOK = true;
       }
       break;
     } case NEW_GROUP: {
-      if (isMember(getNearestAdmins(payload.value.parents), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, payload.value.parents, false)) {
         permissionsOK = true;
-      } else if (isMember(getNearestAdmins(payload.value.admins), srcPubkey)) {
+      } else if (hasAdminPriv(srcPubkey, payload.value.admins, false)) {
         permissionsOK = true;
       }
       break;
     } case UPDATE_GROUP: {
-      if (isMember(getAdmins(payload.groupID), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, payload.groupID)) {
         permissionsOK = true;
       }
       break;
     } case ADD_PARENT: {
       // ok to add parent (e.g. send this group data)
       // not ok to add child (e.g. have this group send data to me)
-      if (isMember(getAdmins(payload.parentID), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, payload.parentID)) {
         permissionsOK = true;
       }
       break;
     } case ADD_CHILD: {
-      if (isMember(getAdmins(payload.groupID), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, payload.groupID)) {
         permissionsOK = true;
       }
       break;
     } case REMOVE_PARENT: {
-      if (isMember(getAdmins(payload.parentID), srcPubkey)) {
+      if (hasAdminPriv(srcPubkey, payload.parentID)) {
         permissionsOK = true;
       }
       break;
     } case DELETE_GROUP: {
-      if (isMember(getAdmins(payload.groupID), srcPubkey) || getOutstandingLinkPubkey() === srcPubkey) {
+      if (hasAdminPriv(srcPubkey, payload.groupID) || getOutstandingLinkPubkey() === srcPubkey) {
         permissionsOK = true;
       }
       break;
     // writer checks
     } case UPDATE_DATA: {
-      if (isMember(getWriters(payload.value.groupID), srcPubkey)) {
+      if (hasWriterPriv(srcPubkey, payload.value.groupID)) {
         permissionsOK = true;
       }
       break;
     } case DELETE_DATA: {
-      if (isMember(getWriters(db.get(payload.key)?.groupID), srcPubkey)) {
+      if (hasWriterPriv(srcPubkey, db.get(payload.key)?.groupID)) {
         permissionsOK = true;
       }
       break;
@@ -364,6 +376,17 @@ function checkPermissions(payload, srcPubkey) {
     permissionsOK: permissionsOK,
     demuxFunc: demuxMap[payload.msgType],
   };
+}
+
+function hasAdminPriv(toCheckID, groupID, inDB = true) {
+  if (!inDB) {
+    return isMember(toCheckID, getNearestAdmins(groupID));
+  }
+  return isMember(toCheckID, getAdmins(groupID));
+}
+
+function hasWriterPriv(toCheckID, groupID) {
+  return isMember(toCheckID, getWriters(groupID));
 }
 
 /**
@@ -1189,6 +1212,7 @@ function addAdmin(oldGroupValue, adminID) {
  *
  * @private
  */
+// TODO rename
 function getNearestAdmins(parents) {
   let nearestAdmins = [];
   let calcAdmins = {};
@@ -1349,7 +1373,7 @@ function setDataHelper(key, data, groupID) {
     data: data,
   };
   // TODO encapsulate in a cleaner function
-  if (!isMember(getWriters(groupID), pubkey)) {
+  if (!hasWriterPriv(pubkey, groupID)) {
     console.log("----------ERROR insufficient permissions for modifying data");
     return;
   }
@@ -1453,7 +1477,7 @@ function removeDataHelper(key, deleteLocal = true, curGroupID = null, toUnshareG
   if (curGroupID !== null) {
     let pubkey = getPubkey();
     // TODO encapsulate in a cleaner function
-    if (!isMember(getWriters(curGroupID), pubkey)) {
+    if (!hasWriterPriv(pubkey, curGroupID)) {
       console.log("----------ERROR insufficient permissions for modifying data");
       return;
     }
@@ -1535,7 +1559,7 @@ export function shareData(prefix, id, toShareGroupID, priv) {
     // TODO encapsulate in cleaner function
     // check that current device can modify this group
     let pubkey = getPubkey();
-    if (!isMember(getAdmins(curGroupID), pubkey)) {
+    if (!hasAdminPriv(pubkey, curGroupID)) {
       console.log("----------ERROR insufficient permissions for modifying group");
       return;
     }
@@ -1647,7 +1671,7 @@ export function unshareData(prefix, id, toUnshareGroupID) {
   let key = getDataKey(prefix, id);
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
-  if (!isMember([curGroupID], toUnshareGroupID)) {
+  if (!isMember(toUnshareGroupID, [curGroupID])) {
     return;
   }
 
@@ -1664,7 +1688,7 @@ export function unshareData(prefix, id, toUnshareGroupID) {
   if (curGroupID !== null) {
     // TODO encapsulate in cleaner function
     // check that current device can modify group
-    if (!isMember(getAdmins(curGroupID), getPubkey())) {
+    if (!hasAdminPriv(getPubkey(), curGroupID)) {
       console.log("----------ERROR insufficient permissions for modifying group");
       return;
     }
@@ -1756,14 +1780,14 @@ export function unshareData(prefix, id, toUnshareGroupID) {
  *
  * @private
  */
-function isMember(groupIDList, toCheckGroupID) {
+function isMember(toCheckGroupID, groupIDList) {
   let isMemberRetval = false;
   groupIDList.forEach((groupID) => {
     if (groupID === toCheckGroupID) {
       isMemberRetval |= true;
       return;
     }
-    isMemberRetval |= isMember(getChildren(groupID), toCheckGroupID);
+    isMemberRetval |= isMember(toCheckGroupID, getChildren(groupID));
   });
   return isMemberRetval;
 }

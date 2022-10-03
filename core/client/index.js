@@ -296,32 +296,6 @@ export function onMessage(msg) {
 }
 
 /**
- * Sets the callback function with which to perform message validation
- * for this application. 
- *
- * TODO validate newValidateCallback to ensure it only takes one arg (payload)
- * and returns boolean.
- *
- * @param {callback} newValidateCallback new validation callback
- */
-export function setValidateCallback(callback) {
-  validateCallback = callback;
-}
-
-/**
- * Validates a message via the validateCallback, which can either be:
- * defined by the application (through setValidateCallback()), or
- * the default callback (defaultValidateCallback).
- *
- * @param {string} payload the decrypted message contents
- *
- * @private
- */
-function validate(payload) {
-  return validateCallback(payload);
-}
-
-/**
  * Resolves a list of one or more group IDs to a list of public keys.
  *
  * @param {string[]} ids group IDs to resolve
@@ -466,17 +440,6 @@ function getOutstandingLinkPubkey() {
  */
 function removeOutstandingLinkPubkey() {
   db.remove(OUTSTANDING_PUBKEY);
-}
-
-/**
- * Randomly generates a new group ID.
- *
- * @returns {string}
- *
- * @private
- */
-function getNewGroupID() {
-  return crypto.randomUUID();
 }
 
 /*
@@ -1206,6 +1169,17 @@ export function getLinkedName() {
   return getGroup(LINKED)?.name ?? null;
 }
 
+/**
+ * Randomly generates a new group ID.
+ *
+ * @returns {string}
+ *
+ * @private
+ */
+function getNewGroupID() {
+  return crypto.randomUUID();
+}
+
 /*
  ************
  * Data API *
@@ -1810,6 +1784,38 @@ function isMember(toCheckGroupID, groupIDList) {
     isMemberRetval |= isMember(toCheckGroupID, getChildren(groupID));
   });
   return isMemberRetval;
+}
+
+/*
+ *******************
+ * Data Invariants *
+ *******************
+ */
+
+/**
+ * Sets the callback function with which to perform message validation
+ * for this application.
+ *
+ * TODO validate newValidateCallback to ensure it only takes one arg (payload)
+ * and returns boolean.
+ *
+ * @param {callback} newValidateCallback new validation callback
+ */
+export function setValidateCallback(callback) {
+  validateCallback = callback;
+}
+
+/**
+ * Validates a message via the validateCallback, which can either be:
+ * defined by the application (through setValidateCallback()), or
+ * the default callback (defaultValidateCallback).
+ *
+ * @param {string} payload the decrypted message contents
+ *
+ * @private
+ */
+function validate(payload) {
+  return validateCallback(payload);
 }
 
 /*

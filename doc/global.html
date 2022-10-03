@@ -104,7 +104,7 @@
     
 
     
-    <h4 class="name" id="addAdmin"><span class="type-signature">(private) </span>addAdmin<span class="signature">(oldGroupValue, adminID)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="addAdmin"><span class="type-signature">(private) </span>addAdmin<span class="signature">(groupID, adminID)</span><span class="type-signature"> &rarr; {Object}</span></h4>
     
 
     
@@ -112,7 +112,373 @@
 
 
 <div class="description">
-    Adds admin to admins list of a group (modifies group in place).
+    Adds an additional admin (ID) to an existing group's admins list.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of group to modify</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>adminID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of admin to add</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1148">line 1148</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Object</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addAdminHelper"><span class="type-signature">(private) </span>addAdminHelper<span class="signature">(groupID, adminID, pubkeys)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Adds admin locally and remotely on all devices in group (specified by pubkeys
+parameter).
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of group to modify</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>adminID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of admin to add</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>pubkeys</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">devices to remotely make this modification on</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1170">line 1170</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addAdminInMem"><span class="type-signature">(private) </span>addAdminInMem<span class="signature">(oldGroupValue, adminID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Adds admin to admins list of a group (modifies group in place). Necessary
+for some functionality to do this in-place, e.g. when adding contacts the
+current device adds itself as an admin and needs to propagate that to all
+the other linked devices (which would fail the permissions check if it was
+sent as a separate message).
 </div>
 
 
@@ -228,7 +594,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1131">line 1131</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1132">line 1132</a>
     </li></ul></dd>
     
 
@@ -388,7 +754,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1002">line 1002</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line938">line 938</a>
     </li></ul></dd>
     
 
@@ -431,6 +797,190 @@
 </dl>
 
     
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addChildHelper"><span class="type-signature">(private) </span>addChildHelper<span class="signature">(groupID, childID, pubkeys)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Adds child locally and remotely on all devices in group (specified by pubkeys
+parameter).
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of group to modify</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>childID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of child to add</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>pubkeys</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">devices to remotely make this modification on</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line956">line 956</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -544,7 +1094,7 @@ TODO implement private contact discovery and return contact name.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line727">line 727</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line670">line 670</a>
     </li></ul></dd>
     
 
@@ -704,7 +1254,7 @@ TODO implement private contact discovery and return contact name.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1067">line 1067</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1022">line 1022</a>
     </li></ul></dd>
     
 
@@ -747,6 +1297,534 @@ TODO implement private contact discovery and return contact name.
 </dl>
 
     
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addParentHelper"><span class="type-signature">(private) </span>addParentHelper<span class="signature">(groupID, parentID, pubkeys)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Adds parent locally and remotely on all devices in group (specified by pubkeys
+parameter).
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of group to modify</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>parentID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of parent to add</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>pubkeys</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">devices to remotely make this modification on</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1040">line 1040</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addWriter"><span class="type-signature">(private) </span>addWriter<span class="signature">(oldGroupValue, writerID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Adds writer to writers list of a group (modifies group in place).
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>oldGroupValue</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">group value with admins list to update</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>writerID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">id of writer to add</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1199">line 1199</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addWriterHelper"><span class="type-signature">(private) </span>addWriterHelper<span class="signature">(groupID, writerID, pubkeys)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Adds writer locally and remotely on all devices in group (specified by pubkeys
+parameter).
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of group to modify</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>writerID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">ID of writer to add</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>pubkeys</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">devices to remotely make this modification on</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1221">line 1221</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -883,7 +1961,7 @@ the dumultiplexing function.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line266">line 266</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1778">line 1778</a>
     </li></ul></dd>
     
 
@@ -1061,7 +2139,7 @@ the dumultiplexing function.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line767">line 767</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line715">line 715</a>
     </li></ul></dd>
     
 
@@ -1097,7 +2175,7 @@ the dumultiplexing function.
     
 
     
-    <h4 class="name" id="confirmUpdateLinked"><span class="type-signature">(private) </span>confirmUpdateLinked<span class="signature">(existingSubgroups)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="confirmUpdateLinked"><span class="type-signature">(private) </span>confirmUpdateLinked<span class="signature">(existingGroups, existingData)</span><span class="type-signature"></span></h4>
     
 
     
@@ -1144,7 +2222,7 @@ TODO also process any other data sent from the device being linked with.
 
         <tr>
             
-                <td class="name"><code>existingSubgroups</code></td>
+                <td class="name"><code>existingGroups</code></td>
             
 
             <td class="type">
@@ -1161,6 +2239,29 @@ TODO also process any other data sent from the device being linked with.
             
 
             <td class="description last">existing groups on linked device</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>existingData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;Object></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">existing data on linked device</td>
         </tr>
 
     
@@ -1201,7 +2302,7 @@ TODO also process any other data sent from the device being linked with.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line681">line 681</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line604">line 604</a>
     </li></ul></dd>
     
 
@@ -1351,7 +2452,7 @@ device or when a previously-added device comes back online.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line153">line 153</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line197">line 197</a>
     </li></ul></dd>
     
 
@@ -1533,7 +2634,7 @@ device or when a previously-added device comes back online.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line447">line 447</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line386">line 386</a>
     </li></ul></dd>
     
 
@@ -1758,7 +2859,7 @@ of a name and children list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line938">line 938</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line874">line 874</a>
     </li></ul></dd>
     
 
@@ -1942,7 +3043,7 @@ of a name.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line952">line 952</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line888">line 888</a>
     </li></ul></dd>
     
 
@@ -2122,7 +3223,7 @@ of a name.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line460">line 460</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line399">line 399</a>
     </li></ul></dd>
     
 
@@ -2228,7 +3329,7 @@ of a name.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line888">line 888</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line824">line 824</a>
     </li></ul></dd>
     
 
@@ -2365,7 +3466,7 @@ of a name.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1402">line 1402</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1520">line 1520</a>
     </li></ul></dd>
     
 
@@ -2411,8 +3512,6 @@ of a name.
 <div class="description">
     Deletes the current device's data and removes it's public key from 
 the server.
-
-TODO validate that this message is coming from a known device.
 </div>
 
 
@@ -2456,7 +3555,7 @@ TODO validate that this message is coming from a known device.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line859">line 859</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line796">line 796</a>
     </li></ul></dd>
     
 
@@ -2594,7 +3693,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line903">line 903</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line839">line 839</a>
     </li></ul></dd>
     
 
@@ -2731,7 +3830,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line878">line 878</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line814">line 814</a>
     </li></ul></dd>
     
 
@@ -2819,7 +3918,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line164">line 164</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line208">line 208</a>
     </li></ul></dd>
     
 
@@ -2956,7 +4055,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1119">line 1119</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1093">line 1093</a>
     </li></ul></dd>
     
 
@@ -2993,6 +4092,269 @@ and then deletes the group itself.
     <dd>
         
 <span class="param-type">Array.&lt;string></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAdminsMem"><span class="type-signature">(private) </span>getAdminsMem<span class="signature">(groupIDs)</span><span class="type-signature"> &rarr; {Array.&lt;string>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Gets the set of admins for a new group by getting the intersection of all
+the admins lists of all parent groups (since adding this new group will 
+presumably need to modify all parents).
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupIDs</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">list of group ids to check across</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1108">line 1108</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;string></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAllGroups"><span class="type-signature">(private) </span>getAllGroups<span class="signature">()</span><span class="type-signature"> &rarr; {Array.&lt;Object>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Gets all groups on current device.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1249">line 1249</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;Object></span>
 
 
     </dd>
@@ -3111,7 +4473,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line976">line 976</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line912">line 912</a>
     </li></ul></dd>
     
 
@@ -3266,7 +4628,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line964">line 964</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line900">line 900</a>
     </li></ul></dd>
     
 
@@ -3372,7 +4734,7 @@ and then deletes the group itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line833">line 833</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line772">line 772</a>
     </li></ul></dd>
     
 
@@ -3426,7 +4788,7 @@ and then deletes the group itself.
     
 
     
-    <h4 class="name" id="getData"><span class="type-signature"></span>getData<span class="signature">(prefix, id<span class="signature-attributes">nullable</span>)</span><span class="type-signature"> &rarr; {Object|Array.&lt;Object>|null}</span></h4>
+    <h4 class="name" id="getData"><span class="type-signature"></span>getData<span class="signature">(prefix<span class="signature-attributes">nullable</span>, id<span class="signature-attributes">nullable</span>)</span><span class="type-signature"> &rarr; {Object|Array.&lt;Object>|null}</span></h4>
     
 
     
@@ -3435,9 +4797,9 @@ and then deletes the group itself.
 
 <div class="description">
     If only prefix is specified, gets a list of data objects whose keys begin
-with that prefix, otherwise get a single data object.
-TODO consider pros/cons of only processing one prefix at a time
-(efficiency in cases where want data from more than one prefix).
+with that prefix, otherwise get a single data object. Allows getting data
+for either a single prefix at a time or _all_ app prefixes.
+TODO allow specifying a sublist of app prefixes?
 </div>
 
 
@@ -3491,6 +4853,8 @@ TODO consider pros/cons of only processing one prefix at a time
                 <td class="attributes">
                 
 
+                
+                    &lt;nullable><br>
                 
 
                 
@@ -3573,7 +4937,7 @@ TODO consider pros/cons of only processing one prefix at a time
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1328">line 1328</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1395">line 1395</a>
     </li></ul></dd>
     
 
@@ -3757,7 +5121,7 @@ TODO consider pros/cons of only processing one prefix at a time
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1262">line 1262</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1322">line 1322</a>
     </li></ul></dd>
     
 
@@ -3912,7 +5276,7 @@ TODO consider pros/cons of only processing one prefix at a time
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1274">line 1274</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1334">line 1334</a>
     </li></ul></dd>
     
 
@@ -4067,7 +5431,7 @@ TODO consider pros/cons of only processing one prefix at a time
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1189">line 1189</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1238">line 1238</a>
     </li></ul></dd>
     
 
@@ -4173,7 +5537,7 @@ TODO consider pros/cons of only processing one prefix at a time
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1232">line 1232</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1281">line 1281</a>
     </li></ul></dd>
     
 
@@ -4279,7 +5643,7 @@ TODO consider pros/cons of only processing one prefix at a time
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1243">line 1243</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1292">line 1292</a>
     </li></ul></dd>
     
 
@@ -4316,163 +5680,6 @@ TODO consider pros/cons of only processing one prefix at a time
     <dd>
         
 <span class="param-type">string</span>
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="getNearestAdmins"><span class="type-signature">(private) </span>getNearestAdmins<span class="signature">(parents)</span><span class="type-signature"> &rarr; {Array.&lt;string>}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Gets the set of admins for a new group by getting the intersection of all
-the admins lists of all parent groups (since adding this new group will 
-presumably need to modify all parents).
-</div>
-
-
-
-
-
-
-
-
-
-    <h5>Parameters:</h5>
-    
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>parents</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Array.&lt;string></span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">list of parent ids</td>
-        </tr>
-
-    
-    </tbody>
-</table>
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1150">line 1150</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5>Returns:</h5>
-
-        
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Array.&lt;string></span>
 
 
     </dd>
@@ -4542,7 +5749,7 @@ presumably need to modify all parents).
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line517">line 517</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1303">line 1303</a>
     </li></ul></dd>
     
 
@@ -4649,7 +5856,7 @@ the current device has requested to be linked with another.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line497">line 497</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line436">line 436</a>
     </li></ul></dd>
     
 
@@ -4808,7 +6015,7 @@ the current device has requested to be linked with another.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1054">line 1054</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1009">line 1009</a>
     </li></ul></dd>
     
 
@@ -4915,7 +6122,7 @@ TODO implement pending list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line843">line 843</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line782">line 782</a>
     </li></ul></dd>
     
 
@@ -5021,7 +6228,7 @@ TODO implement pending list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1582">line 1582</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1988">line 1988</a>
     </li></ul></dd>
     
 
@@ -5127,7 +6334,7 @@ TODO implement pending list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1560">line 1560</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1966">line 1966</a>
     </li></ul></dd>
     
 
@@ -5282,7 +6489,7 @@ TODO implement pending list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1177">line 1177</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1187">line 1187</a>
     </li></ul></dd>
     
 
@@ -5483,7 +6690,7 @@ TODO implement pending list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line656">line 656</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line578">line 578</a>
     </li></ul></dd>
     
 
@@ -5713,7 +6920,7 @@ group field with another ID, modifying the group data in place.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line634">line 634</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line556">line 556</a>
     </li></ul></dd>
     
 
@@ -5738,6 +6945,402 @@ group field with another ID, modifying the group data in place.
 
 
 
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="hasAdminPriv"><span class="type-signature">(private) </span>hasAdminPriv<span class="signature">(toCheckID, groupID, inDB)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Check if one groupID has admin privileges for another groupID.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+        <th>Default</th>
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>toCheckID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last">id to check if has permissions</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last">id to use for checking permissions</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>inDB</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">boolean</span>
+
+
+            
+            </td>
+
+            
+
+            
+                <td class="default">
+                
+                    true
+                
+                </td>
+            
+
+            <td class="description last">boolean used to encode the need for an in-memory 
+  admin-privilege-checking function, rather than one that queries storage</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1882">line 1882</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="hasWriterPriv"><span class="type-signature">(private) </span>hasWriterPriv<span class="signature">(toCheckID, groupID)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Check if one groupID has writer privileges for another groupID.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>toCheckID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">is to check if has permissions</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">id to use for checking permissions</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1898">line 1898</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
 
 
 
@@ -5896,7 +7499,7 @@ group field with another ID, modifying the group data in place.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line129">line 129</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line178">line 178</a>
     </li></ul></dd>
     
 
@@ -6093,7 +7696,7 @@ server.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line417">line 417</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line356">line 356</a>
     </li></ul></dd>
     
 
@@ -6248,7 +7851,7 @@ server.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line394">line 394</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line333">line 333</a>
     </li></ul></dd>
     
 
@@ -6302,7 +7905,7 @@ server.
     
 
     
-    <h4 class="name" id="isMember"><span class="type-signature">(private) </span>isMember<span class="signature">(groupIDList, toCheckGroupID)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    <h4 class="name" id="isMember"><span class="type-signature">(private) </span>isMember<span class="signature">(toCheckGroupID, groupIDList)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
     
 
     
@@ -6346,29 +7949,6 @@ server.
 
         <tr>
             
-                <td class="name"><code>groupIDList</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Array.&lt;string></span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">list of group IDs to check all children of</td>
-        </tr>
-
-    
-
-        <tr>
-            
                 <td class="name"><code>toCheckGroupID</code></td>
             
 
@@ -6386,6 +7966,29 @@ server.
             
 
             <td class="description last">ID of group to check for</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>groupIDList</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">list of group IDs to check all children of</td>
         </tr>
 
     
@@ -6426,7 +8029,7 @@ server.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1537">line 1537</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1911">line 1911</a>
     </li></ul></dd>
     
 
@@ -6605,7 +8208,372 @@ respectively.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line698">line 698</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line624">line 624</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="listIntersect"><span class="type-signature">(private) </span>listIntersect<span class="signature">(list1, list2)</span><span class="type-signature"> &rarr; {Array.&lt;string>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Helper function for determining the intersection between two lists.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>list1</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>list2</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last"></td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1443">line 1443</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    intersection of list1 and list2
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;string></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="newGroupHelper"><span class="type-signature">(private) </span>newGroupHelper<span class="signature">(groupID, value, pubkeys)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Sends NEW_GROUP message to specified pubkeys.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>groupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">id of group to add</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>value</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">group value to add</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>pubkeys</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">list of pubkeys to add group on</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line650">line 650</a>
     </li></ul></dd>
     
 
@@ -6656,6 +8624,8 @@ TODO consider: expose ordered or unordered message reception?
 E.g. ordered may be simpler to program against but maybe 
 real-time apps would benefit from an unordered API (perhaps
 make this composable?).
+
+TODO make private to module instead of exporting fully.
 </div>
 
 
@@ -6748,7 +8718,7 @@ make this composable?).
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line225">line 225</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line270">line 270</a>
     </li></ul></dd>
     
 
@@ -6909,7 +8879,7 @@ parent/child pointers from LINKED to contactName.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line780">line 780</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line728">line 728</a>
     </li></ul></dd>
     
 
@@ -7071,7 +9041,7 @@ contact info.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line747">line 747</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line695">line 695</a>
     </li></ul></dd>
     
 
@@ -7259,7 +9229,7 @@ backups.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line541">line 541</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line469">line 469</a>
     </li></ul></dd>
     
 
@@ -7420,7 +9390,7 @@ Noop if child did not exist in the children list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1020">line 1020</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line975">line 975</a>
     </li></ul></dd>
     
 
@@ -7575,7 +9545,7 @@ Noop if child did not exist in the children list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line821">line 821</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line760">line 760</a>
     </li></ul></dd>
     
 
@@ -7735,7 +9705,7 @@ Noop if child did not exist in the children list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1352">line 1352</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1457">line 1457</a>
     </li></ul></dd>
     
 
@@ -7808,8 +9778,6 @@ group and deleting the datum locally.
         
 
         
-        <th>Default</th>
-        
 
         <th class="last">Description</th>
     </tr>
@@ -7843,10 +9811,6 @@ group and deleting the datum locally.
             
 
             
-                <td class="default">
-                
-                </td>
-            
 
             <td class="description last">data key</td>
         </tr>
@@ -7879,12 +9843,6 @@ group and deleting the datum locally.
                 </td>
             
 
-            
-                <td class="default">
-                
-                    null
-                
-                </td>
             
 
             <td class="description last">group ID to use for resolving pubkeys to delete from</td>
@@ -7928,7 +9886,7 @@ group and deleting the datum locally.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1365">line 1365</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1470">line 1470</a>
     </li></ul></dd>
     
 
@@ -8065,7 +10023,7 @@ group and deleting the datum locally.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1223">line 1223</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1272">line 1272</a>
     </li></ul></dd>
     
 
@@ -8153,7 +10111,7 @@ group and deleting the datum locally.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line506">line 506</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line445">line 445</a>
     </li></ul></dd>
     
 
@@ -8314,7 +10272,7 @@ Noop if parent did not exist in the parent list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1085">line 1085</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1059">line 1059</a>
     </li></ul></dd>
     
 
@@ -8469,7 +10427,7 @@ Noop if parent did not exist in the parent list.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line371">line 371</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line310">line 310</a>
     </li></ul></dd>
     
 
@@ -8533,8 +10491,6 @@ Noop if parent did not exist in the parent list.
 <div class="description">
     Called like: sendMessage(resolveIDs(id), payload) (see example in 
 deleteAllLinkedDevices()).
-
-TODO better to take in the current device's pub/priv-keys as arguments?
 </div>
 
 
@@ -8650,7 +10606,7 @@ TODO better to take in the current device's pub/priv-keys as arguments?
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line185">line 185</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line227">line 227</a>
     </li></ul></dd>
     
 
@@ -8836,7 +10792,7 @@ TODO allow named groups from app.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1288">line 1288</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1348">line 1348</a>
     </li></ul></dd>
     
 
@@ -9020,7 +10976,7 @@ group and storing the datum locally.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1302">line 1302</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1362">line 1362</a>
     </li></ul></dd>
     
 
@@ -9180,7 +11136,7 @@ group and storing the datum locally.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1212">line 1212</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1261">line 1261</a>
     </li></ul></dd>
     
 
@@ -9319,7 +11275,7 @@ the current device has requested to be linked with another.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line485">line 485</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line424">line 424</a>
     </li></ul></dd>
     
 
@@ -9456,7 +11412,7 @@ the current device has requested to be linked with another.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1593">line 1593</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1999">line 1999</a>
     </li></ul></dd>
     
 
@@ -9593,7 +11549,7 @@ the current device has requested to be linked with another.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1571">line 1571</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1977">line 1977</a>
     </li></ul></dd>
     
 
@@ -9638,7 +11594,7 @@ the current device has requested to be linked with another.
 
 <div class="description">
     Sets the callback function with which to perform message validation
-for this application. 
+for this application.
 
 TODO validate newValidateCallback to ensure it only takes one arg (payload)
 and returns boolean.
@@ -9734,7 +11690,559 @@ and returns boolean.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line346">line 346</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1938">line 1938</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="shareAsAdmin"><span class="type-signature"></span>shareAsAdmin<span class="signature">(prefix, id, toShareGroupID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Allow application to share particular data object with another set of devices
+with read/write/admin privileges.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>prefix</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">app prefix for this data object</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>id</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">data object id</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>toShareGroupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">group to grant read/write/admin privileges to</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1560">line 1560</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="shareAsReader"><span class="type-signature"></span>shareAsReader<span class="signature">(prefix, id, toShareGroupID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Allow application to share particular data object with another set of devices
+with read privileges.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>prefix</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">app prefix for this data object</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>id</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">data object id</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>toShareGroupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">group to grant read privileges to</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1532">line 1532</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="shareAsWriter"><span class="type-signature"></span>shareAsWriter<span class="signature">(prefix, id, toShareGroupID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Allow application to share particular data object with another set of devices
+with read/write privileges.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>prefix</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">app prefix for this data object</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>id</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">data object id</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>toShareGroupID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">group to grant read/write privileges to</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1544">line 1544</a>
     </li></ul></dd>
     
 
@@ -9920,7 +12428,7 @@ group along with the data item itself.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1416">line 1416</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1580">line 1580</a>
     </li></ul></dd>
     
 
@@ -10106,7 +12614,7 @@ devices.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1491">line 1491</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1652">line 1652</a>
     </li></ul></dd>
     
 
@@ -10289,7 +12797,7 @@ devices.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1038">line 1038</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line993">line 993</a>
     </li></ul></dd>
     
 
@@ -10467,7 +12975,7 @@ devices.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1391">line 1391</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1509">line 1509</a>
     </li></ul></dd>
     
 
@@ -10627,7 +13135,7 @@ devices.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line711">line 711</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line637">line 637</a>
     </li></ul></dd>
     
 
@@ -10810,7 +13318,7 @@ devices.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1103">line 1103</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1077">line 1077</a>
     </li></ul></dd>
     
 
@@ -10967,7 +13475,7 @@ the default callback (defaultValidateCallback).
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line359">line 359</a>
+        <a href="index.js.html">index.js</a>, <a href="index.js.html#line1951">line 1951</a>
     </li></ul></dd>
     
 
@@ -11013,13 +13521,13 @@ the default callback (defaultValidateCallback).
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addAdmin">addAdmin</a></li><li><a href="global.html#addChild">addChild</a></li><li><a href="global.html#addContact">addContact</a></li><li><a href="global.html#addParent">addParent</a></li><li><a href="global.html#checkPermissions">checkPermissions</a></li><li><a href="global.html#confirmContact">confirmContact</a></li><li><a href="global.html#confirmUpdateLinked">confirmUpdateLinked</a></li><li><a href="global.html#connectDevice">connectDevice</a></li><li><a href="global.html#createDevice">createDevice</a></li><li><a href="global.html#createGroup">createGroup</a></li><li><a href="global.html#createKey">createKey</a></li><li><a href="global.html#createLinkedDevice">createLinkedDevice</a></li><li><a href="global.html#deleteAllLinkedDevices">deleteAllLinkedDevices</a></li><li><a href="global.html#deleteData">deleteData</a></li><li><a href="global.html#deleteDevice">deleteDevice</a></li><li><a href="global.html#deleteGroup">deleteGroup</a></li><li><a href="global.html#deleteLinkedDevice">deleteLinkedDevice</a></li><li><a href="global.html#disconnectDevice">disconnectDevice</a></li><li><a href="global.html#getAdmins">getAdmins</a></li><li><a href="global.html#getAllSubgroups">getAllSubgroups</a></li><li><a href="global.html#getChildren">getChildren</a></li><li><a href="global.html#getContacts">getContacts</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataKey">getDataKey</a></li><li><a href="global.html#getDataPrefix">getDataPrefix</a></li><li><a href="global.html#getGroup">getGroup</a></li><li><a href="global.html#getLinkedDevices">getLinkedDevices</a></li><li><a href="global.html#getLinkedName">getLinkedName</a></li><li><a href="global.html#getNearestAdmins">getNearestAdmins</a></li><li><a href="global.html#getNewGroupID">getNewGroupID</a></li><li><a href="global.html#getOutstandingLinkPubkey">getOutstandingLinkPubkey</a></li><li><a href="global.html#getParents">getParents</a></li><li><a href="global.html#getPendingContacts">getPendingContacts</a></li><li><a href="global.html#getPrivkey">getPrivkey</a></li><li><a href="global.html#getPubkey">getPubkey</a></li><li><a href="global.html#getWriters">getWriters</a></li><li><a href="global.html#groupReplace">groupReplace</a></li><li><a href="global.html#groupReplaceHelper">groupReplaceHelper</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initDevice">initDevice</a></li><li><a href="global.html#isKey">isKey</a></li><li><a href="global.html#isMember">isMember</a></li><li><a href="global.html#linkGroups">linkGroups</a></li><li><a href="global.html#onMessage">onMessage</a></li><li><a href="global.html#parseContactInfo">parseContactInfo</a></li><li><a href="global.html#processRequestContact">processRequestContact</a></li><li><a href="global.html#processUpdateLinkedRequest">processUpdateLinkedRequest</a></li><li><a href="global.html#removeChild">removeChild</a></li><li><a href="global.html#removeContact">removeContact</a></li><li><a href="global.html#removeData">removeData</a></li><li><a href="global.html#removeDataHelper">removeDataHelper</a></li><li><a href="global.html#removeGroup">removeGroup</a></li><li><a href="global.html#removeOutstandingLinkPubkey">removeOutstandingLinkPubkey</a></li><li><a href="global.html#removeParent">removeParent</a></li><li><a href="global.html#resolveIDs">resolveIDs</a></li><li><a href="global.html#sendMessage">sendMessage</a></li><li><a href="global.html#setData">setData</a></li><li><a href="global.html#setDataHelper">setDataHelper</a></li><li><a href="global.html#setGroup">setGroup</a></li><li><a href="global.html#setOutstandingLinkPubkey">setOutstandingLinkPubkey</a></li><li><a href="global.html#setPrivkey">setPrivkey</a></li><li><a href="global.html#setPubkey">setPubkey</a></li><li><a href="global.html#setValidateCallback">setValidateCallback</a></li><li><a href="global.html#shareData">shareData</a></li><li><a href="global.html#unshareData">unshareData</a></li><li><a href="global.html#updateChildren">updateChildren</a></li><li><a href="global.html#updateData">updateData</a></li><li><a href="global.html#updateGroup">updateGroup</a></li><li><a href="global.html#updateParents">updateParents</a></li><li><a href="global.html#validate">validate</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#addAdmin">addAdmin</a></li><li><a href="global.html#addAdminHelper">addAdminHelper</a></li><li><a href="global.html#addAdminInMem">addAdminInMem</a></li><li><a href="global.html#addChild">addChild</a></li><li><a href="global.html#addChildHelper">addChildHelper</a></li><li><a href="global.html#addContact">addContact</a></li><li><a href="global.html#addParent">addParent</a></li><li><a href="global.html#addParentHelper">addParentHelper</a></li><li><a href="global.html#addWriter">addWriter</a></li><li><a href="global.html#addWriterHelper">addWriterHelper</a></li><li><a href="global.html#checkPermissions">checkPermissions</a></li><li><a href="global.html#confirmContact">confirmContact</a></li><li><a href="global.html#confirmUpdateLinked">confirmUpdateLinked</a></li><li><a href="global.html#connectDevice">connectDevice</a></li><li><a href="global.html#createDevice">createDevice</a></li><li><a href="global.html#createGroup">createGroup</a></li><li><a href="global.html#createKey">createKey</a></li><li><a href="global.html#createLinkedDevice">createLinkedDevice</a></li><li><a href="global.html#deleteAllLinkedDevices">deleteAllLinkedDevices</a></li><li><a href="global.html#deleteData">deleteData</a></li><li><a href="global.html#deleteDevice">deleteDevice</a></li><li><a href="global.html#deleteGroup">deleteGroup</a></li><li><a href="global.html#deleteLinkedDevice">deleteLinkedDevice</a></li><li><a href="global.html#disconnectDevice">disconnectDevice</a></li><li><a href="global.html#getAdmins">getAdmins</a></li><li><a href="global.html#getAdminsMem">getAdminsMem</a></li><li><a href="global.html#getAllGroups">getAllGroups</a></li><li><a href="global.html#getAllSubgroups">getAllSubgroups</a></li><li><a href="global.html#getChildren">getChildren</a></li><li><a href="global.html#getContacts">getContacts</a></li><li><a href="global.html#getData">getData</a></li><li><a href="global.html#getDataKey">getDataKey</a></li><li><a href="global.html#getDataPrefix">getDataPrefix</a></li><li><a href="global.html#getGroup">getGroup</a></li><li><a href="global.html#getLinkedDevices">getLinkedDevices</a></li><li><a href="global.html#getLinkedName">getLinkedName</a></li><li><a href="global.html#getNewGroupID">getNewGroupID</a></li><li><a href="global.html#getOutstandingLinkPubkey">getOutstandingLinkPubkey</a></li><li><a href="global.html#getParents">getParents</a></li><li><a href="global.html#getPendingContacts">getPendingContacts</a></li><li><a href="global.html#getPrivkey">getPrivkey</a></li><li><a href="global.html#getPubkey">getPubkey</a></li><li><a href="global.html#getWriters">getWriters</a></li><li><a href="global.html#groupReplace">groupReplace</a></li><li><a href="global.html#groupReplaceHelper">groupReplaceHelper</a></li><li><a href="global.html#hasAdminPriv">hasAdminPriv</a></li><li><a href="global.html#hasWriterPriv">hasWriterPriv</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initDevice">initDevice</a></li><li><a href="global.html#isKey">isKey</a></li><li><a href="global.html#isMember">isMember</a></li><li><a href="global.html#linkGroups">linkGroups</a></li><li><a href="global.html#listIntersect">listIntersect</a></li><li><a href="global.html#newGroupHelper">newGroupHelper</a></li><li><a href="global.html#onMessage">onMessage</a></li><li><a href="global.html#parseContactInfo">parseContactInfo</a></li><li><a href="global.html#processRequestContact">processRequestContact</a></li><li><a href="global.html#processUpdateLinkedRequest">processUpdateLinkedRequest</a></li><li><a href="global.html#removeChild">removeChild</a></li><li><a href="global.html#removeContact">removeContact</a></li><li><a href="global.html#removeData">removeData</a></li><li><a href="global.html#removeDataHelper">removeDataHelper</a></li><li><a href="global.html#removeGroup">removeGroup</a></li><li><a href="global.html#removeOutstandingLinkPubkey">removeOutstandingLinkPubkey</a></li><li><a href="global.html#removeParent">removeParent</a></li><li><a href="global.html#resolveIDs">resolveIDs</a></li><li><a href="global.html#sendMessage">sendMessage</a></li><li><a href="global.html#setData">setData</a></li><li><a href="global.html#setDataHelper">setDataHelper</a></li><li><a href="global.html#setGroup">setGroup</a></li><li><a href="global.html#setOutstandingLinkPubkey">setOutstandingLinkPubkey</a></li><li><a href="global.html#setPrivkey">setPrivkey</a></li><li><a href="global.html#setPubkey">setPubkey</a></li><li><a href="global.html#setValidateCallback">setValidateCallback</a></li><li><a href="global.html#shareAsAdmin">shareAsAdmin</a></li><li><a href="global.html#shareAsReader">shareAsReader</a></li><li><a href="global.html#shareAsWriter">shareAsWriter</a></li><li><a href="global.html#shareData">shareData</a></li><li><a href="global.html#unshareData">unshareData</a></li><li><a href="global.html#updateChildren">updateChildren</a></li><li><a href="global.html#updateData">updateData</a></li><li><a href="global.html#updateGroup">updateGroup</a></li><li><a href="global.html#updateParents">updateParents</a></li><li><a href="global.html#validate">validate</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Mon Sep 26 2022 14:02:28 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Mon Oct 03 2022 14:41:06 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

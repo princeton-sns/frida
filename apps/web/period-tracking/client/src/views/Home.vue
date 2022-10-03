@@ -44,6 +44,7 @@
         <p>Timestamp: {{ symptom.data.timestamp }}</p>
         <p>Symptoms: {{ symptom.data.symptoms }}</p>
         <p>Admins: {{ symptom.admins }}</p>
+        <p>Writers: {{ symptom.writers }}</p>
         <p>Readers: {{ symptom.readers }}</p>
         <!--<p>Raw object: {{ symptom }}</p>-->
         <div>
@@ -66,6 +67,7 @@
         <p>Timestamp: {{ period.data.timestamp }}</p>
         <p>Period: {{ period.data.period }}</p>
         <p>Admins: {{ period.admins }}</p>
+        <p>Writers: {{ period.writers }}</p>
         <p>Readers: {{ period.readers }}</p>
         <!--<p>Raw object: {{ period }}</p>-->
         <div>

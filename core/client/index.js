@@ -500,24 +500,21 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
         });
       } else {
         updateGroup({ groupID: newGroup.id, value: newGroup.value });
-        sendMessage(restLinkedPubkeys, {
-          msgType: NEW_GROUP,
-          groupID: newGroup.id,
-          value: newGroup.value,
-        });
+        newGroupHelper(newGroup.id, newGroup.value, restLinkedPubkeys);
       }
     });
 
     /* UPDATE NEW SELF */
 
-    // notify new group member of successful link and piggyback existing group info
+    // delete old linkedName group
     sendMessage([srcPubkey], {
       msgType: DELETE_GROUP,
       groupID: tempName,
     });
+    // notify new group member of successful link and piggyback existing group info
     sendMessage([srcPubkey], {
       msgType: CONFIRM_UPDATE_LINKED,
-      existingSubgroups: getAllSubgroups([LINKED, CONTACTS]),
+      existingSubgroups: getAllGroups(),
     });
     // send existing data to new linked group member
     let dataArr = getData();
@@ -545,11 +542,7 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
         });
       } else {
         contactNames.forEach((contactName) => {
-          sendMessage(resolveIDs([contactName]), {
-            msgType: NEW_GROUP,
-            groupID: newGroup.id,
-            value: addAdmin({ groupID: newGroup.id, adminID: contactName }),
-          });
+          newGroupHelper(newGroup.id, addAdmin({ groupID: newGroup.id, adminID: contactName }), resolveIDs([contactName]));
         });
       }
     });
@@ -615,8 +608,8 @@ function groupReplace(group, IDToReplace, replacementID) {
  * @private
  */
 function confirmUpdateLinked({ existingSubgroups }) {
-  existingSubgroups.forEach(({ id, value }) => {
-    setGroup(id, value);
+  existingSubgroups.forEach(({ key, value }) => {
+    db.set(key, value);
   });
   removeOutstandingLinkPubkey();
   onAuth();
@@ -646,6 +639,14 @@ function linkGroups({ parentID, childID }) {
  */
 function updateGroup({ groupID, value }) {
   setGroup(groupID, value);
+}
+
+function newGroupHelper(groupID, value, pubkeys) {
+  sendMessage(pubkeys, {
+    msgType: NEW_GROUP,
+    groupID: groupID,
+    value: value,
+  });
 }
 
 /*
@@ -726,17 +727,12 @@ function parseContactInfo(contactName, contactGroups) {
   contactGroups.forEach((contactGroup) => {
     let updatedContactGroup = groupReplace(contactGroup, LINKED, CONTACTS);
     // create group and add admin for enabling future deletion of this contact + groups
-    // FIXME wtf is happening 
     addAdminInMem(updatedContactGroup.value, linkedName);
     updateGroup({
       groupID: updatedContactGroup.id,
       value: updatedContactGroup.value,
     });
-    sendMessage(restLinkedPubkeys, {
-      msgType: NEW_GROUP,
-      groupID: updatedContactGroup.id,
-      value: updatedContactGroup.value,
-    });
+    newGroupHelper(updatedContactGroup.id, updatedContactGroup.value, restLinkedPubkeys);
   });
 
   linkGroups({
@@ -849,8 +845,7 @@ function deleteGroup({ groupID }) {
   });
   // delete group
   removeGroup(groupID);
-  // TODO more GC?
-  // TODO when contact children's list is empty -> remove contact
+  // TODO more GC (e.g. when contact's childrens list is empty -> remove contact)
 }
 
 /*
@@ -942,6 +937,15 @@ function addChild({ groupID, childID }) {
   });
 }
 
+function addChildHelper(groupID, childID, pubkeys) {
+  addChild({ groupID: groupID, childID: childID });
+  sendMessage(pubkeys, {
+    msgType: ADD_CHILD,
+    groupID: groupID,
+    childID: childID,
+  });
+}
+
 /**
  * Removes a child (ID or pubkey) from an existing group's children list.
  * Noop if child did not exist in the children list.
@@ -1004,6 +1008,15 @@ function addParent({ groupID, parentID }) {
     // deduplicate: only add parentID if doesn't already exist in list
     if (newParents.indexOf(parentID) === -1) newParents.push(parentID);
     return newParents;
+  });
+}
+
+function addParentHelper(groupID, parentID, pubkeys) {
+  addParent({ groupID: groupID, parentID: parentID });
+  sendMessage(pubkeys, {
+    msgType: ADD_PARENT,
+    groupID: groupID,
+    parentID: parentID,
   });
 }
 
@@ -1111,6 +1124,15 @@ function addAdmin({ groupID, adminID }) {
   return newGroupValue;
 }
 
+function addAdminHelper(groupID, adminID, pubkeys) {
+  addAdmin({ groupID: groupID, adminID: adminID });
+  sendMessage(pubkeys, {
+    msgType: ADD_ADMIN,
+    groupID: groupID,
+    adminID: adminID,
+  });
+}
+
 /**
  * Gets writers list of group.
  *
@@ -1143,6 +1165,15 @@ function addWriter({ groupID, writerID }) {
   return newGroupValue;
 }
 
+function addWriterHelper(groupID, writerID, pubkeys) {
+  addWriter({ groupID: groupID, writerID: writerID });
+  sendMessage(pubkeys, {
+    msgType: ADD_WRITER,
+    groupID: groupID,
+    writerID: writerID,
+  });
+}
+
 /**
  * Group getter.
  *
@@ -1155,16 +1186,9 @@ function getGroup(groupID) {
   return db.get(getDataKey(GROUP, groupID));
 }
 
-/*
- * Group name getter
- */
-//function getGroupName(groupID) {
-//  let group = getGroup(groupID);
-//  if (group !== null) {
-//    return group.name;
-//  }
-//  return null;
-//}
+function getAllGroups() {
+  return db.getMany(getDataPrefix(GROUP));
+}
 
 /**
  * Group setter.
@@ -1374,8 +1398,6 @@ export function removeData(prefix, id) {
   removeDataHelper(getDataKey(prefix, id));
 }
 
-// TODO update documentation
-
 /**
  * Function that handles propagating data removal to all members of the 
  * group and deleting the datum locally.
@@ -1439,6 +1461,28 @@ function deleteData({ key }) {
   db.remove(key);
 }
 
+export function shareAsReader(prefix, id, toShareGroupID) {
+  shareData(prefix, id, toShareGroupID);
+}
+
+export function shareAsWriter(prefix, id, toShareGroupID) {
+  let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
+  if (sharingGroupID !== null) {
+    // add writer
+    addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberPubkeys);
+  }
+}
+
+export function shareAsAdmin(prefix, id, toShareGroupID) {
+  let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
+  if (sharingGroupID !== null) {
+    // add writer
+    addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberPubkeys);
+    // add admin
+    addAdminHelper(sharingGroupID, toShareGroupID, restNewMemberPubkeys);
+  }
+}
+
 /**
  * Shares data item by creating new group that subsumes both it's 
  * current group and the new group to share with (commonly, a contact's 
@@ -1448,9 +1492,8 @@ function deleteData({ key }) {
  * @param {string} prefix data prefix
  * @param {string} id data id
  * @param {string} toShareGroupID id with which to share data
- * @param {number} priv 0 = reader, 1 = writer, 2 = admin
  */
-export function shareData(prefix, id, toShareGroupID, priv) {
+function shareData(prefix, id, toShareGroupID) {
   if (getGroup(toShareGroupID) === null) {
     return;
   }
@@ -1470,111 +1513,46 @@ export function shareData(prefix, id, toShareGroupID, priv) {
     let sharingGroupID;
     let linkedName = getLinkedName();
     let restNewMemberPubkeys = resolveIDs([curGroupID, toShareGroupID]).filter((x) => x != pubkey);
-
-    // TODO currently all sharing is read-only, enable adding writers/admins
-
     // if underlying group is linkedName, generate new group to encompass sharing
     if (curGroupID === linkedName) {
       sharingGroupID = getNewGroupID();
-
       // create new sharing group
       createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
-      sendMessage(restNewMemberPubkeys, {
-        msgType: NEW_GROUP,
-        groupID: sharingGroupID,
-        value: getGroup(sharingGroupID),
-      });
-
+      newGroupHelper(sharingGroupID, getGroup(sharingGroupID), restNewMemberPubkeys);
       // add parent pointers for both previously-existing groups
       // note: have to separately add parents everywhere instead of just doing 
       // it once and sending updated group b/c groups on diff devices have diff
       // permissions/etc, don't want to override that
       // open problem: how to only do work once without compromising security
-      addParent({ groupID: curGroupID, parentID: sharingGroupID });
-      sendMessage(restNewMemberPubkeys, {
-        msgType: ADD_PARENT,
-        groupID: curGroupID,
-        parentID: sharingGroupID,
-      });
-
-      addParent({ groupID: toShareGroupID, parentID: sharingGroupID });
-      sendMessage(restNewMemberPubkeys, {
-        msgType: ADD_PARENT,
-        groupID: toShareGroupID,
-        parentID: sharingGroupID,
-      });
-
-      if (priv === 1 || priv === 2) {
-        addWriter({ groupID: sharingGroupID, writerID: toShareGroupID });
-        sendMessage(restNewMemberPubkeys, {
-          msgType: ADD_WRITER,
-          groupID: sharingGroupID,
-          writerID: toShareGroupID,
-        });
-      }
-      if (priv === 2) {
-        addAdmin({ groupID: sharingGroupID, adminID: toShareGroupID });
-        sendMessage(restNewMemberPubkeys, {
-          msgType: ADD_ADMIN,
-          groupID: sharingGroupID,
-          adminID: toShareGroupID,
-        });
-      }
-
+      addParentHelper(curGroupID, sharingGroupID, restNewMemberPubkeys);
+      addParentHelper(toShareGroupID, sharingGroupID, restNewMemberPubkeys);
       // send actual data that group now points to
       setDataHelper(key, value.data, sharingGroupID);
-    // sharing group already exists for this data object, modify existing group
-    } else {
-      let curGroupValue = getGroup(curGroupID);
+    } else { // sharing group already exists for this data object, modify existing group
+      sharingGroupID = curGroupID;
+      let curGroupValue = getGroup(sharingGroupID);
       let newMemberPubkeys = resolveIDs([toShareGroupID]);
-
       // send existing sharing group to new member devices
-      sendMessage(newMemberPubkeys, {
-        msgType: NEW_GROUP,
-        groupID: curGroupID,
-        value: curGroupValue,
-      });
-
+      newGroupHelper(sharingGroupID, curGroupValue, newMemberPubkeys);
       // add child to existing sharing group
-      addChild({ groupID: curGroupID, childID: toShareGroupID });
-      sendMessage(restNewMemberPubkeys, {
-        msgType: ADD_CHILD,
-        groupID: curGroupID,
-        childID: toShareGroupID,
-      });
-
+      addChildHelper(sharingGroupID, toShareGroupID, restNewMemberPubkeys);
       // add parent from new child to existing sharing group
-      addParent({ groupID: toShareGroupID, parentID: curGroupID });
-      sendMessage(restNewMemberPubkeys, {
-        msgType: ADD_PARENT,
-        groupID: toShareGroupID,
-        parentID: curGroupID,
-      });
-
-      if (priv === 1 || priv === 2) {
-        addWriter({ groupID: curGroupID, writerID: toShareGroupID });
-        sendMessage(restNewMemberPubkeys, {
-          msgType: ADD_WRITER,
-          groupID: curGroupID,
-          writerID: toShareGroupID,
-        });
-      }
-      if (priv === 2) {
-        addAdmin({ groupID: curGroupID, adminID: toShareGroupID });
-        sendMessage(restNewMemberPubkeys, {
-          msgType: ADD_ADMIN,
-          groupID: curGroupID,
-          adminID: toShareGroupID,
-        });
-      }
-
-      // send actual data that group now points to (curGroupID == sharingGroupID)
-      setDataHelper(key, value.data, curGroupID);
+      addParentHelper(toShareGroupID, sharingGroupID, restNewMemberPubkeys);
+      // send actual data that group now points to
+      setDataHelper(key, value.data, sharingGroupID);
     }
+    return {
+      restNewMemberPubkeys: restNewMemberPubkeys,
+      sharingGroupID: sharingGroupID,
+    };
+  }
   // TODO also share missing contact info? or else how to prevent group/data
   // from getting out of sync due to holes in who-knows-who (assuming originating
   // party does not make all modifications to shared object)
-  }
+  return {
+    restNewMemberPubkeys: [],
+    sharingGroupID: null,
+  };
 }
 
 /**
@@ -1666,11 +1644,7 @@ export function unshareData(prefix, id, toUnshareGroupID) {
 
       let sharingPubkeys = resolveIDs([sharingGroupID]);
       // send new group
-      sendMessage(sharingPubkeys, {
-        msgType: NEW_GROUP,
-        groupID: sharingGroupID,
-        value: getGroup(sharingGroupID),
-      });
+      newGroupHelper(sharingGroupID, getGroup(sharingGroupID), sharingPubkeys);
       // relink parent pointers to new group for all remaining children of new group
       newChildren.forEach((newChild) => {
         sendMessage(sharingPubkeys, {

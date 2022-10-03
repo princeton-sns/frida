@@ -104,12 +104,16 @@ const store = createStore({
     },
     SHARE_SYMPTOMS(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.shareData(symptomPrefix, id, friendName, 0);
+        frida.shareAsReader(symptomPrefix, id, friendName);
+        //frida.shareAsWriter(symptomPrefix, id, friendName);
+        //frida.shareAsAdmin(symptomPrefix, id, friendName);
       }
     },
     SHARE_PERIOD(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.shareData(periodPrefix, id, friendName, 0);
+        frida.shareAsReader(periodPrefix, id, friendName);
+        //frida.shareAsWriter(periodPrefix, id, friendName);
+        //frida.shareAsAdmin(periodPrefix, id, friendName);
       }
     },
     UNSHARE_SYMPTOMS(state, { id, friendName, remote }) {

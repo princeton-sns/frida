@@ -511,19 +511,12 @@ function processUpdateLinkedRequest({ tempName, srcPubkey, newLinkedMembers }) {
       msgType: DELETE_GROUP,
       groupID: tempName,
     });
-    // notify new group member of successful link and piggyback existing group info
+    // notify new group member of successful link and piggyback existing 
+    // group info and data
     sendMessage([srcPubkey], {
       msgType: CONFIRM_UPDATE_LINKED,
-      existingSubgroups: getAllGroups(),
-    });
-    // send existing data to new linked group member
-    let dataArr = getData();
-    dataArr.forEach((dataElem) => {
-      sendMessage([srcPubkey], {
-        msgType: UPDATE_DATA,
-        key: dataElem.key,
-        value: dataElem.value,
-      });
+      existingGroups: getAllGroups(),
+      existingData: getData(),
     });
 
     /* UPDATE OTHER */
@@ -603,12 +596,16 @@ function groupReplace(group, IDToReplace, replacementID) {
  *
  * TODO also process any other data sent from the device being linked with.
  *
- * @param {Object[]} existingSubgroups existing groups on linked device
+ * @param {Object[]} existingGroups existing groups on linked device
+ * @param {Object[]} existingData existing data on linked device
  *
  * @private
  */
-function confirmUpdateLinked({ existingSubgroups }) {
-  existingSubgroups.forEach(({ key, value }) => {
+function confirmUpdateLinked({ existingGroups, existingData }) {
+  existingGroups.forEach(({ key, value }) => {
+    db.set(key, value);
+  });
+  existingData.forEach(({ key, value }) => {
     db.set(key, value);
   });
   removeOutstandingLinkPubkey();
@@ -641,6 +638,15 @@ function updateGroup({ groupID, value }) {
   setGroup(groupID, value);
 }
 
+/**
+ * Sends NEW_GROUP message to specified pubkeys.
+ *
+ * @param {string} groupID id of group to add
+ * @param {Object} value group value to add
+ * @param {string[]} pubkeys list of pubkeys to add group on
+ *
+ * @private
+ */
 function newGroupHelper(groupID, value, pubkeys) {
   sendMessage(pubkeys, {
     msgType: NEW_GROUP,
@@ -937,6 +943,16 @@ function addChild({ groupID, childID }) {
   });
 }
 
+/**
+ * Adds child locally and remotely on all devices in group (specified by pubkeys
+ * parameter).
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} childID ID of child to add
+ * @param {string[]} pubkeys devices to remotely make this modification on
+ *
+ * @private
+ */
 function addChildHelper(groupID, childID, pubkeys) {
   addChild({ groupID: groupID, childID: childID });
   sendMessage(pubkeys, {
@@ -1011,6 +1027,16 @@ function addParent({ groupID, parentID }) {
   });
 }
 
+/**
+ * Adds parent locally and remotely on all devices in group (specified by pubkeys
+ * parameter).
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} parentID ID of parent to add
+ * @param {string[]} pubkeys devices to remotely make this modification on
+ *
+ * @private
+ */
 function addParentHelper(groupID, parentID, pubkeys) {
   addParent({ groupID: groupID, parentID: parentID });
   sendMessage(pubkeys, {
@@ -1078,6 +1104,7 @@ function getAdmins(groupID) {
  *
  * @private
  */
+// TODO rename (again)
 function getAdminsMem(groupIDs) {
   let adminSet;
   groupIDs.forEach((groupID) => {
@@ -1091,14 +1118,11 @@ function getAdminsMem(groupIDs) {
 }
 
 /**
- * Adds admin to admins list of a group (modifies group in place).
- * TODO Necessary to do in-place? logic is if need to propagate this admins
- * list to contacts, will fail the check on contact devices b/c the device
- * that wants to modify the admins list to add itself is not yet an admin. 
- * But maybe the only "addAdmin" ops that need to be propagated are when
- * an existing admin adds a new admin (e.g. sharing data w admin privs).
- * => check all cases to see => not true, when adding contacts, cur device
- * adds self as admin + needs to propagate that to all linked devices
+ * Adds admin to admins list of a group (modifies group in place). Necessary
+ * for some functionality to do this in-place, e.g. when adding contacts the
+ * current device adds itself as an admin and needs to propagate that to all
+ * the other linked devices (which would fail the permissions check if it was
+ * sent as a separate message).
  *
  * @param {Object} oldGroupValue group value with admins list to update
  * @param {string} adminID id of admin to add
@@ -1112,6 +1136,15 @@ function addAdminInMem(oldGroupValue, adminID) {
   }
 }
 
+/**
+ * Adds an additional admin (ID) to an existing group's admins list.
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} adminID ID of admin to add
+ * @returns {Object}
+ *
+ * @private
+ */
 function addAdmin({ groupID, adminID }) {
   let oldGroupValue = getGroup(groupID);
   let newAdmins = oldGroupValue.admins;
@@ -1124,6 +1157,16 @@ function addAdmin({ groupID, adminID }) {
   return newGroupValue;
 }
 
+/**
+ * Adds admin locally and remotely on all devices in group (specified by pubkeys
+ * parameter).
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} adminID ID of admin to add
+ * @param {string[]} pubkeys devices to remotely make this modification on
+ *
+ * @private
+ */
 function addAdminHelper(groupID, adminID, pubkeys) {
   addAdmin({ groupID: groupID, adminID: adminID });
   sendMessage(pubkeys, {
@@ -1165,6 +1208,16 @@ function addWriter({ groupID, writerID }) {
   return newGroupValue;
 }
 
+/**
+ * Adds writer locally and remotely on all devices in group (specified by pubkeys
+ * parameter).
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} writerID ID of writer to add
+ * @param {string[]} pubkeys devices to remotely make this modification on
+ *
+ * @private
+ */
 function addWriterHelper(groupID, writerID, pubkeys) {
   addWriter({ groupID: groupID, writerID: writerID });
   sendMessage(pubkeys, {
@@ -1186,6 +1239,13 @@ function getGroup(groupID) {
   return db.get(getDataKey(GROUP, groupID));
 }
 
+/**
+ * Gets all groups on current device.
+ *
+ * @returns {Object[]}
+ *
+ * @private
+ */
 function getAllGroups() {
   return db.getMany(getDataPrefix(GROUP));
 }
@@ -1324,9 +1384,9 @@ function setDataHelper(key, data, groupID) {
 
 /**
  * If only prefix is specified, gets a list of data objects whose keys begin
- * with that prefix, otherwise get a single data object.
- * TODO consider pros/cons of only processing one prefix at a time
- * (efficiency in cases where want data from more than one prefix).
+ * with that prefix, otherwise get a single data object. Allows getting data
+ * for either a single prefix at a time or _all_ app prefixes.
+ * TODO allow specifying a sublist of app prefixes?
  *
  * @param {?string} prefix data prefix
  * @param {?string} id app-specific object id
@@ -1461,10 +1521,26 @@ function deleteData({ key }) {
   db.remove(key);
 }
 
+/**
+ * Allow application to share particular data object with another set of devices
+ * with read privileges.
+ *
+ * @param {string} prefix app prefix for this data object
+ * @param {string} id data object id
+ * @param {string} toShareGroupID group to grant read privileges to
+ */
 export function shareAsReader(prefix, id, toShareGroupID) {
   shareData(prefix, id, toShareGroupID);
 }
 
+/**
+ * Allow application to share particular data object with another set of devices
+ * with read/write privileges.
+ *
+ * @param {string} prefix app prefix for this data object
+ * @param {string} id data object id
+ * @param {string} toShareGroupID group to grant read/write privileges to
+ */
 export function shareAsWriter(prefix, id, toShareGroupID) {
   let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
   if (sharingGroupID !== null) {
@@ -1473,6 +1549,14 @@ export function shareAsWriter(prefix, id, toShareGroupID) {
   }
 }
 
+/**
+ * Allow application to share particular data object with another set of devices
+ * with read/write/admin privileges.
+ *
+ * @param {string} prefix app prefix for this data object
+ * @param {string} id data object id
+ * @param {string} toShareGroupID group to grant read/write/admin privileges to
+ */
 export function shareAsAdmin(prefix, id, toShareGroupID) {
   let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
   if (sharingGroupID !== null) {
@@ -1818,8 +1902,8 @@ function hasWriterPriv(toCheckID, groupID) {
 /**
  * Checks if a groupID is a member of a group.
  *
- * @param {string[]} groupIDList list of group IDs to check all children of
  * @param {string} toCheckGroupID ID of group to check for
+ * @param {string[]} groupIDList list of group IDs to check all children of
  * @returns {boolean}
  *
  * @private

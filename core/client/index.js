@@ -48,7 +48,9 @@ const ADD_PARENT            = "addParent";
 const REMOVE_PARENT         = "removeParent";
 const ADD_CHILD             = "addChild";
 const ADD_WRITER            = "addWriter";
+const REMOVE_WRITER         = "removeWriter";
 const ADD_ADMIN             = "addAdmin";
+const REMOVE_ADMIN          = "removeAdmin";
 const NEW_GROUP             = "newGroup";
 const UPDATE_GROUP          = "updateGroup"; // only used within LINKED group
 const DELETE_SELF           = "deleteSelf";
@@ -67,7 +69,9 @@ const demuxMap = {
   [REMOVE_PARENT]:         removeParent,
   [ADD_CHILD]:             addChild,
   [ADD_WRITER]:            addWriter,
+  [REMOVE_WRITER]:         removeWriter,
   [ADD_ADMIN]:             addAdmin,
+  [REMOVE_ADMIN]:          removeAdmin,
   [NEW_GROUP]:             updateGroup,
   [UPDATE_GROUP]:          updateGroup,
   [DELETE_SELF]:           deleteDevice,
@@ -86,8 +90,7 @@ let defaultOnUnauth = () => {};
 
 // default callback
 let defaultValidateCallback = (payload) => {
-  console.log("validating payload...");
-  console.log(payload)
+  console.log("validating payload... " + payload);
   return true;
 }
 
@@ -110,13 +113,21 @@ function makeGroup(fieldNames) {
 }
 
 /* doubly-linked tree, allows cycles */
-const Key   = makeGroup("name parents admins writers");
+const NAME     = "name";
+const PARENTS  = "parents";
+const CHILDREN = "children";
+const ADMINS   = "admins";
+const WRITERS  = "writers";
+
+const keyString = [NAME, PARENTS, ADMINS, WRITERS].join(" ");
+const Key   = makeGroup(keyString); //"name parents admins writers");
 // readers list isn't necessary, any member that isn't an admin
 // or writer can be assumed to be a reader
 // TODO also deduplicate admins and writers (any writer who is also an
 // admin can _just_ exist in the admin group, since admin abilities are a
 // superset of writer abilities
-const Group = makeGroup("name parents children admins writers");
+const groupString = [NAME, PARENTS, CHILDREN, ADMINS, WRITERS].join(" ");
+const Group = makeGroup(groupString); //"name parents children admins writers");
 
 /* DB listener plugin */
 
@@ -583,10 +594,10 @@ function groupReplace(group, IDToReplace, replacementID) {
       id: replacementID,
     };
   }
-  groupReplaceHelper("parents", updatedGroup, IDToReplace, replacementID);
-  groupReplaceHelper("children", updatedGroup, IDToReplace, replacementID);
-  groupReplaceHelper("admins", updatedGroup, IDToReplace, replacementID);
-  groupReplaceHelper("writers", updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper(PARENTS, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper(CHILDREN, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper(ADMINS, updatedGroup, IDToReplace, replacementID);
+  groupReplaceHelper(WRITERS, updatedGroup, IDToReplace, replacementID);
   return updatedGroup;
 }
 
@@ -889,6 +900,37 @@ function createKey(ID, name, parents, admins, writers) {
   setGroup(ID, new Key(name, parents, admins, writers));
 }
 
+const listRemoveCallback = (ID, newList) => {
+  let idx = newList.indexOf(ID);
+  if (idx !== -1) newList.splice(idx, 1);
+  return newList;
+};
+
+const listAddCallback = (ID, newList) => {
+  // deduplicate: only add ID if doesn't already exist in list
+  if (newList.indexOf(ID) === -1) newList.push(ID);
+  return newList;
+};
+
+/**
+ * Helper function for updating the specified list of an existing group.
+ *
+ * @param {string} key list key
+ * @param {string} groupID ID of group to modify
+ * @param {string} memberID ID of list member to add/remove
+ * @param {callback} callback operation to perform on the list
+ * @returns {Object}
+ *
+ * @private
+ */
+function updateList(key, groupID, memberID, callback) {
+  let oldGroupValue = getGroup(groupID);
+  let newList = callback(memberID, oldGroupValue[key]);
+  let newGroupValue = { ...oldGroupValue, [key]: newList };
+  setGroup(groupID, newGroupValue);
+  return newGroupValue;
+}
+
 /**
  * Gets childrens list of group with groupID.
  *
@@ -936,11 +978,7 @@ function getAllSubgroups(groupIDs) {
  * @private
  */
 function addChild({ groupID, childID }) {
-  return updateChildren(groupID, childID, (childID, newChildren) => {
-    // deduplicate: only add parentID if doesn't already exist in list
-    if (newChildren.indexOf(childID) === -1) newChildren.push(childID);
-    return newChildren;
-  });
+  return updateList(CHILDREN, groupID, childID, listAddCallback);
 }
 
 /**
@@ -973,29 +1011,7 @@ function addChildHelper(groupID, childID, pubkeys) {
  * @private
  */
 function removeChild(groupID, childID) {
-  return updateChildren(groupID, childID, (childID, newChildren) => {
-    let idx = newChildren.indexOf(childID);
-    if (idx !== -1) newChildren.splice(idx, 1);
-    return newChildren;
-  });
-}
-
-/**
- * Helper function for updating existing group's children list.
- *
- * @param {string} groupID ID of group to modify
- * @param {string} childID ID of child to add/remove
- * @param {callback} callback operation to perform on the childrens list
- * @returns {Object}
- *
- * @private
- */
-function updateChildren(groupID, childID, callback) {
-  let oldGroupValue = getGroup(groupID);
-  let newChildren = callback(childID, oldGroupValue.children);
-  let newGroupValue = { ...oldGroupValue, children: newChildren };
-  setGroup(groupID, newGroupValue);
-  return newGroupValue;
+  return updateList(CHILDREN, groupID, childID, listRemoveCallback);
 }
 
 /**
@@ -1020,11 +1036,7 @@ function getParents(groupID) {
  * @private
  */
 function addParent({ groupID, parentID }) {
-  return updateParents(groupID, parentID, (parentID, newParents) => {
-    // deduplicate: only add parentID if doesn't already exist in list
-    if (newParents.indexOf(parentID) === -1) newParents.push(parentID);
-    return newParents;
-  });
+  return updateList(PARENTS, groupID, parentID, listAddCallback);
 }
 
 /**
@@ -1057,29 +1069,7 @@ function addParentHelper(groupID, parentID, pubkeys) {
  * @private
  */
 function removeParent({ groupID, parentID }) {
-  return updateParents(groupID, parentID, (parentID, newParents) => {
-    let idx = newParents.indexOf(parentID);
-    if (idx !== -1) newParents.splice(idx, 1);
-    return newParents;
-  });
-}
-
-/**
- * Helper function for updating existing group's parents list.
- *
- * @param {string} groupID ID of group to modify
- * @param {string} parentID ID of parent to add/remove
- * @param {callback} callback operation to perform on the parents list
- * @returns {Object}
- *
- * @private
- */
-function updateParents(groupID, parentID, callback) {
-  let oldGroupValue = getGroup(groupID);
-  let newParents = callback(parentID, oldGroupValue.parents);
-  let newGroupValue = { ...oldGroupValue, parents: newParents };
-  setGroup(groupID, newGroupValue);
-  return newGroupValue;
+  return updateList(PARENTS, groupID, parentID, listRemoveCallback);
 }
 
 /**
@@ -1146,15 +1136,7 @@ function addAdminInMem(oldGroupValue, adminID) {
  * @private
  */
 function addAdmin({ groupID, adminID }) {
-  let oldGroupValue = getGroup(groupID);
-  let newAdmins = oldGroupValue.admins;
-  // deduplicate: only add adminID if doesn't already exist in list
-  if (newAdmins?.indexOf(adminID) === -1) {
-    newAdmins.push(adminID);
-  }
-  let newGroupValue = { ...oldGroupValue, admins: newAdmins };
-  setGroup(groupID, newGroupValue);
-  return newGroupValue;
+  return updateList(ADMINS, groupID, adminID, listAddCallback);
 }
 
 /**
@@ -1171,6 +1153,39 @@ function addAdminHelper(groupID, adminID, pubkeys) {
   addAdmin({ groupID: groupID, adminID: adminID });
   sendMessage(pubkeys, {
     msgType: ADD_ADMIN,
+    groupID: groupID,
+    adminID: adminID,
+  });
+}
+
+/**
+ * Removes an admin (ID or pubkey) from an existing group's admins list.
+ * Noop if admin did not exist in the admins list.
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} adminID ID of admin to remove
+ * @returns {Object}
+ *
+ * @private
+ */
+function removeAdmin({ groupID, adminID }) {
+  return updateList(ADMINS, groupID, adminID, listRemoveCallback);
+}
+
+/**
+ * Removes admin locally and remotely on all devices in group (specified by pubkeys
+ * parameter).
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} adminID ID of admin to remove
+ * @param {string[]} pubkeys devices to remotely make this modification on
+ *
+ * @private
+ */
+function removeAdminHelper(groupID, adminID, pubkeys) {
+  removeAdmin({ groupID: groupID, adminID: adminID });
+  sendMessage(pubkeys, {
+    msgType: REMOVE_ADMIN,
     groupID: groupID,
     adminID: adminID,
   });
@@ -1197,15 +1212,7 @@ function getWriters(groupID) {
  * @private
  */
 function addWriter({ groupID, writerID }) {
-  let oldGroupValue = getGroup(groupID);
-  let newWriters = oldGroupValue.writers;
-  // deduplicate: only add writerID if doesn't already exist in list
-  if (newWriters?.indexOf(writerID) === -1) {
-    newWriters.push(writerID);
-  }
-  let newGroupValue = { ...oldGroupValue, writers: newWriters };
-  setGroup(groupID, newGroupValue);
-  return newGroupValue;
+  return updateList(WRITERS, groupID, writerID, listAddCallback);
 }
 
 /**
@@ -1222,6 +1229,39 @@ function addWriterHelper(groupID, writerID, pubkeys) {
   addWriter({ groupID: groupID, writerID: writerID });
   sendMessage(pubkeys, {
     msgType: ADD_WRITER,
+    groupID: groupID,
+    writerID: writerID,
+  });
+}
+
+/**
+ * Removes a writer (ID or pubkey) from an existing group's writers list.
+ * Noop if writer did not exist in the writers list.
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} writerID ID of writer to remove
+ * @returns {Object}
+ *
+ * @private
+ */
+function removeWriter({ groupID, writerID }) {
+  return updateList(WRITERS, groupID, writerID, listRemoveCallback);
+}
+
+/**
+ * Removes writer locally and remotely on all devices in group (specified by pubkeys
+ * parameter).
+ *
+ * @param {string} groupID ID of group to modify
+ * @param {string} writerID ID of writer to remove
+ * @param {string[]} pubkeys devices to remotely make this modification on
+ *
+ * @private
+ */
+function removeWriterHelper(groupID, writerID, pubkeys) {
+  removeWriter({ groupID: groupID, writerID: writerID });
+  sendMessage(pubkeys, {
+    msgType: REMOVE_WRITER,
     groupID: groupID,
     writerID: writerID,
   });
@@ -1286,8 +1326,6 @@ export function getLinkedDevices() {
  * Get linked name.
  *
  * @returns {string}
- *
- * @private
  */
 export function getLinkedName() {
   return getGroup(LINKED)?.name ?? null;
@@ -1302,6 +1340,22 @@ export function getLinkedName() {
  */
 function getNewGroupID() {
   return crypto.randomUUID();
+}
+
+function unlinkAndDeleteGroupHelper(groupID, parentID, pubkeys, local = true) {
+  if (local) {
+    removeParent({ groupID: groupID, parentID: parentID });
+    deleteGroup({ groupID: parentID });
+  }
+  sendMessage(pubkeys, {
+    msgType: REMOVE_PARENT,
+    groupID: groupID,
+    parentID: parentID,
+  });
+  sendMessage(pubkeys, {
+    msgType: DELETE_GROUP,
+    groupID: parentID,
+  });
 }
 
 /*
@@ -1529,7 +1583,7 @@ function deleteData({ key }) {
  * @param {string} id data object id
  * @param {string} toShareGroupID group to grant read privileges to
  */
-export function shareAsReader(prefix, id, toShareGroupID) {
+export function grantReaderPrivs(prefix, id, toShareGroupID) {
   shareData(prefix, id, toShareGroupID);
 }
 
@@ -1541,7 +1595,7 @@ export function shareAsReader(prefix, id, toShareGroupID) {
  * @param {string} id data object id
  * @param {string} toShareGroupID group to grant read/write privileges to
  */
-export function shareAsWriter(prefix, id, toShareGroupID) {
+export function grantWriterPrivs(prefix, id, toShareGroupID) {
   let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
   if (sharingGroupID !== null) {
     // add writer
@@ -1557,7 +1611,7 @@ export function shareAsWriter(prefix, id, toShareGroupID) {
  * @param {string} id data object id
  * @param {string} toShareGroupID group to grant read/write/admin privileges to
  */
-export function shareAsAdmin(prefix, id, toShareGroupID) {
+export function grantAdminPrivs(prefix, id, toShareGroupID) {
   let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
   if (sharingGroupID !== null) {
     // add writer
@@ -1576,24 +1630,27 @@ export function shareAsAdmin(prefix, id, toShareGroupID) {
  * @param {string} prefix data prefix
  * @param {string} id data id
  * @param {string} toShareGroupID id with which to share data
+ *
+ * @private
  */
 function shareData(prefix, id, toShareGroupID) {
-  if (getGroup(toShareGroupID) === null) {
-    return;
-  }
-
+  let pubkey = getPubkey();
   let key = getDataKey(prefix, id);
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
 
-  if (curGroupID !== null) {
-    // check that current device can modify this group
-    let pubkey = getPubkey();
-    if (!hasAdminPriv(pubkey, curGroupID)) {
-      printBadGroupPermissionsError();
-      return;
-    }
+  // check that current device can modify this group
+  if (!hasAdminPriv(pubkey, curGroupID)) {
+    printBadGroupPermissionsError();
+    return;
+  }
 
+  // check that toShareGroupID exists
+  if (getGroup(toShareGroupID) === null) {
+    return;
+  }
+
+  if (curGroupID !== null) {
     let sharingGroupID;
     let linkedName = getLinkedName();
     let restNewMemberPubkeys = resolveIDs([curGroupID, toShareGroupID]).filter((x) => x != pubkey);
@@ -1640,6 +1697,66 @@ function shareData(prefix, id, toShareGroupID) {
 }
 
 /**
+ *
+ */
+export function revokeWriterPrivs(prefix, id, toUnshareGroupID) {
+  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
+  removeWriterHelper(curGroupID, toUnshareGroupID, resolveIDs([curGroupID]));
+}
+
+/**
+ *
+ */
+export function revokeAdminPrivs(prefix, id, toUnshareGroupID) {
+  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
+  removeAdminHelper(curGroupID, toUnshareGroupID, resolveIDs([curGroupID]));
+}
+
+/**
+ *
+ */
+export function revokeAllPrivs(prefix, id, toUnshareGroupID) {
+  unshareData(unshareChecks(prefix, id, toUnshareGroupID));
+}
+
+function unshareChecks(prefix, id, toUnshareGroupID) {
+  let pubkey = getPubkey();
+  let key = getDataKey(prefix, id);
+  let value = db.get(key);
+  let curGroupID = value?.groupID ?? null;
+
+  // check that current device can modify group
+  if (!hasAdminPriv(pubkey, curGroupID)) {
+    printBadGroupPermissionsError();
+    return;
+  }
+
+  // check that group exists
+  if (getGroup(toUnshareGroupID) === null) {
+    return;
+  }
+
+  // check that data is currently shared with that group
+  if (!isMember(toUnshareGroupID, [curGroupID])) {
+    return;
+  }
+
+  // prevent device from unsharing with self 
+  // TODO when would it make sense to allow this?
+  if (isMember(toUnshareGroupID, [getLinkedName()])) {
+    return;
+  }
+
+  return {
+    pubkey: pubkey,
+    key: key,
+    value: value,
+    curGroupID: curGroupID,
+    toUnshareGroupID: toUnshareGroupID,
+  };
+}
+
+/**
  * Unshares data item by creating new group that excludes groupID (commonly
  * a contact's name or any other subgroup). Propagates the new group info
  * to the new group members and deletes old group and data from groupID's
@@ -1648,112 +1765,61 @@ function shareData(prefix, id, toShareGroupID) {
  * @param {string} prefix data prefix
  * @param {string} id data id
  * @param {string} toUnshareGroupID id with which to unshare data
+ *
+ * @private
  */
-export function unshareData(prefix, id, toUnshareGroupID) {
-  // check that group exists
-  if (getGroup(toUnshareGroupID) === null) {
-    return;
-  }
-
-  // check that data is currently shared with that group
-  let key = getDataKey(prefix, id);
-  let value = db.get(key);
-  let curGroupID = value?.groupID ?? null;
-  if (!isMember(toUnshareGroupID, [curGroupID])) {
-    return;
-  }
-
-  // prevent device from unsharing with self?
-  // TODO would we ever want to allow this?
-  // maybe makes more sense to check against the admins of the group? although
-  // want this to be possible too...
-  let linkedName = getLinkedName();
-  if (toUnshareGroupID === linkedName) {
-    return;
-  }
-
-  // unshare data with group
+function unshareData({ pubkey, key, value, curGroupID, toUnshareGroupID }) {
   if (curGroupID !== null) {
-    // check that current device can modify group
-    if (!hasAdminPriv(getPubkey(), curGroupID)) {
-      printBadGroupPermissionsError();
-      return;
-    }
+    // delete data from toUnshareGroupID devices before deleting related group
+    removeDataHelper(key, curGroupID, toUnshareGroupID);
+    // unlink and delete curGroupID group on toUnshareGroupID devices
+    // OK to just remove toUnshareGroupID from group b/c unique group per
+    // object => don't need to worry about breaking the sharing of other 
+    // objects TODO unless eventually (for space efficiency) use one group
+    // for multiple objects
+    unlinkAndDeleteGroupHelper(toUnshareGroupID, curGroupID, resolveIDs([toUnshareGroupID]), false);
 
     // FIXME assuming simple structure, won't work if toUnshareGroupID is
     // further than the first level down
     let newChildren = getChildren(curGroupID).filter((x) => x != toUnshareGroupID);
-
-    let toUnsharePubkeys = resolveIDs([toUnshareGroupID]);
-    // delete data from toUnshareGroupID devices
-    // do this first because need old group info to check that this device
-    // can indeed unshare
-    removeDataHelper(key, curGroupID, toUnshareGroupID);
-    // unlink and delete curGroupID group on toUnshareGroupID devices
-    sendMessage(toUnsharePubkeys, {
-      msgType: REMOVE_PARENT,
-      groupID: toUnshareGroupID,
-      parentID: curGroupID,
-    });
-    sendMessage(toUnsharePubkeys, {
-      msgType: DELETE_GROUP,
-      groupID: curGroupID,
-    });
 
     // use newChildren[0] (existing group) as the new group name
     // (e.g. when an object is shared with one contact and then unshared with 
     // that same contact, newChildren[0] is expected to be the linkedName of the
     // sharing device(s))
     if (newChildren.length === 1) {
-      let sharingPubkeys = resolveIDs([newChildren[0]]);
-      // unlink and delete curGroupID group on newChildren[0] devices
-      sendMessage(sharingPubkeys, {
-        msgType: REMOVE_PARENT,
-        groupID: newChildren[0],
-        parentID: curGroupID,
-      });
-      sendMessage(sharingPubkeys, {
-        msgType: DELETE_GROUP,
-        groupID: curGroupID,
-      });
-      // update data with new group ID on newChildren[0] devices
+      let sharingPubkeys = resolveIDs([newChildren[0]]).filter((x) => x != pubkey);
+      // unlink and delete curGroupID group on new group's devices
+      unlinkAndDeleteGroupHelper(newChildren[0], curGroupID, sharingPubkeys);
+      // update data with new group ID on new group's devices
       setDataHelper(key, value.data, newChildren[0]);
     } else {
       let sharingGroupID = getNewGroupID();
-      let oldGroup = getGroup(curGroupID);
       // create new group using curGroupID's admins and writers list (removing
       // any instances of toUnshareGroupID _on the immediate next level_
       // TODO check as far down as possible
-      createGroup(sharingGroupID, null, [], newChildren, oldGroup.admins.filter((x) => x != toUnshareGroupID), oldGroup.writers.filter((x) => x != toUnshareGroupID));
-
-      let sharingPubkeys = resolveIDs([sharingGroupID]);
-      // send new group
+      let oldGroup = getGroup(curGroupID);
+      createGroup(
+          sharingGroupID,
+          null,
+          [],
+          newChildren,
+          oldGroup.admins.filter((x) => x != toUnshareGroupID),
+          oldGroup.writers.filter((x) => x != toUnshareGroupID)
+      );
+      let sharingPubkeys = resolveIDs([sharingGroupID]).filter((x) => x != pubkey);
       newGroupHelper(sharingGroupID, getGroup(sharingGroupID), sharingPubkeys);
-      // relink parent pointers to new group for all remaining children of new group
+
+      // delete old group and relink parent points from old group to new group
+      // for all remaining children of the new group
       newChildren.forEach((newChild) => {
-        sendMessage(sharingPubkeys, {
-          msgType: REMOVE_PARENT,
-          groupID: newChild,
-          parentID: curGroupID,
-        });
-        sendMessage(sharingPubkeys, {
-          msgType: ADD_PARENT,
-          groupID: newChild,
-          parentID: sharingGroupID,
-        });
+        let childPubkeys = resolveIDs([newChild]).filter((x) => x != pubkey);
+        unlinkAndDeleteGroupHelper(sharingGroupID, curGroupID, childPubkeys);
+        addParentHelper(newChild, sharingGroupID, childPubkeys);
       });
-      // delete old group
-      sendMessage(sharingPubkeys, {
-        msgType: DELETE_GROUP,
-        groupID: curGroupID,
-      });
+
       // update data with new group ID on sharingGroupID devices
       setDataHelper(key, value.data, sharingGroupID);
-
-      // OK to just remove toUnshareGroupID from group b/c unique group per
-      // object => don't need to worry about breaking the sharing of other 
-      // objects TODO unless eventually (for space efficiency) use one group
-      // for multiple objects
     }
   }
 }
@@ -1804,36 +1870,33 @@ function checkPermissions(payload, srcPubkey) {
       if (hasAdminPriv(srcPubkey, payload.value.admins, false)) {
         permissionsOK = true;
       }
+      // FIXME when adding new admin-priv group to a group with already >1 
+      // admin, both of these above checks fail (parent b/c no parents exist 
+      // since it's a new group, and admins b/c the "listIntersect" of all
+      // admins == the added group (which is being added by another group,
+      // doesn't make sense for it to be able to add itself)
+      // does adding admin privs after creating the group was only a workaround
+      // for this same issue when adding a second admin to a group (e.g. the
+      // problem will come back for the 3rd, 4th, etc # admin)
+      // probably need a special flag or msgType for this TODO think
       break;
-    } case UPDATE_GROUP: {
-      if (hasAdminPriv(srcPubkey, payload.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case ADD_PARENT: {
+    }
+    case ADD_PARENT:
+    case REMOVE_PARENT: {
       // ok to add parent (e.g. send this group data)
       // not ok to add child (e.g. have this group send data to me)
       if (hasAdminPriv(srcPubkey, payload.parentID)) {
         permissionsOK = true;
       }
       break;
-    } case ADD_CHILD: {
+    }
+    case UPDATE_GROUP:
+    case ADD_CHILD:
+    case ADD_WRITER:
+    case REMOVE_WRITER:
+    case ADD_ADMIN:
+    case REMOVE_ADMIN: {
       if (hasAdminPriv(srcPubkey, payload.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case ADD_WRITER: {
-      if (hasAdminPriv(srcPubkey, payload.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case ADD_ADMIN: {
-      if (hasAdminPriv(srcPubkey, payload.groupID)) {
-        permissionsOK = true;
-      }
-      break;
-    } case REMOVE_PARENT: {
-      if (hasAdminPriv(srcPubkey, payload.parentID)) {
         permissionsOK = true;
       }
       break;

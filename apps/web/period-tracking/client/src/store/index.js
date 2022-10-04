@@ -16,7 +16,7 @@ frida.init(serverIP, serverPort, {
     router.push("/register");
   },
   storagePrefixes: [symptomPrefix, periodPrefix],
-  encrypt: false,
+  turnEncryptionOff: true,
 });
 
 function createAppDBListenerPlugin() {
@@ -25,11 +25,11 @@ function createAppDBListenerPlugin() {
     window.addEventListener("storage", (e) => {
       if (e.key === null) {
         console.log("key is null"); // FIXME why is key null?
-        store.commit("REMOVE_PUBKEY");
-      } else if (e.key.includes(frida.pubkeyPrefix)) {
-        console.log("updating pubkey");
-        store.commit("UPDATE_PUBKEY", {
-          pubkey: frida.db.fromString(e.newValue),
+        store.commit("REMOVE_IDKEY");
+      } else if (e.key.includes(frida.idkeyPrefix)) {
+        console.log("updating idkey");
+        store.commit("UPDATE_IDKEY", {
+          idkey: frida.db.fromString(e.newValue),
         });
       } else if (e.key.includes(symptomPrefix)) {
         if (e.newValue == null && e.oldValue) {
@@ -66,10 +66,10 @@ function createAppDBListenerPlugin() {
 
 const store = createStore({
   state: {
-    pubkey: frida.getPubkey(),
+    idkey: frida.getIdkey(),
     // TODO make these lists reactive
-    // TODO show human-readable names instead of pubkeys
-    // deleteLinkedDevice would then have to take in the name, not the pubkey
+    // TODO show human-readable names instead of idkeys
+    // deleteLinkedDevice would then have to take in the name, not the idkey
     devices: frida.getLinkedDevices(),
     friends: frida.getContacts(),
     pendingFriends: frida.getPendingContacts(),
@@ -134,9 +134,9 @@ const store = createStore({
       }
       // TODO update state
     },
-    ADD_FRIEND(state, { pubkey }) {
-      frida.addContact(pubkey);
-      //let friendName = frida.addContact(pubkey);
+    ADD_FRIEND(state, { idkey }) {
+      frida.addContact(idkey);
+      //let friendName = frida.addContact(idkey);
       //state.pendingFriends.push(friendName);
     },
     //CONFIRM_FRIEND(state, { name }) {
@@ -154,39 +154,39 @@ const store = createStore({
       let idx = state.friends.indexOf(name);
       if (idx !== -1) state.friends.splice(idx, 1);
     },
-    UPDATE_PUBKEY(state, { pubkey }) {
-      state.pubkey = pubkey;
-      state.devices.push(pubkey);
+    UPDATE_IDKEY(state, { idkey }) {
+      state.idkey = idkey;
+      state.devices.push(idkey);
     },
-    REMOVE_PUBKEY(state) {
-      state.pubkey = "";
+    REMOVE_IDKEY(state) {
+      state.idkey = "";
       state.devices = [];
     },
     /* App-agnostic mutations */
     NEW_DEVICE(state, { topName, deviceName }) {
-      let pubkey = frida.createDevice(topName, deviceName);
-      state.pubkey = pubkey;
-      state.devices.push(pubkey);
+      let idkey = frida.createDevice(topName, deviceName);
+      state.idkey = idkey;
+      state.devices.push(idkey);
     },
-    NEW_LINKED_DEVICE(state, { pubkey, deviceName }) {
-      let curPubkey = frida.createLinkedDevice(pubkey, deviceName);
-      state.pubkey = curPubkey;
-      state.devices.push(curPubkey);
+    NEW_LINKED_DEVICE(state, { idkey, deviceName }) {
+      let curIdkey = frida.createLinkedDevice(idkey, deviceName);
+      state.idkey = curIdkey;
+      state.devices.push(curIdkey);
     },
     // TODO LINK_DEVICE for two pre-existing devices (how to handle group diffs?)
     DELETE_DEVICE(state) {
       frida.deleteDevice();
-      state.pubkey = "";
+      state.idkey = "";
       state.devices = [];
     },
-    DELETE_LINKED_DEVICE(state, { pubkey }) {
-      frida.deleteLinkedDevice(pubkey);
-      let idx = state.devices.indexOf(pubkey);
+    DELETE_LINKED_DEVICE(state, { idkey }) {
+      frida.deleteLinkedDevice(idkey);
+      let idx = state.devices.indexOf(idkey);
       if (idx !== -1) state.devices.splice(idx, 1);
     },
     DELETE_ALL_DEVICES(state) {
       frida.deleteAllLinkedDevices();
-      state.pubkey = "";
+      state.idkey = "";
       state.devices = [];
     },
     /* Simulate offline devices */

@@ -18,11 +18,11 @@ const io = new Server(server, {
 // Set sequence number count to start at 0
 let seqID = 0;
 
-// List of pubkeys and corresponding mailboxes
+// List of idkeys and corresponding mailboxes
 let devices = {};
 
-// Maps that make unlinking a socketID from a pubkey more efficient, 
-// since it needs to determine pubkey from socketID
+// Maps that make unlinking a socketID from a idkey more efficient, 
+// since it needs to determine idkey from socketID
 let deviceToSocket = {};
 let socketToDevice = {};
 
@@ -33,31 +33,50 @@ function init(port) {
 }
 
 function printDevices() {
+  console.log();
+  console.log("-- all devices...");
   console.log(devices);
-  for ([devicePubkey, deviceInfo] of Object.entries(devices)) {
-    if (devicePubkey == "groupID") continue;
+  console.log("** per device...");
+  for ([deviceIdkey, deviceInfo] of Object.entries(devices)) {
+    //if (deviceIdkey == "groupID") continue;
+    console.log("**** device idkey");
+    console.log(deviceIdkey);
+    console.log("**** device otkeys");
+    console.log(deviceInfo.otkeys);
     if (deviceInfo.mailbox.length > 0) {
-      console.log("*** mailbox contents...");
+      console.log("**** mailbox contents");
       deviceInfo.mailbox.forEach((x) => {
         console.log(x);
       });
-      console.log("***");
+      console.log("****");
     }
   }
+  console.log("-- done printing");
+  console.log();
 }
 
 function handleOffline(
-    dstPubkey,
+    dstIdkey,
     eventName,
     data) {
   // check if device is online
-  if (deviceToSocket[dstPubkey] !== -1) {
+  console.log("-- in handleOffline");
+  console.log(dstIdkey);
+  console.log(eventName);
+  console.log(data);
+  if (deviceToSocket[dstIdkey] !== -1) {
     console.log("-> forwarding immedietely");
-    io.to(deviceToSocket[dstPubkey]).emit(eventName, data);
+    // i think it's better to piggyback otkeys than have separate messages for
+    // requesting them (which would compromise some metadata privacy)
+    // TODO maybe: only generate one otkey at a time, may not even need to send
+    // to server, just piggyback a new otkey with every outgoing message?
+    io.to(deviceToSocket[dstIdkey]).emit(eventName, {
+      ...data, srcOtkeys: devices[data.srcIdkey].otkeys
+    });
   } else {
     // otherwise atomically append to mailbox array
     console.log("-> appending to mailbox");
-    devices[dstPubkey].mailbox.push({
+    devices[dstIdkey].mailbox.push({
       eventName: eventName, 
       data: data,
     });
@@ -68,11 +87,11 @@ function handleOffline(
 
 io.on("connection", (socket) => {
 
-  socket.on("linkSocket", (pubkey) => {
-    if (devices[pubkey]) {
+  socket.on("linkSocket", (idkey) => {
+    if (devices[idkey]) {
       let socketID = socket.id;
-      deviceToSocket[pubkey] = socketID;
-      socketToDevice[socketID] = pubkey;
+      deviceToSocket[idkey] = socketID;
+      socketToDevice[socketID] = idkey;
 
       console.log("linking socketIDs");
       console.log("deviceToSocket:");
@@ -81,11 +100,11 @@ io.on("connection", (socket) => {
       console.log(socketToDevice);
 
       // poll mailbox
-      let mailbox = devices[pubkey].mailbox;
+      let mailbox = devices[idkey].mailbox;
       let mail;
       if (mailbox.length) {
         while (socketID === socket.id && (mail = mailbox.shift())) { // while the same connection is open
-          io.to(deviceToSocket[pubkey]).emit(mail.eventName, { ...mail.data });
+          io.to(deviceToSocket[idkey]).emit(mail.eventName, { ...mail.data });
           // TODO need callbacks to ensure emitted event went through
           // mailbox.unshift(mail);
         }
@@ -93,23 +112,23 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("addDevice", (pubkey) => {
-    devices[pubkey] = { mailbox: [] };
+  socket.on("addDevice", ({ idkey, otkeys }) => {
+    devices[idkey] = { otkeys: otkeys, mailbox: [] };
     console.log("added device");
     printDevices();
   });
 
-  socket.on("removeDevice", (pubkey) => {
-    delete devices[pubkey];
-    delete deviceToSocket[pubkey];
+  socket.on("removeDevice", (idkey) => {
+    delete devices[idkey];
+    delete deviceToSocket[idkey];
     console.log("deleted device");
     printDevices();
   });
 
-  socket.on("unlinkSocket", (pubkey) => {
+  socket.on("unlinkSocket", (idkey) => {
     delete socketToDevice[socket.id];
-    if (deviceToSocket[pubkey]) {
-      deviceToSocket[pubkey] = -1;
+    if (deviceToSocket[idkey]) {
+      deviceToSocket[idkey] = -1;
     }
     console.log("unlinking socketIDs");
     console.log(deviceToSocket);
@@ -118,10 +137,10 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     let socketID = socket.id;
-    let pubkey = socketToDevice[socketID];
-    if (pubkey) {
+    let idkey = socketToDevice[socketID];
+    if (idkey) {
       delete socketToDevice[socketID];
-      deviceToSocket[pubkey] = -1;
+      deviceToSocket[idkey] = -1;
       console.log("unlinking socketIDs");
       console.log(deviceToSocket);
       console.log(socketToDevice);
@@ -130,13 +149,17 @@ io.on("connection", (socket) => {
 
   socket.on("noiseMessage",
     ({
-      srcPubkey,
+      srcIdkey,
       batch,
     }) => {
+      console.log("RECEIVED NOISE MESSAGE");
       let curSeqID = seqID++;
-      batch.forEach(({ dstPubkey, encPayload, nonce }) => {
-        handleOffline(dstPubkey, "noiseMessage", {
-          srcPubkey: srcPubkey,
+      batch.forEach(({ dstIdkey, encPayload, nonce }) => {
+        console.log(dstIdkey);
+        console.log(encPayload);
+        console.log(nonce);
+        handleOffline(dstIdkey, "noiseMessage", {
+          srcIdkey: srcIdkey,
           seqID: curSeqID,
           encPayload: encPayload,
           nonce: nonce,

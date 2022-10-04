@@ -1182,12 +1182,13 @@ function removeAdmin({ groupID, adminID }) {
  *
  * @private
  */
-function removeAdminHelper(groupID, adminID, pubkeys) {
-  removeAdmin({ groupID: groupID, adminID: adminID });
-  sendMessage(pubkeys, {
+function removeAdminHelper(prefix, id, toUnshareGroupID) {
+  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
+  removeAdmin({ groupID: curGroupID, writerID: toUnshareGroupID });
+  sendMessage(resolveIDs([curGroupID]), {
     msgType: REMOVE_ADMIN,
-    groupID: groupID,
-    adminID: adminID,
+    groupID: curGroupID,
+    adminID: toUnshareGroupID,
   });
 }
 
@@ -1258,12 +1259,13 @@ function removeWriter({ groupID, writerID }) {
  *
  * @private
  */
-function removeWriterHelper(groupID, writerID, pubkeys) {
-  removeWriter({ groupID: groupID, writerID: writerID });
-  sendMessage(pubkeys, {
+function removeWriterHelper(prefix, id, toUnshareGroupID) {
+  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
+  removeWriter({ groupID: curGroupID, writerID: toUnshareGroupID });
+  sendMessage(resolveIDs([curGroupID]), {
     msgType: REMOVE_WRITER,
-    groupID: groupID,
-    writerID: writerID,
+    groupID: curGroupID,
+    writerID: toUnshareGroupID,
   });
 }
 
@@ -1342,6 +1344,17 @@ function getNewGroupID() {
   return crypto.randomUUID();
 }
 
+/**
+ * Removes the parent back-pointer to the group-to-delete and then deletes
+ * the group, both locally and remotely.
+ *
+ * @param {string} groupID id of group whose parent pointer point to the group-to-delete
+ * @param {string} parentID id of group-to-delete
+ * @param {string[]} pubkeys list of pubkeys to make remote modification on
+ * @param {boolean} local flag for making modification locally
+ *
+ * @private
+ */
 function unlinkAndDeleteGroupHelper(groupID, parentID, pubkeys, local = true) {
   if (local) {
     removeParent({ groupID: groupID, parentID: parentID });
@@ -1697,28 +1710,47 @@ function shareData(prefix, id, toShareGroupID) {
 }
 
 /**
+ * Remove member from the relevant group's writers list.
  *
+ * @param {string} prefix app-specific data prefix
+ * @param {string} id data object id
+ * @param {string} toUnshareGroupID id of member to revoke write privileges of
  */
 export function revokeWriterPrivs(prefix, id, toUnshareGroupID) {
-  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
-  removeWriterHelper(curGroupID, toUnshareGroupID, resolveIDs([curGroupID]));
+  removeWriterHelper(prefix, id, toUnshareGroupID);
 }
 
 /**
+ * Remove member from the relevant group's admins list.
  *
+ * @param {string} prefix app-specific data prefix
+ * @param {string} id data object id
+ * @param {string} toUnshareGroupID id of member to revoke admin privileges of
  */
 export function revokeAdminPrivs(prefix, id, toUnshareGroupID) {
-  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
-  removeAdminHelper(curGroupID, toUnshareGroupID, resolveIDs([curGroupID]));
+  removeAdminHelper(prefix, id, toUnshareGroupID);
 }
 
 /**
+ * Remove member from all of the relevant group's lists.
  *
+ * @param {string} prefix app-specific data prefix
+ * @param {string} id data object id
+ * @param {string} toUnshareGroupID id of member to revoke privileges of
  */
 export function revokeAllPrivs(prefix, id, toUnshareGroupID) {
-  unshareData(unshareChecks(prefix, id, toUnshareGroupID));
+  unshareData(prefix, id, toUnshareGroupID);
 }
 
+/**
+ * Performs necessary checks before any unsharing/privilege revoking can take place.
+ *
+ * @param {string} prefix app-specific data prefix
+ * @param {string} id data object id
+ * @param {string} toUnshareGroupID id of member to revoke privileges of
+ *
+ * @private
+ */
 function unshareChecks(prefix, id, toUnshareGroupID) {
   let pubkey = getPubkey();
   let key = getDataKey(prefix, id);
@@ -1768,7 +1800,8 @@ function unshareChecks(prefix, id, toUnshareGroupID) {
  *
  * @private
  */
-function unshareData({ pubkey, key, value, curGroupID, toUnshareGroupID }) {
+function unshareData(prefix, id, toUnshareGroupID) {
+  let { pubkey, key, value, curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
   if (curGroupID !== null) {
     // delete data from toUnshareGroupID devices before deleting related group
     removeDataHelper(key, curGroupID, toUnshareGroupID);

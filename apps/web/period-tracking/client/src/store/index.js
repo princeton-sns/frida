@@ -76,14 +76,6 @@ const store = createStore({
     symptoms: frida.getData(symptomPrefix),
     period: frida.getData(periodPrefix),
   },
-  //getters: {
-  //  getSymptomSharedList(id) {
-  //    console.log(frida.getSharedList(symptomPrefix, id));
-  //  },
-  //  getPeriodSharedList(id) {
-  //    console.log(frida.getSharedList(periodPrefix, id));
-  //  },
-  //},
   mutations: {
     /* App-specific mutations */
     ADD_SYMPTOMS(state, { timestamp, symptoms, id, remote }) {
@@ -112,22 +104,22 @@ const store = createStore({
     },
     SHARE_SYMPTOMS(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.shareData(symptomPrefix, id, friendName, 0);
+        frida.grantReaderPrivs(symptomPrefix, id, friendName);
       }
     },
     SHARE_PERIOD(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.shareData(periodPrefix, id, friendName, 0);
+        frida.grantReaderPrivs(periodPrefix, id, friendName);
       }
     },
     UNSHARE_SYMPTOMS(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.unshareData(symptomPrefix, id, friendName);
+        frida.revokeAllPrivs(symptomPrefix, id, friendName);
       }
     },
     UNSHARE_PERIOD(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.unshareData(periodPrefix, id, friendName);
+        frida.revokeAllPrivs(periodPrefix, id, friendName);
       }
     },
     REMOVE_SYMPTOMS(state, { id, remote }) {

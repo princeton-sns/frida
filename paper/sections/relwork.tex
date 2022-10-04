@@ -1,5 +1,17 @@
 \section{Related Work}
 
-Related stuff.
+\paragraph{Private messaging.}
+Signal \cite{signal} establishes a privacy protocol for instant messaging, in which messages between users are end-to-end encrypted with additional session keys to achieve forward secrecy in the presence of compromised keys. Group information is stored encrypted on the server, but the server is not entirely oblivious to all group information as it "special". The server also knows which devices belong to which users (a kind of group). Signal leverages other specific properties about messaging in their highly-specific protocol, such as weaker consistency needs and simple application invariants (messages should be appended).
 
-SPORC \cite{sporc} exists.
+Whatsapp \cite{whatsapp}.
+Matrix \cite{matrix}.
+Stadium \cite{stadium}.
+
+\paragraph{Untrusted servers.}
+SPORC \cite{sporc} presents a similar application model that primarily leverages the server to establish a global order of events and remaining functionality is handled on the client. However, the SPORC server has a predefined notion of groups and any group modifications are visible to the server, whereas the \name server is completely oblivious to any notion of groups and treats them just like all other data. SPORC also focuses on "operational transform" applications in which operations are meaningful regardless of the order they are applied in. This property is not the case for most applications (and most applications that \name supports), where some operations can be invalidated by others. Furthermore, SPORC does not generalize their application model, although they hint that it could be done, nor does it examine how application invariants could be maintained in the face of malicious or buggy clients. 
+
+SUNDR \cite{sundr}.
+Depot \cite{depot}.
+Mylar \cite{mylar}.
+CryptDB \cite{cryptdb}.
+

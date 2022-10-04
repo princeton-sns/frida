@@ -1,3 +1,59 @@
 \section{Introduction}
 
-\name is great and more intro stuff.
+Many people value and want privacy \cite{}. But achieving privacy has proven to 
+be difficult and impractical. So much so that even billion-dollar companies get 
+it wrong (insert data breaches here). This is largely due to the three-tiered 
+architecture used to build applications today. 
+
+In traditional three-tier architected applications, a centralized server is
+fully trusted to implement necessary functionality (application logic, storing
+ground truth data, performing access control, etc). In other words, theserver
+must directly operate on user data. Consequently, user data is vulnerable to any
+entity that gains access to the server (curious administrator, hacker,
+government). Various solutions for hardening this architecture must rely on
+homomorphic encryption \cite{cryptdb} or \dots Thus developers of applications
+that want privacy end up needing to be experts in cryptography, practically
+limiting the number of applications that can successfully uphold user privacy.
+
+An increasingly common architecture for building applications primarily relies 
+on the \textit{client} to implement necessary functionality. Firebase 
+\cite{firebase}, for instance, is an application framework that largely gets 
+rid of the middle-tier and reduces server functionality to operate on a subset 
+of data operations, pushing (e.g.) application logic to the client. A myriad of 
+applications ranging from payment (Venmo) to games (Halfbrick) are built on top 
+of Firebase, suggesting that a large class of applications can be built in this 
+way. 
+
+Other work has taken this new architecture a few steps further, pushing even 
+more functionality to the client such that server trust can be minimized. 
+SPORC \cite{sporc}, a framework for OT applications, relies on the server 
+for ordering and routing messages, storing access control groups, correctly 
+updating access control groups, and storing encrypted data changes for offline
+clients. Thus, SPORC may be generalizable to the class of OT applications but 
+still entrusts the server with user and group metadata. Signal \cite{signal}, 
+an end-to-end encrypted messaging application, relies on the server for some 
+application logic, ordering and routing messages, storing encrypted access 
+control groups, storing user-to-device groups, and authentication. However, 
+Signal bakes in many application-specific assumptions or guarantees
+(weaker consistency and relatively simple application invariants like "append 
+this message") into their protocol, making it very difficult for other 
+applications to profit from their technique (it took WhatsApp\---\textit{another
+messaging application}\---two years to adopt the Signal protocol 
+\cite{whatsapp_adopts_signal}).
+
+Support for applications in this new architecture's landscape is either 
+general but not private or private but not general. We design and implement
+a framework, called \name, that closes this gap and enables a large class of
+applications to get end-to-end privacy for free. \name unifies existing
+end-to-end encryption protocols \cite{signal} with other common 
+application functionality such that developers using \name need only implement 
+application-specific logic. Notably, \name does not change the high-level 
+semantics of any supported applications such that developers do not need to 
+change how they think about their applications.
+
+This paper makes the following contributions: 
+\begin{itemize}
+\item \name design
+\item \name implementation
+\item \name evaluation
+\end{itemize}

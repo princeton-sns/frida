@@ -1,0 +1,23 @@
+\section{Threat Model}
+
+% Gaggle assumes an honest but curious server. The server reliably delivers
+% unaltered messages between client devices and correctly applies a global order
+% to messages exchanged between clients. More- over, a Gaggle server that does
+% not store message meta-data persis- tently cannot reconstruct a social graph
+% of previous interactions, as it need not store relationships between clients
+% to function correctly. The server may try to read user-data exchanged in the
+% messages, but cannot due to encryption. Similarly, encryption prevents the
+% server from modifying messages undetected. Gaggle end-users trust each client
+% applications, and by extension the Gaggle library, with the secrecy of
+% application data. Trusted clients apply sharing policies correctly and
+% otherwise do not leak sensitive data to unauthorized parties. Byzantine
+% clients may at- tempt to write unauthorized or incorrect data to shared state,
+% but cannot violate application invariants or data integrity on well- behaved
+% devices. Finally, Gaggle assumes that a network attacker may attempt to read
+% or alter individual messages in transit, but does not per- form timing
+% analysis on traffic patterns, e.g. to infer a social graph between devices.
+
+We assume a threat model with an honest but curious server and potentially malicious clients and network attackers. An honest but curious server preserves integrity by working as expected but is able to compromise privacy by insepcting user data it processes. Users trust the integrity of servers and client-side library in the application model, as well as application code provided by developers. 
+
+\name{} servers are responsible for routing encrypted messages across clients. A malicious server can compromise cross-client communication but does not expose private user data. The server does not store any data or metadata presistently, and only handles encrypted messages. \name{} also assumes that a network attacker may attempt to read or alter messages, but does not perform timing analysis on traffic patterns. Byzantine clients may attempt to write unauthorized or incorrect data to shared data but cannot violate application invariants \fix{what do invariants look like} or data integrity on well-behaved clients. 
+

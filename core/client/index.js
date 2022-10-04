@@ -1094,8 +1094,7 @@ function getAdmins(groupID) {
  *
  * @private
  */
-// TODO rename (again)
-function getAdminsMem(groupIDs) {
+function getAdminsIntersection(groupIDs) {
   let adminSet;
   groupIDs.forEach((groupID) => {
     if (adminSet === undefined) {
@@ -1897,9 +1896,14 @@ function checkPermissions(payload, srcPubkey) {
       }
       break;
     } case NEW_GROUP: {
-      if (hasAdminPriv(srcPubkey, payload.value.parents, false)) {
+      // TODO what was this case for again? need to somehow check that
+      // can modify all parent groups of a group? but wouldn't that be
+      // more like ADD_CHILD?
+      if (hasAdminPriv(srcPubkey, payload.value.parents, true)) {
         permissionsOK = true;
       }
+      // check that group being created is being created by a device
+      // with admin privs
       if (hasAdminPriv(srcPubkey, payload.value.admins, false)) {
         permissionsOK = true;
       }
@@ -1968,18 +1972,21 @@ function checkPermissions(payload, srcPubkey) {
  * Check if one groupID has admin privileges for another groupID.
  * 
  * @param {string} toCheckID id to check if has permissions
- * @param {string} groupID id to use for checking permissions
+ * @param {string} groupID one or more idd to use for checking permissions
  * @param {boolean} inDB boolean used to encode the need for an in-memory 
  *   admin-privilege-checking function, rather than one that queries storage
  * @returns {boolean}
  *
  * @private
  */
-function hasAdminPriv(toCheckID, groupID, inDB = true) {
-  if (!inDB) {
-    return isMember(toCheckID, getAdminsMem(groupID));
+function hasAdminPriv(toCheckID, groupIDs, inDB = null) {
+  if (inDB === null) { // groupIDs is a single value
+    return isMember(toCheckID, getAdmins(groupIDs));
+  } else if (inDB) { // inDB == true
+    return isMember(toCheckID, getAdminsIntersection(groupIDs));
+  } else { // inDB == false
+    return isMember(toCheckID, groupIDs);
   }
-  return isMember(toCheckID, getAdmins(groupID));
 }
 
 /**

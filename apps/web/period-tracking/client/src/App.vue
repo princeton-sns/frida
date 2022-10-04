@@ -9,9 +9,9 @@
     <p>
       <router-link to="/register">Register</router-link>
     </p>
-    <!--<p>
+    <p>
       <router-link to="/friends">Friends</router-link>
-    </p>-->
+    </p>
     <p>
       <router-link to="/settings">Settings</router-link>
     </p>

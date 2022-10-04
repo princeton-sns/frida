@@ -1,5 +1,5 @@
 {
-  "name": "libnoise-server",
+  "name": "libfrida-server",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/princeton-sns/noise.git"
+    "url": "git+https://github.com/princeton-sns/osdi23.git"
   },
   "keywords": [
     "privacy",
@@ -17,9 +17,9 @@
   "author": "Natalie Popescu",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/princeton-sns/noise/issues"
+    "url": "https://github.com/princeton-sns/osdi23/issues"
   },
-  "homepage": "https://github.com/princeton-sns/noise#readme",
+  "homepage": "https://github.com/princeton-sns/osdi23#readme",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.17.2",

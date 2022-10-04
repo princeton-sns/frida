@@ -15,6 +15,20 @@ export function get(key) {
   return fromString(localStorage.getItem(key));
 }
 
+export function getMany(keyPrefix) {
+  let results = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    let key = localStorage.key(i);
+    if (key.startsWith(keyPrefix)) {
+      results.push({
+        key: key,
+        value: get(key),
+      });
+    }
+  }
+  return results;
+}
+
 export function remove(key) {
   localStorage.removeItem(key);
 }

@@ -8,9 +8,10 @@
     "lint": "vue-cli-service lint"
   },
   "dependencies": {
+    "@vueform/multiselect": "^2.5.2",
     "core-js": "^3.6.5",
     "debounce": "^1.2.1",
-    "libnoise": "file:../../../libnoise",
+    "libfrida": "file:../../../libfrida",
     "socket.io-client": "^4.3.2",
     "vue": "^3.0.0",
     "vue-router": "^4.0.0-0",

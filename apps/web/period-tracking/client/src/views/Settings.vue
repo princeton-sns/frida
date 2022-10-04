@@ -1,16 +1,13 @@
 <template>
   <div class="settings">
-    <!--<div>
-      <div>
-        <input v-model="linkDevicePublicKey" placeholder="device public key" />
-      </div>
-      <button @click="linkDevice">Link Device</button>
-    </div>
-    <br />-->
+    <p>pubkey:</p>
+    <p>{{ pubkey }}</p>
+    <p>devices:</p>
+    <p>{{ devices }}</p>
     <div>
       <button @click="deleteDevice">Delete This Device</button>
     </div>
-    <!--<br />
+    <br />
     <div>
       <div>
         <input
@@ -19,7 +16,7 @@
         />
       </div>
       <button @click="deleteLinkedDevice">Delete Linked Device</button>
-    </div>-->
+    </div>
     <br />
     <div>
       <button @click="deleteAllDevices">Delete All Devices</button>
@@ -36,21 +33,21 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
+
 export default {
   data() {
     return {
-      linkDevicePublicKey: null,
       deleteDevicePublicKey: null,
     };
   },
+  computed: {
+    ...mapState({
+      pubkey: "pubkey",
+      devices: "devices",
+    }),
+  },
   methods: {
-    linkDevice(event) {
-      console.log(event);
-      this.$store.commit("LINK_DEVICE", {
-        devicePublicKey: this.linkDevicePublicKey,
-      });
-      this.linkDevicePublicKey = null;
-    },
     deleteDevice(event) {
       console.log(event);
       this.$store.commit("DELETE_DEVICE", {});
@@ -58,7 +55,7 @@ export default {
     deleteLinkedDevice(event) {
       console.log(event);
       this.$store.commit("DELETE_LINKED_DEVICE", {
-        devicePublicKey: this.deleteDevicePublicKey,
+        pubkey: this.deleteDevicePublicKey,
       });
       this.deleteDevicePublicKey = null;
     },

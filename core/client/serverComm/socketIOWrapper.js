@@ -23,6 +23,11 @@ export function init(ip, port) {
     }
   });
 
+  //socket.onAny((eventName, ...args) => {
+  //  console.log(eventName);
+  //  console.log(args);
+  //});
+
   socket.on("noiseMessage", (msg) => {
     onMessage(msg);
   });
@@ -40,8 +45,8 @@ export function sendMessage(msg) {
   socket.emit("noiseMessage", msg);
 }
 
-export function addDevice(idkey) {
-  socket.emit("addDevice", idkey);
+export function addDevice(keys) {
+  socket.emit("addDevice", keys);
 }
 
 export function removeDevice(idkey) {

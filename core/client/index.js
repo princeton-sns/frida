@@ -14,7 +14,7 @@
 // external party)
 // how hard is reasoning about this?
 
-// TODO add permission checks for setting cryptographic keys
+// TODO add permission checks for setting cryptographic keys?
 
 import * as sc from "./serverComm/socketIOWrapper.js";
 import * as c from  "./crypto/olmWrapper.js";
@@ -36,9 +36,6 @@ const IDKEY   = "__idkey";
 const OTKEYS  = "__otkeys";
 
 const OUTSTANDING_IDKEY = "__outstandingIdkey";
-
-// legacy
-const PRIVKEY  = "privkey";
 
 // FIXME need new special name for LINKED group (confusing when linking non-LINKED groups)
 
@@ -198,7 +195,8 @@ export function disconnectDevice() {
  * Called like: sendMessage(resolveIDs(id), payload) (see example in 
  * deleteAllLinkedDevices()).
  *
- * TODO better to take in the current device's pub/priv-keys as arguments? 
+ * TODO generate new otkey for every message? why do signal/matrix 
+ * generate a batch at a time?
  *
  * @param {string[]} dstIdkeys public keys to send message to
  * @param {Object} payload message contents
@@ -252,34 +250,29 @@ function sendMessage(dstIdkeys, payload) {
  */
 export function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
-  let curPrivkey = getPrivkey();
-  if (curPrivkey !== null) {
-    let payload = db.fromString(
-      c.decrypt(
-        msg.encPayload,
-        //msg.nonce,
-        //msg.srcIdkey,
-        //curPrivkey,
-        turnEncryptionOff
-      )
-    );
+  console.log(msg);
+  let payload = db.fromString(
+    c.decrypt(
+      msg.encPayload,
+      turnEncryptionOff
+    )
+  );
 
-    let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcIdkey);
-    if (demuxFunc === undefined) {
-      console.log("----------ERROR UNKNOWN msgType: " + payload.msgType);
-      return;
-    }
-    if (!permissionsOK) {
-      console.log("----------ERROR insufficient permissions");
-      return;
-    }
-    if (!validate(payload)) {
-      console.log("----------ERROR data invariant violated");
-      return;
-    }
-    console.log("SUCCESS");
-    demuxFunc(payload);
+  let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcIdkey);
+  if (demuxFunc === undefined) {
+    console.log("----------ERROR UNKNOWN msgType: " + payload.msgType);
+    return;
   }
+  if (!permissionsOK) {
+    console.log("----------ERROR insufficient permissions");
+    return;
+  }
+  if (!validate(payload)) {
+    console.log("----------ERROR data invariant violated");
+    return;
+  }
+  console.log("SUCCESS");
+  demuxFunc(payload);
 }
 
 /**
@@ -465,7 +458,7 @@ function initDevice(linkedName = null, deviceName = null) {
   setUnchecked(IDKEY, idkey);
   setUnchecked(OTKEYS, otkeys);
 
-  sc.addDevice(idkey);
+  sc.addDevice({ idkey: idkey, otkeys: otkeys });
   connectDevice(idkey);
 
   // enforce that linkedName exists; deviceName is not necessary
@@ -1815,33 +1808,17 @@ export function getIdkey() {
 //}
 
 //function setChecked(key, value) {
-//  console.log("checking permissions");
+//  console.log("checking permissions then setting");
 //  db.set(key, value);
 //}
 
 function setUnchecked(key, value) {
-  console.log("skipping permission checks");
+  console.log("setting without permission checks");
   db.set(key, value);
 }
 
-/**
- * Private key getter.
- *
- * @returns {string}
- *
- * @private
- */
-function getPrivkey() {
-  return db.get(PRIVKEY);
-}
-
-/**
- * Private key setter.
- *
- * @param {string} privkey hex-formatted private key to set as device's private key
- *
- * @private
- */
-//function setPrivkey(privkey) {
-//  db.set(PRIVKEY, privkey);
+//function getChecked(key) {
+//}
+//
+//function getUnchecked(key) {
 //}

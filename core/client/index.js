@@ -90,7 +90,7 @@ let defaultOnUnauth = () => {};
 
 // default callback
 let defaultValidateCallback = (payload) => {
-  console.log("validating payload... " + payload);
+  console.log("validating payload... " + db.toString(payload));
   return true;
 }
 
@@ -1608,8 +1608,8 @@ export function grantReaderPrivs(prefix, id, toShareGroupID) {
  * @param {string} toShareGroupID group to grant read/write privileges to
  */
 export function grantWriterPrivs(prefix, id, toShareGroupID) {
-  let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
-  if (sharingGroupID !== null) {
+  let { restNewMemberPubkeys, sharingGroupID, errCode } = shareData(prefix, id, toShareGroupID);
+  if (errCode === 0 && sharingGroupID !== null) {
     // add writer
     addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberPubkeys);
   }
@@ -1624,8 +1624,8 @@ export function grantWriterPrivs(prefix, id, toShareGroupID) {
  * @param {string} toShareGroupID group to grant read/write/admin privileges to
  */
 export function grantAdminPrivs(prefix, id, toShareGroupID) {
-  let { restNewMemberPubkeys, sharingGroupID } = shareData(prefix, id, toShareGroupID);
-  if (sharingGroupID !== null) {
+  let { restNewMemberPubkeys, sharingGroupID, errCode } = shareData(prefix, id, toShareGroupID);
+  if (errCode === 0 && sharingGroupID !== null) {
     // add writer
     addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberPubkeys);
     // add admin
@@ -1651,15 +1651,20 @@ function shareData(prefix, id, toShareGroupID) {
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
 
+  let retval = {
+    restNewMemberPubkeys: [],
+    sharingGroupID: null,
+  };
+
   // check that current device can modify this group
   if (!hasAdminPriv(pubkey, curGroupID)) {
     printBadGroupPermissionsError();
-    return;
+    return { ...retval, errCode: -1 };
   }
 
   // check that toShareGroupID exists
   if (getGroup(toShareGroupID) === null) {
-    return;
+    return { ...retval, errCode: -1 };
   }
 
   if (curGroupID !== null) {
@@ -1697,15 +1702,13 @@ function shareData(prefix, id, toShareGroupID) {
     return {
       restNewMemberPubkeys: restNewMemberPubkeys,
       sharingGroupID: sharingGroupID,
+      errCode: 0,
     };
   }
   // TODO also share missing contact info? or else how to prevent group/data
   // from getting out of sync due to holes in who-knows-who (assuming originating
   // party does not make all modifications to shared object)
-  return {
-    restNewMemberPubkeys: [],
-    sharingGroupID: null,
-  };
+  return { ...retval, errCode: 0 };
 }
 
 /**
@@ -1756,35 +1759,36 @@ function unshareChecks(prefix, id, toUnshareGroupID) {
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
 
+  let retval = {
+    pubkey: pubkey,
+    key: key,
+    value: value,
+    curGroupID: curGroupID,
+  };
+
   // check that current device can modify group
   if (!hasAdminPriv(pubkey, curGroupID)) {
     printBadGroupPermissionsError();
-    return;
+    return { ...retval, errCode: -1 };
   }
 
   // check that group exists
   if (getGroup(toUnshareGroupID) === null) {
-    return;
+    return { ...retval, errCode: -1 };
   }
 
   // check that data is currently shared with that group
   if (!isMember(toUnshareGroupID, [curGroupID])) {
-    return;
+    return { ...retval, errCode: -1 };
   }
 
   // prevent device from unsharing with self 
   // TODO when would it make sense to allow this?
   if (isMember(toUnshareGroupID, [getLinkedName()])) {
-    return;
+    return { ...retval, errCode: -1 };
   }
 
-  return {
-    pubkey: pubkey,
-    key: key,
-    value: value,
-    curGroupID: curGroupID,
-    toUnshareGroupID: toUnshareGroupID,
-  };
+  return { ...retval, errCode: 0 };
 }
 
 /**
@@ -1800,8 +1804,8 @@ function unshareChecks(prefix, id, toUnshareGroupID) {
  * @private
  */
 function unshareData(prefix, id, toUnshareGroupID) {
-  let { pubkey, key, value, curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
-  if (curGroupID !== null) {
+  let { pubkey, key, value, curGroupID, errCode } = unshareChecks(prefix, id, toUnshareGroupID);
+  if (errCode === 0 && curGroupID !== null) {
     // delete data from toUnshareGroupID devices before deleting related group
     removeDataHelper(key, curGroupID, toUnshareGroupID);
     // unlink and delete curGroupID group on toUnshareGroupID devices

@@ -120,14 +120,14 @@ const ADMINS   = "admins";
 const WRITERS  = "writers";
 
 const keyString = [NAME, PARENTS, ADMINS, WRITERS].join(" ");
-const Key   = makeGroup(keyString); //"name parents admins writers");
+const Key   = makeGroup(keyString);
 // readers list isn't necessary, any member that isn't an admin
 // or writer can be assumed to be a reader
 // TODO also deduplicate admins and writers (any writer who is also an
 // admin can _just_ exist in the admin group, since admin abilities are a
 // superset of writer abilities
 const groupString = [NAME, PARENTS, CHILDREN, ADMINS, WRITERS].join(" ");
-const Group = makeGroup(groupString); //"name parents children admins writers");
+const Group = makeGroup(groupString);
 
 /* DB listener plugin */
 

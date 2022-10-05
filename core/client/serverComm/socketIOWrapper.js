@@ -45,8 +45,8 @@ export function sendMessage(msg) {
   socket.emit("noiseMessage", msg);
 }
 
-export function addDevice(keys) {
-  socket.emit("addDevice", keys);
+export function addDevice(idkey) {
+  socket.emit("addDevice", idkey);
 }
 
 export function removeDevice(idkey) {

@@ -41,8 +41,6 @@ function printDevices() {
     //if (deviceIdkey == "groupID") continue;
     console.log("**** device idkey");
     console.log(deviceIdkey);
-    console.log("**** device otkeys");
-    console.log(deviceInfo.otkeys);
     if (deviceInfo.mailbox.length > 0) {
       console.log("**** mailbox contents");
       deviceInfo.mailbox.forEach((x) => {
@@ -70,9 +68,10 @@ function handleOffline(
     // requesting them (which would compromise some metadata privacy)
     // TODO maybe: only generate one otkey at a time, may not even need to send
     // to server, just piggyback a new otkey with every outgoing message?
-    io.to(deviceToSocket[dstIdkey]).emit(eventName, {
-      ...data, srcOtkeys: devices[data.srcIdkey].otkeys
-    });
+    io.to(deviceToSocket[dstIdkey]).emit(eventName, data);
+    //{
+    //  ...data, srcOtkeys: devices[data.srcIdkey].otkeys
+    //});
   } else {
     // otherwise atomically append to mailbox array
     console.log("-> appending to mailbox");
@@ -112,8 +111,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("addDevice", ({ idkey, otkeys }) => {
-    devices[idkey] = { otkeys: otkeys, mailbox: [] };
+  socket.on("addDevice", (idkey) => {
+    devices[idkey] = { mailbox: [] };
     console.log("added device");
     printDevices();
   });

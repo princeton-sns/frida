@@ -2,8 +2,8 @@ import { createStore } from "vuex";
 import router from "../router";
 import * as frida from "../../../../../../core/client";
 
-let serverIP = "localhost";
-let serverPort = "8080";
+let serverIP = "sns26.cs.princeton.edu";
+let serverPort = "8000";
 
 const skeletonPrefix = "skeletonData";
 
@@ -65,30 +65,60 @@ const store = createStore({
   mutations: {
     /* App-specific mutations */
     ADD_SKELETON_DATA(state, { timestamp, stuff, id, remote }) {
-      let value = {
-        id: id,
-        timestamp: timestamp,
-        stuff: stuff,
-      };
       if (!remote) {
-        frida.setData(skeletonPrefix, id, value);
+        frida.setData(skeletonPrefix, id, {
+          id: id,
+          timestamp: timestamp,
+          stuff: stuff,
+        });
       }
-    },
-    SHARE_SKELETON_DATA(state, { id, friendName, remote }) {
-      if (!remote) {
-        frida.shareData(skeletonPrefix, id, friendName, 0);
-      }
-    },
-    UNSHARE_SKELETON_DATA(state, { id, friendName, remote }) {
-      if (!remote) {
-        frida.unshareData(skeletonPrefix, id, friendName);
-      }
+      // TODO update state
     },
     REMOVE_SKELETON_DATA(state, { id, remote }) {
       if (!remote) {
         frida.removeData(skeletonPrefix, id);
       }
       // TODO update state
+    },
+    SHARE_SKELETON_DATA(state, { id, friendName, priv, remote }) {
+      if (!remote) {
+        switch (priv) {
+          case "r":
+            frida.grantReaderPrivs(skeletonPrefix, id, friendName);
+            break;
+          case "w":
+            frida.grantWriterPrivs(skeletonPrefix, id, friendName);
+            break;
+          case "a":
+            frida.grantAdminPrivs(skeletonPrefix, id, friendName);
+            break;
+          default:
+            console.log(
+              "invalid radio value encountered while trying to share data: " +
+                priv
+            );
+        }
+      }
+    },
+    UNSHARE_SKELETON_DATA(state, { id, friendName, priv, remote }) {
+      if (!remote) {
+        switch (priv) {
+          case "a":
+            frida.revokeAdminPrivs(skeletonPrefix, id, friendName);
+            break;
+          case "w":
+            frida.revokeWriterPrivs(skeletonPrefix, id, friendName);
+            break;
+          case "r":
+            frida.revokeAllPrivs(skeletonPrefix, id, friendName);
+            break;
+          default:
+            console.log(
+              "invalid radio value encountered while trying to unshare data: " +
+                priv
+            );
+        }
+      }
     },
     ADD_FRIEND(state, { pubkey }) {
       frida.addContact(pubkey);

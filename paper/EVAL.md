@@ -23,7 +23,7 @@ No app examples (yet) for Category C. Frida "edge" refers to an app that violate
 1. [NEW] Computational requirements are modest (see: H1, I1)
 
 | Category | ID | Example App | Notes |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | A | 1 | Period tracking |  |
 | A | 2 | Fitness tracking |  |
 | A | 3 | Note taking |  |

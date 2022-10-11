@@ -26,7 +26,7 @@ No app examples (yet) for Category C.
 | A | Medical tracking/communcation |  |
 | B | Anonymous payment | Could exercise Frida "edge" if use external server/proxy to obfuscate data access patterns to banks. |
 | D | Social media | Could exercise Frida "edge" if sharing circles are exceptionally large. |
-| E | Book club |  |
+| E | Book club | Could exercise Frida "edge" if use external server/proxy to obfuscate data access patterns to book database. |
 | E | Todo list |  |
 | E | Augmented Signal | Possibilities: enable groups of devices (e.g. Group -> User -> Device Groups -> Devices instead of Group -> User -> Devices); allow users to specify less "safe" devices (e.g. a shared computer) that should be omitted when added to an especially privacy-sensitive group (e.g. Group -> Users + Devices). |
 | E | Photo sharing | Some data may be read-only (the actual photos) while other data may be mutable (creating albums, adding devices to be able to view/add photos to albums, adding photos to albums, etc). |

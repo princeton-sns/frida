@@ -24,6 +24,8 @@ instance with isolated storage (e.g., a contained browser tab).
 The app is not-entirely reactive, so if you expect something to appear and it
 is not, try just refreshing the page.
 
+Feel free to play around with/add reactivity :)
+
 ## Start the server
 
 ```sh
@@ -42,7 +44,7 @@ npm run serve
 
 ## Interact with UI
 
-Open client-address in browser (likely `http://localhost:8081/`).
+Open client-address in browser (likely `http://localhost:8080/` unless port `8080` is in use).
 
 ### Register new device
 

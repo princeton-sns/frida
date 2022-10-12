@@ -26,14 +26,6 @@ is not, try just refreshing the page.
 
 Feel free to play around with/add reactivity :)
 
-## Start the server
-
-```sh
-cd ./server
-make
-node index.js
-```
-
 ## Start the client
 
 ```sh

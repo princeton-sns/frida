@@ -22,6 +22,8 @@ No app examples (yet) for Category C. Frida "edge" refers to an app that violate
 1. Amount of data stored fits on a single device (see: E1, F1)
 1. [NEW] Computational requirements are modest (see: H1, I1)
 
+If/when private contact discovery is implemented, an identity server may be used which can also serve as a design blueprint for any other external server interactions.
+
 | Category | ID | Example App | Notes |
 | --- | --- | --- | --- |
 | A | 1 | Period tracking |  |

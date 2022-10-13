@@ -16,7 +16,7 @@ frida.init(serverIP, serverPort, {
     router.push("/register");
   },
   storagePrefixes: [symptomPrefix, periodPrefix],
-  turnEncryptionOff: true,
+  //turnEncryptionOff: true,
 });
 
 function createAppDBListenerPlugin() {
@@ -168,8 +168,9 @@ const store = createStore({
       state.idkey = idkey;
       state.devices.push(idkey);
     },
-    NEW_LINKED_DEVICE(state, { idkey, deviceName }) {
-      let curIdkey = frida.createLinkedDevice(idkey, deviceName);
+    // TODO bootstrap otkey
+    NEW_LINKED_DEVICE(state, { idkey, otkey, deviceName }) {
+      let curIdkey = frida.createLinkedDevice(idkey, otkey, deviceName);
       state.idkey = curIdkey;
       state.devices.push(curIdkey);
     },

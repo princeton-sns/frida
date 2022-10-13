@@ -15,6 +15,9 @@
         <input v-model="idkey" placeholder="id key to link with" />
       </div>
       <div>
+        <input v-model="otkey" placeholder="one time key" />
+      </div>
+      <div>
         <input v-model="nextDeviceName" placeholder="device name (optional)" />
       </div>
       <button @click="newLinkedDevice">New Linked Device</button>
@@ -30,6 +33,7 @@ export default {
       firstDeviceName: null,
       nextDeviceName: null,
       idkey: null,
+      otkey: null,
     };
   },
   methods: {
@@ -47,8 +51,10 @@ export default {
       this.$store.commit("NEW_LINKED_DEVICE", {
         deviceName: this.nextDeviceName,
         idkey: this.idkey,
+        otkey: this.otkey,
       });
       this.idkey = "";
+      this.otkey = "";
       this.nextDeviceName = "";
     },
   },

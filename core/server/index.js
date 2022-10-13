@@ -38,9 +38,10 @@ function printDevices() {
   console.log(devices);
   console.log("** per device...");
   for ([deviceIdkey, deviceInfo] of Object.entries(devices)) {
-    //if (deviceIdkey == "groupID") continue;
     console.log("**** device idkey");
     console.log(deviceIdkey);
+    console.log("**** device otkeys");
+    console.log(deviceInfo.otkeys);
     if (deviceInfo.mailbox.length > 0) {
       console.log("**** mailbox contents");
       deviceInfo.mailbox.forEach((x) => {
@@ -58,20 +59,19 @@ function handleOffline(
     eventName,
     data) {
   // check if device is online
+  console.log();
   console.log("-- in handleOffline");
+  console.log();
   console.log(dstIdkey);
   console.log(eventName);
   console.log(data);
-  if (deviceToSocket[dstIdkey] !== -1) {
+  if (deviceToSocket[dstIdkey] === undefined) {
+    console.log("ERROR no socket for idkey");
+    console.log(deviceToSocket);
+    console.log(dstIdkey);
+  } else if (deviceToSocket[dstIdkey] !== -1) {
     console.log("-> forwarding immedietely");
-    // i think it's better to piggyback otkeys than have separate messages for
-    // requesting them (which would compromise some metadata privacy)
-    // TODO maybe: only generate one otkey at a time, may not even need to send
-    // to server, just piggyback a new otkey with every outgoing message?
     io.to(deviceToSocket[dstIdkey]).emit(eventName, data);
-    //{
-    //  ...data, srcOtkeys: devices[data.srcIdkey].otkeys
-    //});
   } else {
     // otherwise atomically append to mailbox array
     console.log("-> appending to mailbox");
@@ -82,6 +82,8 @@ function handleOffline(
     console.log("updated mailbox");
     printDevices();
   }
+  console.log("-- done handling offline");
+  console.log();
 }
 
 io.on("connection", (socket) => {
@@ -111,8 +113,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("addDevice", (idkey) => {
-    devices[idkey] = { mailbox: [] };
+  socket.on("addDevice", ({ idkey, otkeys }) => {
+    devices[idkey] = { otkeys: otkeys, mailbox: [] };
     console.log("added device");
     printDevices();
   });
@@ -151,19 +153,18 @@ io.on("connection", (socket) => {
       srcIdkey,
       batch,
     }) => {
+      console.log();
       console.log("RECEIVED NOISE MESSAGE");
+      console.log();
       let curSeqID = seqID++;
-      batch.forEach(({ dstIdkey, encPayload, nonce }) => {
-        console.log(dstIdkey);
-        console.log(encPayload);
-        console.log(nonce);
+      batch.forEach(({ dstIdkey, encPayload }) => {
         handleOffline(dstIdkey, "noiseMessage", {
           srcIdkey: srcIdkey,
           seqID: curSeqID,
           encPayload: encPayload,
-          nonce: nonce,
         });
       });
+      console.log();
     }
   );
 });

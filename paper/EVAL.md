@@ -28,11 +28,11 @@ If/when private contact discovery is implemented, an identity server may be used
 | --- | --- | --- | --- |
 | A | 1 | Period tracking |  |
 | A | 2 | Fitness tracking |  |
-| A | 3 | Note taking |  |
-| A | 4 | Personal finance tracking |  |
-| A | 5 | Medical tracking/communcation |  |
+| A | 3 | Personal finance tracking |  |
+| A | 4 | Medical tracking/communcation |  |
 | B | 1 | Anonymous payment | Could exercise Frida "edge" if use external server/proxy to obfuscate data access patterns to banks (although obfuscating data access patterns is an orthogonal problem). |
-| D | 1 | Social media | Could exercise Frida "edge" if sharing circles are exceptionally large. |
+| C | 1 | Note taking |  |
+| D | 1 | Social media | Could exercise Frida "edge" if sharing circles are exceptionally large. Two types of sharing: sending a lot vs receiving a lot. |
 | E | 1 | Book club | Could exercise Frida "edge" if use external server/proxy to obfuscate data access patterns to book database (although obfuscating data access patterns is an orthogonal problem) or to store local copy of book database on a trusted machine. |
 | E | 2 | Todo list |  |
 | E | 3 | Calendar app |  |
@@ -42,5 +42,13 @@ If/when private contact discovery is implemented, an identity server may be used
 | G | 1 | Embedded/IoT | Devices exist outside of the canonical "linked" group. May have some similarities with the "Augmented Signal" app. |
 | H | 1 | Recommender systems | Could exercise Frida "edge" in terms of client-side computational requirements if ML is only running on single-"user"'s data. |
 | I | 1 | Recommender systems | Could exercise Frida "edge" in terms of an extended Frida design with an external server if ML is running on aggregate data. |
+
+### What to implement
+
+- [natalie] period tracking (specific, structured data + timely regarding privacy, also do some prediction?)
+- OT-type apps (vs SPORC + useful); collaboriate text/draw editing
+- [shai] social media (+ location tracking/sharing, + some sort of groups with diff admin structures than Signal, + photo sharing + backup)
+- smart light (show different group structure)
+- [maybe] some sort of ML app
 
 ## Performance

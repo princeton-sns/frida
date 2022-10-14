@@ -29,9 +29,8 @@ export function init(ip, port) {
   //});
 
   socket.on("getOtkey", ({ idkey, otkey }) => {
-    console.log("GOT OTKEY");
-    console.log(idkey);
-    console.log(otkey);
+    // TODO more efficient way to communicate otkey to crypto module?
+    // e.g. a listener?
     setOtkey(idkey, otkey);
   });
 

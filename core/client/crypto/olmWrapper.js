@@ -85,25 +85,15 @@ function getOtkeyHelper(idkey) {
   return db.get(getOtkeyKey(idkey));
 }
 
-//async function pollOtkey(idkey) {
-//  let otkey = null;
-//  // busy wait, how else to do this??
-//  if (otkey === null) {
-//    console.log(Date.now());
-//    otkey = setTimeout(getOtkeyHelper, 5000, idkey);
-//    //otkey = await setTimeout(() => {
-//    //  getOtkeyHelper(idkey);
-//    //}, 5000); // 5 seconds
-//    console.log(Date.now());
-//    console.log(otkey);
-//  }
-//  //while (otkey === null) {
-//  //  await setTimeout(() => {}, 500);
-//  //  otkey = getOtkeyHelper(idkey);
-//  //  console.log(otkey);
-//  //}
-//  return otkey;
-//}
+export function setOtkey(idkey, otkey) {
+  db.set(getOtkeyKey(idkey), otkey);
+}
+
+function removeOtkey(idkey) {
+  db.remove(getOtkeyKey(idkey));
+}
+
+/* Promise Helper */
 
 function promiseDelay(delay) {
   return new Promise((resolve) => {
@@ -111,9 +101,7 @@ function promiseDelay(delay) {
   });
 }
 
-export function setOtkey(idkey, otkey) {
-  db.set(getOtkeyKey(idkey), otkey);
-}
+/* Core Crypto Functions */
 
 // every device has a set of identity keys and ten sets of one-time keys, the
 // public counterparts of which should all be published to the server
@@ -133,13 +121,17 @@ export async function generateKeys(dstIdkey) {
   if (dstIdkey !== null) {
     getOtkey({ srcIdkey: idkey, dstIdkey: dstIdkey });
     let session = new Olm.Session();
-    let dstOtkey;
-    await promiseDelay(2000);
-    console.log("IN IF");
-    dstOtkey = getOtkeyHelper(dstIdkey);
-    console.log(dstOtkey);
+
+    // poll FIXME what's a better way to do this?
+    let dstOtkey = getOtkeyHelper(dstIdkey);
+    while (dstOtkey === null) {
+      await promiseDelay(200);
+      dstOtkey = getOtkeyHelper(dstIdkey);
+    }
+
     session.create_outbound(acct, dstIdkey, dstOtkey);
     setSession(session, dstIdkey);
+    removeOtkey(dstIdkey);
   }
 
   // TODO sign idkey and otkeys

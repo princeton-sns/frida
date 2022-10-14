@@ -126,6 +126,33 @@ io.on("connection", (socket) => {
     printDevices();
   });
 
+  socket.on("getOtkey", ({ srcIdkey, dstIdkey }) => {
+    console.log("getting otkey");
+    let dstOtkeys = devices[dstIdkey].otkeys;
+    let numOtkeys = dstOtkeys.length;
+    if (numOtkeys < 5) {
+      console.log("notify client to replenish otkeys");
+      console.log("client: " + dstIdkey);
+      console.log("num otkeys left: " + numOtkeys);
+    }
+    let key;
+    let dstOtkey;
+    let keysArr = Object.keys(dstOtkeys);
+    for (i in keysArr) {
+      key = keysArr[i];
+      dstOtkey = dstOtkeys[key];
+      break;
+    }
+    delete dstOtkeys[key];
+    // updated devices (needs a lock)
+    devices[dstIdkey].otkeys = dstOtkeys;
+    // send otkey to srcIdkey
+    io.to(deviceToSocket[srcIdkey]).emit("getOtkey", {
+      idkey: dstIdkey,
+      otkey: dstOtkey,
+    });
+  });
+
   socket.on("unlinkSocket", (idkey) => {
     delete socketToDevice[socket.id];
     if (deviceToSocket[idkey]) {

@@ -21,6 +21,16 @@ import * as c from  "./crypto/olmWrapper.js";
 import * as db from "./db/localStorageWrapper.js";
 
 export { db };
+// FIXME export sc for crypto only - how to export for just this module?
+// TODO try just importing sc from crypto file
+/* Export for crypto */
+export const getOtkey = sc.getOtkey;
+export const addDevice = sc.addDevice;
+
+/* Export for serverComm */
+export const setOtkey = c.setOtkey;
+
+/* Export for Apps */
 export const getIdkey = c.getIdkey;
 export const idkeyPrefix = c.IDKEY;
 
@@ -361,13 +371,8 @@ function isKey(group) {
  *
  * @private
  */
-function initDevice(dstIdkey, dstOtkey, linkedName = null, deviceName = null) {
-  let { idkey, otkeys } = c.generateKeys(dstIdkey, dstOtkey);
-  console.log(idkey);
-  console.log(otkeys);
-
-  sc.addDevice({ idkey, otkeys });
-  connectDevice(idkey);
+async function initDevice(dstIdkey, linkedName = null, deviceName = null) {
+  let idkey = await c.generateKeys(dstIdkey);
 
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {
@@ -392,8 +397,9 @@ function initDevice(dstIdkey, dstOtkey, linkedName = null, deviceName = null) {
  * @param {?string} deviceName human-readable name (for self)
  * @returns {string}
  */
-export function createDevice(linkedName = null, deviceName = null) {
-  let { idkey } = initDevice(null, null, linkedName, deviceName);
+export async function createDevice(linkedName = null, deviceName = null) {
+  let { idkey } = await initDevice(null, linkedName, deviceName);
+  console.log(idkey);
   onAuth();
   return idkey;
 }
@@ -405,9 +411,11 @@ export function createDevice(linkedName = null, deviceName = null) {
  * @param {?string} deviceName human-readable name (for self)
  * @returns {string}
  */
-export function createLinkedDevice(dstIdkey, dstOtkey, deviceName = null) {
-  if (dstIdkey !== null && dstOtkey != null) {
-    let { idkey, linkedName } = initDevice(dstIdkey, dstOtkey, null, deviceName);
+export async function createLinkedDevice(dstIdkey, deviceName = null) {
+  if (dstIdkey !== null) {
+    let { idkey, linkedName } = await initDevice(dstIdkey, null, deviceName);
+    console.log(idkey);
+    console.log(linkedName);
     let linkedMembers = getAllSubgroups([linkedName]);
     // construct message that asks dstIdkey's device to link this device
     setOutstandingLinkIdkey(dstIdkey);
@@ -514,7 +522,6 @@ function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
     });
 
     /* UPDATE NEW SELF */
-
 
     // delete old linkedName group
     sendMessage([srcIdkey], {
@@ -873,6 +880,7 @@ function deleteGroup({ groupID }) {
   // delete group
   removeGroup(groupID);
   // TODO more GC (e.g. when contact's childrens list is empty -> remove contact)
+  // TODO if group is a device, delete session associated with it
 }
 
 /*

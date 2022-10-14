@@ -6,21 +6,40 @@
 
 import Olm from "./olm.js";
 import { db } from "../index.js";
+import { getOtkey, addDevice, connectDevice } from "../index.js";
 
 // FIXME what key to use for pickling/unpickling?
 const PICKLE_KEY = "secret_key";
 
 const SLASH = "/";
+/* for self */
 export const IDKEY = "__idkey";
-const OTKEYS = "__otkeys";
-const ACCT_KEY = "__account";
-const SESS_KEY = "__session";
+const ACCT_KEY     = "__account";
+/* for others */
+const OTKEY        = "__otkey";
+const SESS_KEY     = "__session";
 
 export async function init() {
   await Olm.init({
     locateFile: () => "/olm.wasm",
   });
 }
+
+/* Storage Key Helpers */
+
+function getStorageKey(prefix, id) {
+  return prefix + SLASH + id + SLASH;
+}
+
+function getSessionKey(id) {
+  return getStorageKey(SESS_KEY, id);
+}
+
+function getOtkeyKey(id) {
+  return getStorageKey(OTKEY, id);
+}
+
+/* Account Helpers */
 
 function getAccount() {
   let acctLoc = new Olm.Account();
@@ -32,9 +51,7 @@ function setAccount(acctLoc) {
   db.set(ACCT_KEY, acctLoc.pickle(PICKLE_KEY));
 }
 
-function getSessionKey(id) {
-  return SESS_KEY + SLASH + id + SLASH;
-}
+/* Session Helpers */
 
 function getSession(dstIdkey) {
   // check that session exists
@@ -52,6 +69,8 @@ function setSession(sessLoc, dstIdkey) {
   db.set(getSessionKey(dstIdkey), sessLoc.pickle(PICKLE_KEY));
 }
 
+/* Idkey Helpers */
+
 export function getIdkey() {
   return db.get(IDKEY);
 }
@@ -60,42 +79,72 @@ function setIdkey(idkey) {
   db.set(IDKEY, idkey);
 }
 
-//function getOtkeys() {
-//  return db.get(OTKEYS);
-//}
+/* Otkey Helpers */
 
-function setOtkeys(otkeys) {
-  db.set(OTKEYS, otkeys);
+function getOtkeyHelper(idkey) {
+  return db.get(getOtkeyKey(idkey));
 }
 
-// every device has a set of identity keys and one-time keys, the public
-// one of each should be published to the server
-export function generateKeys(dstIdkey, dstOtkey) {
+//async function pollOtkey(idkey) {
+//  let otkey = null;
+//  // busy wait, how else to do this??
+//  if (otkey === null) {
+//    console.log(Date.now());
+//    otkey = setTimeout(getOtkeyHelper, 5000, idkey);
+//    //otkey = await setTimeout(() => {
+//    //  getOtkeyHelper(idkey);
+//    //}, 5000); // 5 seconds
+//    console.log(Date.now());
+//    console.log(otkey);
+//  }
+//  //while (otkey === null) {
+//  //  await setTimeout(() => {}, 500);
+//  //  otkey = getOtkeyHelper(idkey);
+//  //  console.log(otkey);
+//  //}
+//  return otkey;
+//}
+
+function promiseDelay(delay) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, delay);
+  });
+}
+
+export function setOtkey(idkey, otkey) {
+  db.set(getOtkeyKey(idkey), otkey);
+}
+
+// every device has a set of identity keys and ten sets of one-time keys, the
+// public counterparts of which should all be published to the server
+export async function generateKeys(dstIdkey) {
   let acct = new Olm.Account();
   acct.create();
-  acct.generate_one_time_keys(1);
+  acct.generate_one_time_keys(10);
   setAccount(acct);
 
   let idkey = db.fromString(acct.identity_keys()).curve25519;
-  setIdkey(idkey);
-
   let otkeys = db.fromString(acct.one_time_keys()).curve25519;
-  setOtkeys(otkeys);
+  setIdkey(idkey);
+  addDevice({ idkey, otkeys });
+  connectDevice(idkey);
 
   // linking with another device; create outbound session
-  if (dstIdkey !== null && dstOtkey !== null) {
+  if (dstIdkey !== null) {
+    getOtkey({ srcIdkey: idkey, dstIdkey: dstIdkey });
     let session = new Olm.Session();
+    let dstOtkey;
+    await promiseDelay(2000);
+    console.log("IN IF");
+    dstOtkey = getOtkeyHelper(dstIdkey);
+    console.log(dstOtkey);
     session.create_outbound(acct, dstIdkey, dstOtkey);
     setSession(session, dstIdkey);
-    // send dstIdkey own otkey to create inbound session
   }
 
   // TODO sign idkey and otkeys
   // keep track of number of otkeys left on the server
-  return {
-    idkey: idkey,
-    otkeys: otkeys,
-  };
+  return idkey;
 }
 
 export function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
@@ -110,13 +159,13 @@ function encryptHelper(plaintext, dstIdkey) {
   console.log(db.fromString(plaintext));
   console.log(dstIdkey);
   let sess = getSession(dstIdkey);
-  //if (sess === null) {
-  //  console.log("sess for " + dstIdkey + " is null");
-  //  sess = new Olm.Session();
-  //  let acct = getAccount();
-  //  // TODO create outbound(?) session
-  //  sess.create_outbound(acct, dstIdkey, dstOtkey);
-  //}
+  if (sess === null) {
+    console.log("sess for " + dstIdkey + " is null");
+    sess = new Olm.Session();
+    //let acct = getAccount();
+    // TODO how to get dstOtkey
+    //sess.create_outbound(acct, dstIdkey, dstOtkey);
+  }
   let ciphertext = sess.encrypt(plaintext);
   console.log(ciphertext);
   return {

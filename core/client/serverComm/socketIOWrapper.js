@@ -5,7 +5,7 @@
  */
 
 import io from "socket.io-client";
-import { onMessage, getIdkey } from "../index.js";
+import { onMessage, getIdkey, setOtkey } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
@@ -27,6 +27,13 @@ export function init(ip, port) {
   //  console.log(eventName);
   //  console.log(args);
   //});
+
+  socket.on("getOtkey", ({ idkey, otkey }) => {
+    console.log("GOT OTKEY");
+    console.log(idkey);
+    console.log(otkey);
+    setOtkey(idkey, otkey);
+  });
 
   socket.on("noiseMessage", (msg) => {
     onMessage(msg);
@@ -51,4 +58,8 @@ export function addDevice(keys) {
 
 export function removeDevice(idkey) {
   socket.emit("removeDevice", idkey);
+}
+
+export function getOtkey(idkeys) {
+  socket.emit("getOtkey", idkeys);
 }

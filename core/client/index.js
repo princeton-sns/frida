@@ -248,15 +248,15 @@ export function disconnectDevice() {
  *
  * @private
  */
-function sendMessage(dstIdkeys, payload) {
+async function sendMessage(dstIdkeys, payload) {
   let batch = new Array();
   let srcIdkey = getIdkey();
 
   console.log("sending to...");
   console.log(dstIdkeys);
-  dstIdkeys.forEach(dstIdkey => {
-    // encrypt payload separately for each destination 
-    let { ciphertext: encPayload } = c.encrypt(
+  for (let dstIdkey of dstIdkeys) {
+    console.log(dstIdkey);
+    let encPayload = await c.encrypt(
       db.toString(payload),
       dstIdkey,
       turnEncryptionOff
@@ -265,7 +265,7 @@ function sendMessage(dstIdkeys, payload) {
       dstIdkey: dstIdkey,
       encPayload: encPayload,
     });
-  });
+  }
   console.log(batch);
   console.log(srcIdkey);
 
@@ -419,7 +419,7 @@ export async function createLinkedDevice(dstIdkey, deviceName = null) {
     let linkedMembers = getAllSubgroups([linkedName]);
     // construct message that asks dstIdkey's device to link this device
     setOutstandingLinkIdkey(dstIdkey);
-    sendMessage([dstIdkey], {
+    await sendMessage([dstIdkey], {
       msgType: REQ_UPDATE_LINKED,
       tempName: linkedName,
       srcIdkey: idkey,
@@ -483,7 +483,7 @@ function removeOutstandingLinkIdkey() {
  *
  * @private
  */
-function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
+async function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
   if (confirm(`Authenticate new LINKED group member?\n\tName: ${tempName}`)) {
     // get rest of linked idkeys to update
     let idkey = getIdkey();
@@ -498,7 +498,7 @@ function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
       updatedNewLinkedMembers.push(groupReplace(newGroup, tempName, linkedName));
     });
 
-    updatedNewLinkedMembers.forEach((newGroup) => {
+    for (let newGroup of updatedNewLinkedMembers) {
       // FIXME assuming this group ID == linkedName (originally tempName)
       // when would this be false??
       if (newGroup.value.parents.includes(LINKED)) {
@@ -510,27 +510,27 @@ function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
         newGroup.value.children.forEach((child) => {
           addChild({ groupID: linkedName, childID: child });
         });
-        sendMessage(restLinkedIdkeys, {
+        await sendMessage(restLinkedIdkeys, {
           msgType: UPDATE_GROUP,
           groupID: linkedName,
           value: getGroup(linkedName),
         });
       } else {
         updateGroup({ groupID: newGroup.id, value: newGroup.value });
-        newGroupHelper(newGroup.id, newGroup.value, restLinkedIdkeys);
+        await newGroupHelper(newGroup.id, newGroup.value, restLinkedIdkeys);
       }
-    });
+    }
 
     /* UPDATE NEW SELF */
 
     // delete old linkedName group
-    sendMessage([srcIdkey], {
+    await sendMessage([srcIdkey], {
       msgType: DELETE_GROUP,
       groupID: tempName,
     });
     // notify new group member of successful link and piggyback existing 
     // group info and data
-    sendMessage([srcIdkey], {
+    await sendMessage([srcIdkey], {
       msgType: CONFIRM_UPDATE_LINKED,
       existingGroups: getAllGroups(),
       existingData: getData(),
@@ -541,21 +541,21 @@ function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
     // notify contacts
     let contactIdkeys = resolveIDs([CONTACTS]);
     let contactNames = getChildren(CONTACTS);
-    updatedNewLinkedMembers.forEach((newGroup) => {
+    for (let newGroup of updatedNewLinkedMembers) {
       if (newGroup.id === linkedName) {
-        newGroup.value.children.forEach((child) => {
-          sendMessage(contactIdkeys, {
+        for (const child of newGroup.value.children) {
+          await sendMessage(contactIdkeys, {
             msgType: ADD_CHILD,
             groupID: linkedName,
             childID: child,
           });
-        });
+        }
       } else {
-        contactNames.forEach((contactName) => {
-          newGroupHelper(newGroup.id, addAdmin({ groupID: newGroup.id, adminID: contactName }), resolveIDs([contactName]));
-        });
+        for (const contactName of contactNames) {
+          await newGroupHelper(newGroup.id, addAdmin({ groupID: newGroup.id, adminID: contactName }), resolveIDs([contactName]));
+        }
       }
-    });
+    }
   }
 }
 
@@ -664,8 +664,8 @@ function updateGroup({ groupID, value }) {
  *
  * @private
  */
-function newGroupHelper(groupID, value, idkeys) {
-  sendMessage(idkeys, {
+async function newGroupHelper(groupID, value, idkeys) {
+  await sendMessage(idkeys, {
     msgType: NEW_GROUP,
     groupID: groupID,
     value: value,
@@ -684,12 +684,12 @@ function newGroupHelper(groupID, value, idkeys) {
  *
  * @param {string} contactIdkey hex-formatted public key
  */
-export function addContact(contactIdkey) {
+export async function addContact(contactIdkey) {
   // only add contact if not self
   let linkedName = getLinkedName();
   if (!isMember(contactIdkey, [linkedName])) {
     // piggyback own contact info when requesting others contact info
-    sendMessage([contactIdkey], {
+    await sendMessage([contactIdkey], {
       msgType: REQ_CONTACT,
       reqContactName: linkedName,
       reqContactGroups: getAllSubgroups([linkedName]),
@@ -709,11 +709,11 @@ export function addContact(contactIdkey) {
  *
  * @private
  */
-function processRequestContact({ reqContactName, reqContactGroups }) {
+async function processRequestContact({ reqContactName, reqContactGroups }) {
   if (confirm(`Add new contact: ${reqContactName}?`)) {
-    parseContactInfo(reqContactName, reqContactGroups);
+    await parseContactInfo(reqContactName, reqContactGroups);
     let linkedName = getLinkedName();
-    sendMessage(resolveIDs([reqContactName]), {
+    await sendMessage(resolveIDs([reqContactName]), {
       msgType: CONFIRM_CONTACT,
       contactName: linkedName,
       contactGroups: getAllSubgroups([linkedName]),
@@ -729,8 +729,8 @@ function processRequestContact({ reqContactName, reqContactGroups }) {
  *
  * @private
  */
-function confirmContact({ contactName, contactGroups }) {
-  parseContactInfo(contactName, contactGroups);
+async function confirmContact({ contactName, contactGroups }) {
+  await parseContactInfo(contactName, contactGroups);
 }
 
 /**
@@ -742,12 +742,12 @@ function confirmContact({ contactName, contactGroups }) {
  *
  * @private
  */
-function parseContactInfo(contactName, contactGroups) {
+async function parseContactInfo(contactName, contactGroups) {
   let idkey = getIdkey();
   let linkedName = getLinkedName();
   let restLinkedIdkeys = resolveIDs([LINKED], idkey);
 
-  contactGroups.forEach((contactGroup) => {
+  for (let contactGroup of contactGroups) {
     let updatedContactGroup = groupReplace(contactGroup, LINKED, CONTACTS);
     // create group and add admin for enabling future deletion of this contact + groups
     addAdminInMem(updatedContactGroup.value, linkedName);
@@ -755,14 +755,14 @@ function parseContactInfo(contactName, contactGroups) {
       groupID: updatedContactGroup.id,
       value: updatedContactGroup.value,
     });
-    newGroupHelper(updatedContactGroup.id, updatedContactGroup.value, restLinkedIdkeys);
-  });
+    await newGroupHelper(updatedContactGroup.id, updatedContactGroup.value, restLinkedIdkeys);
+  }
 
   linkGroups({
     parentID: CONTACTS,
     childID: contactName,
   });
-  sendMessage(restLinkedIdkeys, {
+  await sendMessage(restLinkedIdkeys, {
     msgType: LINK_GROUPS,
     parentID: CONTACTS,
     childID: contactName,
@@ -774,9 +774,9 @@ function parseContactInfo(contactName, contactGroups) {
  *
  * @param {string} name contact name
  */
-export function removeContact(name) {
+export async function removeContact(name) {
   // remotely
-  sendMessage(resolveIDs([LINKED, getIdkey()]), {
+  await sendMessage(resolveIDs([LINKED, getIdkey()]), {
     msgType: DELETE_GROUP,
     groupID: name,
   });
@@ -813,10 +813,10 @@ export function getPendingContacts() {
  * Deletes the current device's data and removes it's public key from 
  * the server.
  */
-export function deleteDevice() {
+export async function deleteDevice() {
   // notify all direct parents and contacts that this group should be removed
   let idkey = getIdkey();
-  sendMessage(resolveIDs(getParents(idkey).concat([CONTACTS]), idkey), {
+  await sendMessage(resolveIDs(getParents(idkey).concat([CONTACTS]), idkey), {
     msgType: DELETE_GROUP,
     groupID: idkey,
   });
@@ -835,8 +835,8 @@ function deleteSelf(idkey) {
  *
  * @param {string} idkey hex-formatted public key
  */
-export function deleteLinkedDevice(idkey) {
-  sendMessage([idkey], {
+export async function deleteLinkedDevice(idkey) {
+  await sendMessage([idkey], {
     msgType: DELETE_DEVICE,
     groupID: getLinkedName(),
   });
@@ -845,10 +845,10 @@ export function deleteLinkedDevice(idkey) {
 /**
  * Deletes all devices that are children of this device's linked group.
  */
-export function deleteAllLinkedDevices() {
+export async function deleteAllLinkedDevices() {
   let idkey = getIdkey();
   // remotely
-  sendMessage(resolveIDs([LINKED], idkey), {
+  await sendMessage(resolveIDs([LINKED], idkey), {
     msgType: DELETE_DEVICE,
     groupID: getLinkedName(),
   });
@@ -1009,9 +1009,9 @@ function addChild({ groupID, childID }) {
  *
  * @private
  */
-function addChildHelper(groupID, childID, idkeys) {
+async function addChildHelper(groupID, childID, idkeys) {
   // remotely
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: ADD_CHILD,
     groupID: groupID,
     childID: childID,
@@ -1069,9 +1069,9 @@ function addParent({ groupID, parentID }) {
  *
  * @private
  */
-function addParentHelper(groupID, parentID, idkeys) {
+async function addParentHelper(groupID, parentID, idkeys) {
   // remotely
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: ADD_PARENT,
     groupID: groupID,
     parentID: parentID,
@@ -1170,9 +1170,9 @@ function addAdmin({ groupID, adminID }) {
  *
  * @private
  */
-function addAdminHelper(groupID, adminID, idkeys) {
+async function addAdminHelper(groupID, adminID, idkeys) {
   // remotely
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: ADD_ADMIN,
     groupID: groupID,
     adminID: adminID,
@@ -1205,10 +1205,10 @@ function removeAdmin({ groupID, adminID }) {
  *
  * @private
  */
-function removeAdminHelper(prefix, id, toUnshareGroupID) {
+async function removeAdminHelper(prefix, id, toUnshareGroupID) {
   let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
   // remotely
-  sendMessage(resolveIDs([curGroupID]), {
+  await sendMessage(resolveIDs([curGroupID]), {
     msgType: REMOVE_ADMIN,
     groupID: curGroupID,
     adminID: toUnshareGroupID,
@@ -1251,9 +1251,9 @@ function addWriter({ groupID, writerID }) {
  *
  * @private
  */
-function addWriterHelper(groupID, writerID, idkeys) {
+async function addWriterHelper(groupID, writerID, idkeys) {
   // remotely
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: ADD_WRITER,
     groupID: groupID,
     writerID: writerID,
@@ -1286,10 +1286,10 @@ function removeWriter({ groupID, writerID }) {
  *
  * @private
  */
-function removeWriterHelper(prefix, id, toUnshareGroupID) {
+async function removeWriterHelper(prefix, id, toUnshareGroupID) {
   let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
   // remotely
-  sendMessage(resolveIDs([curGroupID]), {
+  await sendMessage(resolveIDs([curGroupID]), {
     msgType: REMOVE_WRITER,
     groupID: curGroupID,
     writerID: toUnshareGroupID,
@@ -1384,14 +1384,14 @@ function getNewGroupID() {
  *
  * @private
  */
-function unlinkAndDeleteGroupHelper(groupID, parentID, idkeys, local = true) {
+async function unlinkAndDeleteGroupHelper(groupID, parentID, idkeys, local = true) {
   // remotely
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: REMOVE_PARENT,
     groupID: groupID,
     parentID: parentID,
   });
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: DELETE_GROUP,
     groupID: parentID,
   });
@@ -1443,8 +1443,8 @@ function getDataPrefix(prefix) {
  * @param {Object} data app-specific data object
  * @param {string} id app-specific object id
  */
-export function setData(prefix, id, data) {
-  setDataHelper(getDataKey(prefix, id), data, getLinkedName());
+export async function setData(prefix, id, data) {
+  await setDataHelper(getDataKey(prefix, id), data, getLinkedName());
 }
 
 /**
@@ -1457,7 +1457,7 @@ export function setData(prefix, id, data) {
  *
  * @private
  */
-function setDataHelper(key, data, groupID) {
+async function setDataHelper(key, data, groupID) {
   // check permissions
   let idkey = getIdkey();
   if (!hasWriterPriv(idkey, groupID)) {
@@ -1473,7 +1473,7 @@ function setDataHelper(key, data, groupID) {
   db.set(key, value);
   let idkeys = resolveIDs([groupID], idkey);
   // send to other devices in groupID
-  sendMessage(idkeys, {
+  await sendMessage(idkeys, {
     msgType: UPDATE_DATA,
     key: key,
     value: value,
@@ -1552,8 +1552,8 @@ function listIntersect(list1, list2) {
  * @param {string} prefix data prefix
  * @param {string} id data id (app-specific)
  */
-export function removeData(prefix, id) {
-  removeDataHelper(getDataKey(prefix, id));
+export async function removeData(prefix, id) {
+  await removeDataHelper(getDataKey(prefix, id));
 }
 
 /**
@@ -1565,7 +1565,7 @@ export function removeData(prefix, id) {
  *
  * @private
  */
-function removeDataHelper(key, curGroupID = null, toUnshareGroupID = null) {
+async function removeDataHelper(key, curGroupID = null, toUnshareGroupID = null) {
   if (curGroupID === null) {
     curGroupID = db.get(key)?.groupID;
   }
@@ -1579,7 +1579,7 @@ function removeDataHelper(key, curGroupID = null, toUnshareGroupID = null) {
     // delete data from select devices only (unsharing)
     if (toUnshareGroupID !== null) {
       let idkeys = resolveIDs([toUnshareGroupID], idkey);
-      sendMessage(idkeys, {
+      await sendMessage(idkeys, {
         msgType: DELETE_DATA,
         key: key,
       });
@@ -1589,7 +1589,7 @@ function removeDataHelper(key, curGroupID = null, toUnshareGroupID = null) {
     // delete data from all devices in group including current (removing data)
     db.remove(key);
     let idkeys = resolveIDs([curGroupID], idkey);
-    sendMessage(idkeys, {
+    await sendMessage(idkeys, {
       msgType: DELETE_DATA,
       key: key,
     });
@@ -1627,8 +1627,8 @@ function deleteData({ key }) {
  * @param {string} id data object id
  * @param {string} toShareGroupID group to grant read privileges to
  */
-export function grantReaderPrivs(prefix, id, toShareGroupID) {
-  shareData(prefix, id, toShareGroupID);
+export async function grantReaderPrivs(prefix, id, toShareGroupID) {
+  await shareData(prefix, id, toShareGroupID);
 }
 
 /**
@@ -1639,11 +1639,11 @@ export function grantReaderPrivs(prefix, id, toShareGroupID) {
  * @param {string} id data object id
  * @param {string} toShareGroupID group to grant read/write privileges to
  */
-export function grantWriterPrivs(prefix, id, toShareGroupID) {
-  let { restNewMemberIdkeys, sharingGroupID, errCode } = shareData(prefix, id, toShareGroupID);
+export async function grantWriterPrivs(prefix, id, toShareGroupID) {
+  let { restNewMemberIdkeys, sharingGroupID, errCode } = await shareData(prefix, id, toShareGroupID);
   if (errCode === 0 && sharingGroupID !== null) {
     // add writer
-    addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
+    await addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
   }
 }
 
@@ -1655,13 +1655,13 @@ export function grantWriterPrivs(prefix, id, toShareGroupID) {
  * @param {string} id data object id
  * @param {string} toShareGroupID group to grant read/write/admin privileges to
  */
-export function grantAdminPrivs(prefix, id, toShareGroupID) {
-  let { restNewMemberIdkeys, sharingGroupID, errCode } = shareData(prefix, id, toShareGroupID);
+export async function grantAdminPrivs(prefix, id, toShareGroupID) {
+  let { restNewMemberIdkeys, sharingGroupID, errCode } = await shareData(prefix, id, toShareGroupID);
   if (errCode === 0 && sharingGroupID !== null) {
     // add writer
-    addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
+    await addWriterHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
     // add admin
-    addAdminHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
+    await addAdminHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
   }
 }
 
@@ -1677,7 +1677,7 @@ export function grantAdminPrivs(prefix, id, toShareGroupID) {
  *
  * @private
  */
-function shareData(prefix, id, toShareGroupID) {
+async function shareData(prefix, id, toShareGroupID) {
   let idkey = getIdkey();
   let key = getDataKey(prefix, id);
   let value = db.get(key);
@@ -1708,28 +1708,28 @@ function shareData(prefix, id, toShareGroupID) {
       sharingGroupID = getNewGroupID();
       // create new sharing group
       createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
-      newGroupHelper(sharingGroupID, getGroup(sharingGroupID), restNewMemberIdkeys);
+      await newGroupHelper(sharingGroupID, getGroup(sharingGroupID), restNewMemberIdkeys);
       // add parent pointers for both previously-existing groups
       // note: have to separately add parents everywhere instead of just doing 
       // it once and sending updated group b/c groups on diff devices have diff
       // permissions/etc, don't want to override that
       // open problem: how to only do work once without compromising security
-      addParentHelper(curGroupID, sharingGroupID, restNewMemberIdkeys);
-      addParentHelper(toShareGroupID, sharingGroupID, restNewMemberIdkeys);
+      await addParentHelper(curGroupID, sharingGroupID, restNewMemberIdkeys);
+      await addParentHelper(toShareGroupID, sharingGroupID, restNewMemberIdkeys);
       // send actual data that group now points to
-      setDataHelper(key, value.data, sharingGroupID);
+      await setDataHelper(key, value.data, sharingGroupID);
     } else { // sharing group already exists for this data object, modify existing group
       sharingGroupID = curGroupID;
       let curGroupValue = getGroup(sharingGroupID);
       let newMemberIdkeys = resolveIDs([toShareGroupID]);
       // send existing sharing group to new member devices
-      newGroupHelper(sharingGroupID, curGroupValue, newMemberIdkeys);
+      await newGroupHelper(sharingGroupID, curGroupValue, newMemberIdkeys);
       // add child to existing sharing group
-      addChildHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
+      await addChildHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
       // add parent from new child to existing sharing group
-      addParentHelper(toShareGroupID, sharingGroupID, restNewMemberIdkeys);
+      await addParentHelper(toShareGroupID, sharingGroupID, restNewMemberIdkeys);
       // send actual data that group now points to
-      setDataHelper(key, value.data, sharingGroupID);
+      await setDataHelper(key, value.data, sharingGroupID);
     }
     return {
       restNewMemberIdkeys: restNewMemberIdkeys,
@@ -1750,8 +1750,8 @@ function shareData(prefix, id, toShareGroupID) {
  * @param {string} id data object id
  * @param {string} toUnshareGroupID id of member to revoke write privileges of
  */
-export function revokeWriterPrivs(prefix, id, toUnshareGroupID) {
-  removeWriterHelper(prefix, id, toUnshareGroupID);
+export async function revokeWriterPrivs(prefix, id, toUnshareGroupID) {
+  await removeWriterHelper(prefix, id, toUnshareGroupID);
 }
 
 /**
@@ -1761,8 +1761,8 @@ export function revokeWriterPrivs(prefix, id, toUnshareGroupID) {
  * @param {string} id data object id
  * @param {string} toUnshareGroupID id of member to revoke admin privileges of
  */
-export function revokeAdminPrivs(prefix, id, toUnshareGroupID) {
-  removeAdminHelper(prefix, id, toUnshareGroupID);
+export async function revokeAdminPrivs(prefix, id, toUnshareGroupID) {
+  await removeAdminHelper(prefix, id, toUnshareGroupID);
 }
 
 /**
@@ -1772,8 +1772,8 @@ export function revokeAdminPrivs(prefix, id, toUnshareGroupID) {
  * @param {string} id data object id
  * @param {string} toUnshareGroupID id of member to revoke privileges of
  */
-export function revokeAllPrivs(prefix, id, toUnshareGroupID) {
-  unshareData(prefix, id, toUnshareGroupID);
+export async function revokeAllPrivs(prefix, id, toUnshareGroupID) {
+  await unshareData(prefix, id, toUnshareGroupID);
 }
 
 /**
@@ -1835,17 +1835,17 @@ function unshareChecks(prefix, id, toUnshareGroupID) {
  *
  * @private
  */
-function unshareData(prefix, id, toUnshareGroupID) {
+async function unshareData(prefix, id, toUnshareGroupID) {
   let { idkey, key, value, curGroupID, errCode } = unshareChecks(prefix, id, toUnshareGroupID);
   if (errCode === 0 && curGroupID !== null) {
     // delete data from toUnshareGroupID devices before deleting related group
-    removeDataHelper(key, curGroupID, toUnshareGroupID);
+    await removeDataHelper(key, curGroupID, toUnshareGroupID);
     // unlink and delete curGroupID group on toUnshareGroupID devices
     // OK to just remove toUnshareGroupID from group b/c unique group per
     // object => don't need to worry about breaking the sharing of other 
     // objects TODO unless eventually (for space efficiency) use one group
     // for multiple objects
-    unlinkAndDeleteGroupHelper(toUnshareGroupID, curGroupID, resolveIDs([toUnshareGroupID]), false);
+    await unlinkAndDeleteGroupHelper(toUnshareGroupID, curGroupID, resolveIDs([toUnshareGroupID]), false);
 
     // FIXME assuming simple structure, won't work if toUnshareGroupID is
     // further than the first level down
@@ -1859,9 +1859,9 @@ function unshareData(prefix, id, toUnshareGroupID) {
     if (newChildren.length === 1) {
       let sharingIdkeys = resolveIDs([newChildren[0]], idkey);
       // unlink and delete curGroupID group on new group's devices
-      unlinkAndDeleteGroupHelper(newChildren[0], curGroupID, sharingIdkeys);
+      await unlinkAndDeleteGroupHelper(newChildren[0], curGroupID, sharingIdkeys);
       // update data with new group ID on new group's devices
-      setDataHelper(key, value.data, newChildren[0]);
+      await setDataHelper(key, value.data, newChildren[0]);
     } else {
       let sharingGroupID = getNewGroupID();
       // create new group using curGroupID's admins and writers list (removing
@@ -1878,18 +1878,18 @@ function unshareData(prefix, id, toUnshareGroupID) {
           oldGroup.writers.filter((x) => x != toUnshareGroupID)
       );
       let sharingIdkeys = resolveIDs([sharingGroupID], idkey);
-      newGroupHelper(sharingGroupID, getGroup(sharingGroupID), sharingIdkeys);
+      await newGroupHelper(sharingGroupID, getGroup(sharingGroupID), sharingIdkeys);
 
       // delete old group and relink parent points from old group to new group
       // for all remaining children of the new group
-      newChildren.forEach((newChild) => {
+      for (let newChild of newChildren) {
         let childIdkeys = resolveIDs([newChild], idkey);
-        unlinkAndDeleteGroupHelper(sharingGroupID, curGroupID, childIdkeys);
-        addParentHelper(newChild, sharingGroupID, childIdkeys);
-      });
+        await unlinkAndDeleteGroupHelper(sharingGroupID, curGroupID, childIdkeys);
+        await addParentHelper(newChild, sharingGroupID, childIdkeys);
+      }
 
       // update data with new group ID on sharingGroupID devices
-      setDataHelper(key, value.data, sharingGroupID);
+      await setDataHelper(key, value.data, sharingGroupID);
     }
   }
 }

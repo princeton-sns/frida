@@ -127,7 +127,6 @@ io.on("connection", (socket) => {
   });
 
   socket.on("getOtkey", ({ srcIdkey, dstIdkey }) => {
-    console.log("getting otkey");
     let dstOtkeys = devices[dstIdkey].otkeys;
     let numOtkeys = dstOtkeys.length;
     if (numOtkeys < 5) {
@@ -143,9 +142,14 @@ io.on("connection", (socket) => {
       dstOtkey = dstOtkeys[key];
       break;
     }
+    console.log("got otkey");
+    console.log(dstIdkey);
+    console.log(dstOtkey);
+    // remove otkey from server
     delete dstOtkeys[key];
     // updated devices (needs a lock)
     devices[dstIdkey].otkeys = dstOtkeys;
+    printDevices();
     // send otkey to srcIdkey
     io.to(deviceToSocket[srcIdkey]).emit("getOtkey", {
       idkey: dstIdkey,

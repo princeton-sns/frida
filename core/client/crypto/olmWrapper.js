@@ -93,7 +93,7 @@ function removeOtkey(idkey) {
   db.remove(getOtkeyKey(idkey));
 }
 
-/* Promise Helper */
+/* Promise Helpers */
 
 function promiseDelay(delay) {
   return new Promise((resolve) => {
@@ -102,6 +102,27 @@ function promiseDelay(delay) {
 }
 
 /* Core Crypto Functions */
+
+async function createOutboundSession(srcIdkey, dstIdkey, acct) {
+  getOtkey({ srcIdkey: srcIdkey, dstIdkey: dstIdkey });
+
+  // poll FIXME what's a better way to do this?
+  let dstOtkey = getOtkeyHelper(dstIdkey);
+  while (dstOtkey === null) {
+    if (getIdkey() === null) {
+      return; // in case device is being deleted
+    }
+    console.log("~~~~~waiting for otkey");
+    await promiseDelay(200);
+    dstOtkey = getOtkeyHelper(dstIdkey);
+  }
+
+  let sess = new Olm.Session();
+  sess.create_outbound(acct, dstIdkey, dstOtkey);
+  setSession(sess, dstIdkey);
+  removeOtkey(dstIdkey);
+  return sess;
+}
 
 // every device has a set of identity keys and ten sets of one-time keys, the
 // public counterparts of which should all be published to the server
@@ -119,19 +140,9 @@ export async function generateKeys(dstIdkey) {
 
   // linking with another device; create outbound session
   if (dstIdkey !== null) {
-    getOtkey({ srcIdkey: idkey, dstIdkey: dstIdkey });
-    let session = new Olm.Session();
-
-    // poll FIXME what's a better way to do this?
-    let dstOtkey = getOtkeyHelper(dstIdkey);
-    while (dstOtkey === null) {
-      await promiseDelay(200);
-      dstOtkey = getOtkeyHelper(dstIdkey);
-    }
-
-    session.create_outbound(acct, dstIdkey, dstOtkey);
-    setSession(session, dstIdkey);
-    removeOtkey(dstIdkey);
+    console.log("in generateKeys");
+    console.log(dstIdkey);
+    await createOutboundSession(idkey, dstIdkey, acct);
   }
 
   // TODO sign idkey and otkeys
@@ -139,38 +150,32 @@ export async function generateKeys(dstIdkey) {
   return idkey;
 }
 
-export function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
+export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
   if (!turnEncryptionOff) {
-    return encryptHelper(plaintext, dstIdkey);
+    return await encryptHelper(plaintext, dstIdkey);
   }
   return dummyEncrypt(plaintext);
 }
 
-function encryptHelper(plaintext, dstIdkey) {
+async function encryptHelper(plaintext, dstIdkey) {
   console.log("REAL ENCRYPT -- ");
-  console.log(db.fromString(plaintext));
-  console.log(dstIdkey);
   let sess = getSession(dstIdkey);
+
+  // initiating communication with new device; create outbound session
   if (sess === null) {
-    console.log("sess for " + dstIdkey + " is null");
-    sess = new Olm.Session();
-    //let acct = getAccount();
-    // TODO how to get dstOtkey
-    //sess.create_outbound(acct, dstIdkey, dstOtkey);
+    console.log("in encryptHelper");
+    console.log(dstIdkey);
+    sess = await createOutboundSession(getIdkey(), dstIdkey, getAccount());
   }
   let ciphertext = sess.encrypt(plaintext);
+  console.log(db.fromString(plaintext));
   console.log(ciphertext);
-  return {
-    ciphertext: ciphertext,
-  };
+  return ciphertext;
 }
 
 function dummyEncrypt(plaintext) {
   console.log("DUMMY ENCRYPT -- ");
-  console.log(db.fromString(plaintext));
-  return {
-    ciphertext: plaintext,
-  };
+  return plaintext;
 }
 
 export function decrypt(ciphertext, srcIdkey, turnEncryptionOff) {
@@ -182,24 +187,20 @@ export function decrypt(ciphertext, srcIdkey, turnEncryptionOff) {
 
 function decryptHelper(ciphertext, srcIdkey) {
   console.log("REAL DECRYPT -- ");
-  console.log(ciphertext);
   let sess = getSession(srcIdkey);
+  // receiving communication from new device; create inbound session
   if (sess === null) {
-    console.log("sess for " + srcIdkey + " is null");
     sess = new Olm.Session();
-    let acct = getAccount();
-    // TODO create inbound session
-    sess.create_inbound(acct, ciphertext.body);
+    sess.create_inbound(getAccount(), ciphertext.body);
     setSession(sess, srcIdkey);
   }
-  console.log(sess);
   let plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
+  console.log(ciphertext);
   console.log(db.fromString(plaintext));
   return db.fromString(plaintext);
 }
 
 function dummyDecrypt(ciphertext) {
   console.log("DUMMY DECRYPT -- ");
-  console.log(db.fromString(ciphertext));
   return ciphertext;
 }

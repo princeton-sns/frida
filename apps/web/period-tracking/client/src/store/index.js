@@ -169,10 +169,9 @@ const store = createStore({
       state.idkey = idkey;
       state.devices.push(idkey);
     },
-    // TODO bootstrap otkey
-    NEW_LINKED_DEVICE(state, { idkey, otkey, deviceName }) {
+    NEW_LINKED_DEVICE(state, { idkey, deviceName }) {
       // FIXME should await...?
-      let curIdkey = frida.createLinkedDevice(idkey, otkey, deviceName);
+      let curIdkey = frida.createLinkedDevice(idkey, deviceName);
       state.idkey = curIdkey;
       state.devices.push(curIdkey);
     },

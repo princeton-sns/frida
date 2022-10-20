@@ -26,8 +26,11 @@ TODO
 - [ ] [Chris] IoT lightswitch app
 - [ ] [Leon] Flesh out byzantine server detection protocol (~1 paper paragraph)
 - [ ] [Shai] App invariant enforcement
+
+### Future weeks
+
+- [ ] [?] Server macro-benchmarks
+- [ ] [?] Server micro-benchmarks (per feature; also storage overhead, etc)
 - [ ] [?] Social media app
 - [ ] [?] Text messaging app (perhaps embedded in social media app)
 - [ ] [?] Mobile app
-- [ ] [?] Server macro-benchmarks
-- [ ] [?] Server micro-benchmarks (per feature; also storage overhead, etc)

@@ -1,19 +1,45 @@
 # OSDI 23 Paper
 
-## Build
+## On NixOS (sns cluster)
 
-### On NixOS (sns cluster)
+### Install required packages
 
 ```sh
 nix-shell
+```
+
+### Build
+
+```sh
 make
 ```
 
-Paper output will be in `paper.pdf`.
+## On Linux
 
-### On Linux
+### Install required packages
 
-TODO
+```sh
+sudo apt-get install texlive-latex-base
+sudo apt-get install texlive-fonts-recommended
+```
+
+and optionally:
+
+```sh
+sudo apt-get install texlive-fonts-extra
+```
+
+### Build
+
+```sh
+make
+```
+
+### View PDF
+
+```sh
+evince paper.pdf
+```
 
 ## Work distribution
 

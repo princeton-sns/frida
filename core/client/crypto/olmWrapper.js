@@ -134,6 +134,7 @@ export async function generateKeys(dstIdkey) {
 
   let idkey = db.fromString(acct.identity_keys()).curve25519;
   let otkeys = db.fromString(acct.one_time_keys()).curve25519;
+
   setIdkey(idkey);
   addDevice({ idkey, otkeys });
   connectDevice(idkey);
@@ -142,11 +143,16 @@ export async function generateKeys(dstIdkey) {
   if (dstIdkey !== null) {
     console.log("in generateKeys");
     console.log(dstIdkey);
-    await createOutboundSession(idkey, dstIdkey, acct);
+    let sess = await createOutboundSession(idkey, dstIdkey, acct);
+    // free in-mem session
+    sess.free();
   }
 
-  // TODO sign idkey and otkeys
-  // keep track of number of otkeys left on the server
+  // free in-mem account
+  acct.free();
+
+  // TODO keep track of number of otkeys left on the server
+
   return idkey;
 }
 
@@ -165,9 +171,17 @@ async function encryptHelper(plaintext, dstIdkey) {
   if (sess === null) {
     console.log("in encryptHelper");
     console.log(dstIdkey);
-    sess = await createOutboundSession(getIdkey(), dstIdkey, getAccount());
+    let acct = getAccount();
+    sess = await createOutboundSession(getIdkey(), dstIdkey, acct);
+    // free in-mem account
+    acct.free();
   }
+
   let ciphertext = sess.encrypt(plaintext);
+  setSession(sess, dstIdkey);
+  // free in-mem session
+  sess.free();
+
   console.log(db.fromString(plaintext));
   console.log(ciphertext);
   return ciphertext;
@@ -191,10 +205,18 @@ function decryptHelper(ciphertext, srcIdkey) {
   // receiving communication from new device; create inbound session
   if (sess === null) {
     sess = new Olm.Session();
-    sess.create_inbound(getAccount(), ciphertext.body);
+    let acct = getAccount();
+    sess.create_inbound(acct, ciphertext.body);
+    // free in-mem account
+    acct.free();
     setSession(sess, srcIdkey);
   }
+
   let plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
+  setSession(sess, srcIdkey);
+  // free in-mem session
+  sess.free();
+
   console.log(ciphertext);
   console.log(db.fromString(plaintext));
   return db.fromString(plaintext);

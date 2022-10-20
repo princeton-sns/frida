@@ -28,14 +28,13 @@ Most application functionality in the proposed two-tier architecture is performe
     \item New User
     \item New device under user
     \item establishing connection between to users / defining group
-    \item \fix{New tracked data}
-    \item imposing data invariant
+    \item new shared data object
+    \item imposing data invariants
         \begin{itemize}
             \item logical invariant
             \item conflict resolution
-            \item group and Permissions
+            \item group and permissions
         \end{itemize}
-    \item \fix{Defining how many YESes for consensus on object or group or pair}
 \end{itemize}
 
 \parlabel{Sharing Protocol}
@@ -80,8 +79,8 @@ Fascilitating interactions with the underlying data storage mechanism allows \na
 %  \todo{maybe in impl -> what is the interface for defining data invariants}
 
 \subsection{Security}
-\parlabel{Malicious Clients}
+\parlabel{Byzantine Clients}
 Detecting malicious interference by clients is handled on the data invariant level.
 
-\parlabel{Malicious Servers}
-Detecting a malicious server, \textit{i.e.} a server that reorders or drops message is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it}
+\parlabel{Reordering Server}
+Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}

@@ -21,10 +21,16 @@ export function generateKeypair() {
 export function signAndEncrypt(
   dstPubkey,
   srcPrivkey,
-  plaintext) {
-  return _signAndEncrypt(
-    sodium.from_hex(dstPubkey),
-    sodium.from_hex(srcPrivkey),
+  plaintext,
+  encrypt) {
+  if (encrypt) {
+    return _signAndEncrypt(
+      sodium.from_hex(dstPubkey),
+      sodium.from_hex(srcPrivkey),
+      sodium.from_string(plaintext)
+    );
+  }
+  return _signAndEncryptDummy(
     sodium.from_string(plaintext)
   );
 }
@@ -50,17 +56,32 @@ function _signAndEncrypt(
   };
 }
 
+function _signAndEncryptDummy(plaintext) {
+  return {
+    ciphertext: sodium.to_hex(plaintext),
+    nonce: sodium.to_hex(new Uint8Array(24).fill(0)),
+  };
+}
+
 export function decryptAndVerify(
   ciphertext,
   nonce,
   srcPubkey,
-  dstPrivkey) {
+  dstPrivkey,
+  encrypt) {
+  if (encrypt) {
+    return sodium.to_string(
+      _decryptAndVerify(
+        sodium.from_hex(ciphertext),
+        sodium.from_hex(nonce),
+        sodium.from_hex(srcPubkey),
+        sodium.from_hex(dstPrivkey)
+      )
+    );
+  }
   return sodium.to_string(
-    _decryptAndVerify(
-      sodium.from_hex(ciphertext),
-      sodium.from_hex(nonce),
-      sodium.from_hex(srcPubkey),
-      sodium.from_hex(dstPrivkey)
+    _decryptAndVerifyDummy(
+      sodium.from_hex(ciphertext)
     )
   );
 }
@@ -78,5 +99,9 @@ function _decryptAndVerify(
     dstPrivkey
   );
   return plaintext;
+}
+
+function _decryptAndVerifyDummy(ciphertext) {
+  return ciphertext;
 }
 

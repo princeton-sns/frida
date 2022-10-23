@@ -29,8 +29,7 @@ export const addDevice = sc.addDevice;
 
 /* Export for serverComm */
 export const setOtkey = c.setOtkey;
-export const generateOtkeys = c.generateOtkeys;
-export const addUsedOtkey = c.addUsedOtkey;
+export const generateMoreOtkeys = c.generateMoreOtkeys;
 
 /* Export for Apps */
 export const getIdkey = c.getIdkey;
@@ -296,11 +295,11 @@ async function sendMessage(dstIdkeys, payload) {
 export function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
   console.log(msg);
-  let payload = c.decrypt(
+  let payload = db.fromString(c.decrypt(
       msg.encPayload,
       msg.srcIdkey,
       turnEncryptionOff
-  );
+  ));
 
   let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcIdkey);
   if (demuxFunc === undefined) {
@@ -373,8 +372,8 @@ function isKey(group) {
  *
  * @private
  */
-async function initDevice(dstIdkey, linkedName = null, deviceName = null) {
-  let { idkey, key, otkey } = await c.generateKeys(dstIdkey);
+async function initDevice(linkedName = null, deviceName = null) {
+  let idkey = await c.generateKeys();
 
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {
@@ -388,8 +387,6 @@ async function initDevice(dstIdkey, linkedName = null, deviceName = null) {
 
   return {
     idkey: idkey,
-    key: key,
-    otkey: otkey,
     linkedName: linkedName,
   };
 }
@@ -402,7 +399,7 @@ async function initDevice(dstIdkey, linkedName = null, deviceName = null) {
  * @returns {string}
  */
 export async function createDevice(linkedName = null, deviceName = null) {
-  let { idkey } = await initDevice(null, linkedName, deviceName);
+  let { idkey } = await initDevice(linkedName, deviceName);
   console.log(idkey);
   onAuth();
   return idkey;
@@ -417,7 +414,7 @@ export async function createDevice(linkedName = null, deviceName = null) {
  */
 export async function createLinkedDevice(dstIdkey, deviceName = null) {
   if (dstIdkey !== null) {
-    let { idkey, key, otkey, linkedName } = await initDevice(dstIdkey, null, deviceName);
+    let { idkey, linkedName } = await initDevice(null, deviceName);
     console.log(idkey);
     console.log(linkedName);
     let linkedMembers = getAllSubgroups([linkedName]);
@@ -427,8 +424,6 @@ export async function createLinkedDevice(dstIdkey, deviceName = null) {
       msgType: REQ_UPDATE_LINKED,
       tempName: linkedName,
       srcIdkey: idkey,
-      otkeyKey: key,
-      otkeyUsed: otkey,
       newLinkedMembers: linkedMembers,
     });
     return idkey;
@@ -1919,8 +1914,6 @@ async function unshareData(prefix, id, toUnshareGroupID) {
  */
 function checkPermissions(payload, srcIdkey) {
   let permissionsOK = false;
-  console.log(srcIdkey);
-  console.log(payload);
 
   // no reader checks, any device that gets data should correctly be a reader
   switch(payload.msgType) {

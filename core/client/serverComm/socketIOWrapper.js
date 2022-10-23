@@ -5,7 +5,7 @@
  */
 
 import io from "socket.io-client";
-import { onMessage, getIdkey, setOtkey, generateOtkeys, addUsedOtkey } from "../index.js";
+import { onMessage, getIdkey, setOtkey, generateMoreOtkeys } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
@@ -28,18 +28,14 @@ export function init(ip, port) {
   //  console.log(args);
   //});
 
-  socket.on("getOtkey", ({ idkey, key, otkey }) => {
-    // TODO more efficient way to communicate otkey to crypto module?
-    // e.g. a listener?
-    setOtkey(idkey, key, otkey);
+  socket.on("getOtkey", ({ idkey, otkey }) => {
+    // TODO use a listener
+    setOtkey(idkey, otkey);
   });
 
 
-  socket.on("addOtkeys", ({ triggeringOtkeyKey, triggeringOtkey }) => {
-    addUsedOtkey(triggeringOtkeyKey, triggeringOtkey);
-    let { idkey, otkeys } = generateOtkeys(2);
-    socket.emit("addOtkeys", { idkey, otkeys });
-    //socket.emit("addOtkeys", generateOtkeys(2));
+  socket.on("addOtkeys", () => {
+    socket.emit("addOtkeys", generateMoreOtkeys());
   });
 
   socket.on("noiseMessage", (msg) => {

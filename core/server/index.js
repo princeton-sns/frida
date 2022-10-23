@@ -51,7 +51,6 @@ function printDevices() {
     }
   }
   console.log("-- done printing");
-  console.log();
 }
 
 function handleOffline(
@@ -61,7 +60,6 @@ function handleOffline(
   // check if device is online
   console.log();
   console.log("-- in handleOffline");
-  console.log();
   console.log(dstIdkey);
   console.log(eventName);
   console.log(data);
@@ -83,7 +81,6 @@ function handleOffline(
     printDevices();
   }
   console.log("-- done handling offline");
-  console.log();
 }
 
 io.on("connection", (socket) => {
@@ -94,6 +91,7 @@ io.on("connection", (socket) => {
       deviceToSocket[idkey] = socketID;
       socketToDevice[socketID] = idkey;
 
+      console.log();
       console.log("linking socketIDs");
       console.log("deviceToSocket:");
       console.log(deviceToSocket);
@@ -115,6 +113,7 @@ io.on("connection", (socket) => {
 
   socket.on("addDevice", ({ idkey, otkeys }) => {
     devices[idkey] = { otkeys: otkeys, mailbox: [] };
+    console.log();
     console.log("added device");
     printDevices();
   });
@@ -122,13 +121,15 @@ io.on("connection", (socket) => {
   socket.on("removeDevice", (idkey) => {
     delete devices[idkey];
     delete deviceToSocket[idkey];
+    console.log();
     console.log("deleted device");
     printDevices();
   });
 
 
   socket.on("addOtkeys", ({ idkey, otkeys }) => {
-    console.log("ADDING OTKEYS");
+    console.log();
+    console.log("adding otkeys");
     // TODO lock needed?
     devices[idkey].otkeys = {
       ...devices[idkey].otkeys,
@@ -138,7 +139,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("getOtkey", ({ srcIdkey, dstIdkey }) => {
-    console.log("GETTING OTKEY");
+    console.log();
+    console.log("removing otkey");
     let dstOtkeys = devices[dstIdkey].otkeys;
     let numOtkeys = Object.keys(dstOtkeys).length;
     console.log("num otkeys left: " + numOtkeys);
@@ -151,10 +153,7 @@ io.on("connection", (socket) => {
       break;
     }
     if (numOtkeys < 4) {
-      io.to(deviceToSocket[dstIdkey]).emit("addOtkeys", {
-        triggeringOtkeyKey: key,
-        triggeringOtkey: dstOtkey,
-      });
+      io.to(deviceToSocket[dstIdkey]).emit("addOtkeys", {});
     }
     // remove otkey from server
     delete dstOtkeys[key];
@@ -164,7 +163,6 @@ io.on("connection", (socket) => {
     // send otkey to srcIdkey
     io.to(deviceToSocket[srcIdkey]).emit("getOtkey", {
       idkey: dstIdkey,
-      key: key,
       otkey: dstOtkey,
     });
   });
@@ -174,6 +172,7 @@ io.on("connection", (socket) => {
     if (deviceToSocket[idkey]) {
       deviceToSocket[idkey] = -1;
     }
+    console.log();
     console.log("unlinking socketIDs");
     console.log(deviceToSocket);
     console.log(socketToDevice);
@@ -185,6 +184,7 @@ io.on("connection", (socket) => {
     if (idkey) {
       delete socketToDevice[socketID];
       deviceToSocket[idkey] = -1;
+      console.log();
       console.log("unlinking socketIDs");
       console.log(deviceToSocket);
       console.log(socketToDevice);
@@ -197,8 +197,7 @@ io.on("connection", (socket) => {
       batch,
     }) => {
       console.log();
-      console.log("RECEIVED NOISE MESSAGE");
-      console.log();
+      console.log("NOISE MESSAGE");
       let curSeqID = seqID++;
       batch.forEach(({ dstIdkey, encPayload }) => {
         handleOffline(dstIdkey, "noiseMessage", {
@@ -207,7 +206,6 @@ io.on("connection", (socket) => {
           encPayload: encPayload,
         });
       });
-      console.log();
     }
   );
 });

@@ -18,6 +18,7 @@ const ACCT_KEY     = "__account";
 /* for others */
 const OTKEY        = "__otkey";
 const SESS_KEY     = "__session";
+const USED_OTKEYS  = "__usedOtkeys";
 
 export async function init() {
   await Olm.init({
@@ -85,12 +86,32 @@ function getOtkeyHelper(idkey) {
   return db.get(getOtkeyKey(idkey));
 }
 
-export function setOtkey(idkey, otkey) {
-  db.set(getOtkeyKey(idkey), otkey);
+export function setOtkey(idkey, key, otkey) {
+  console.log(key);
+  db.set(getOtkeyKey(idkey), { key: key, otkey: otkey });
 }
 
 function removeOtkey(idkey) {
   db.remove(getOtkeyKey(idkey));
+}
+
+function getUsedOtkeys() {
+  return db.get(USED_OTKEYS);
+}
+
+function setUsedOtkeys(obj) {
+  db.set(USED_OTKEYS, obj);
+}
+
+export function addUsedOtkey(key, otkey) {
+  let usedOtkeys = getUsedOtkeys();
+  console.log(usedOtkeys);
+  let obj = {
+    ...usedOtkeys,
+    [key]: otkey,
+  };
+  console.log(obj);
+  setUsedOtkeys(obj);
 }
 
 /* Promise Helpers */
@@ -107,29 +128,63 @@ async function createOutboundSession(srcIdkey, dstIdkey, acct) {
   getOtkey({ srcIdkey: srcIdkey, dstIdkey: dstIdkey });
 
   // poll FIXME what's a better way to do this?
-  let dstOtkey = getOtkeyHelper(dstIdkey);
-  while (dstOtkey === null) {
+  let otkeyData = getOtkeyHelper(dstIdkey);
+  while (otkeyData === null) {
     if (getIdkey() === null) {
       return; // in case device is being deleted
     }
     console.log("~~~~~waiting for otkey");
     await promiseDelay(200);
-    dstOtkey = getOtkeyHelper(dstIdkey);
+    otkeyData = getOtkeyHelper(dstIdkey);
   }
 
   let sess = new Olm.Session();
-  sess.create_outbound(acct, dstIdkey, dstOtkey);
+  sess.create_outbound(acct, dstIdkey, otkeyData.otkey);
   setSession(sess, dstIdkey);
   removeOtkey(dstIdkey);
-  return sess;
+  return {
+    sess: sess,
+    key: otkeyData.key,
+    otkey: otkeyData.otkey,
+  };
+}
+
+export function generateOtkeys(numOtkeys) {
+  let acct = getAccount();
+  //if (acct === null) {
+  //  acct = new Olm.Account();
+  //  acct.create();
+  //}
+  acct.generate_one_time_keys(numOtkeys);
+  let idkey = db.fromString(acct.identity_keys()).curve25519;
+  let otkeys = db.fromString(acct.one_time_keys()).curve25519;
+  // FIXME only need to store otkeyKeys right now
+  let usedOtkeys = getUsedOtkeys();
+  let usedOtkeyKeys = Object.keys(usedOtkeys);
+  let otkeyKeys = Object.keys(otkeys);
+  let toPublishOtkeyKeys = otkeyKeys.filter((key) => !usedOtkeyKeys.includes(key));
+  let toPublishOtkeys = {};
+  toPublishOtkeyKeys.forEach((otkeyKey) => {
+    toPublishOtkeys[otkeyKey] = otkeys[otkeyKey];
+  });
+  //setAccount(acct);
+  acct.free();
+  // TODO mark_keys_as_published
+  return {
+    //acct: acct,
+    idkey: idkey,
+    otkeys: toPublishOtkeys,
+  };
 }
 
 // every device has a set of identity keys and ten sets of one-time keys, the
 // public counterparts of which should all be published to the server
 export async function generateKeys(dstIdkey) {
+  //let { acct, idkey, otkeys } = generateOtkeys(5);
   let acct = new Olm.Account();
   acct.create();
-  acct.generate_one_time_keys(10);
+  acct.generate_one_time_keys(4);
+  // TODO mark_keys_as_published
   setAccount(acct);
 
   let idkey = db.fromString(acct.identity_keys()).curve25519;
@@ -140,12 +195,17 @@ export async function generateKeys(dstIdkey) {
   connectDevice(idkey);
 
   // linking with another device; create outbound session
+  let outboundRes;
   if (dstIdkey !== null) {
     console.log("in generateKeys");
     console.log(dstIdkey);
-    let sess = await createOutboundSession(idkey, dstIdkey, acct);
+    outboundRes = await createOutboundSession(idkey, dstIdkey, acct);
+    //let { sess, key, otkey } = await createOutboundSession(idkey, dstIdkey, acct);
+    console.log("USED OTKEY");
+    console.log(outboundRes.key);
+    console.log(outboundRes.otkey);
     // free in-mem session
-    sess.free();
+    outboundRes.sess.free();
   }
 
   // free in-mem account
@@ -153,7 +213,11 @@ export async function generateKeys(dstIdkey) {
 
   // TODO keep track of number of otkeys left on the server
 
-  return idkey;
+  return {
+    idkey: idkey,
+    key: outboundRes?.key ?? null,
+    otkey: outboundRes?.otkey ?? null,
+  };
 }
 
 export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
@@ -172,7 +236,16 @@ async function encryptHelper(plaintext, dstIdkey) {
     console.log("in encryptHelper");
     console.log(dstIdkey);
     let acct = getAccount();
-    sess = await createOutboundSession(getIdkey(), dstIdkey, acct);
+    let { sess_, key, otkey } = await createOutboundSession(getIdkey(), dstIdkey, acct);
+    sess = sess_;
+    console.log("USED OTKEY");
+    console.log(key);
+    console.log(otkey);
+    plaintext = {
+      ...plaintext,
+      otkeyKey: key,
+      otkeyUsed: otkey,
+    };
     // free in-mem account
     acct.free();
   }
@@ -201,6 +274,10 @@ export function decrypt(ciphertext, srcIdkey, turnEncryptionOff) {
 
 function decryptHelper(ciphertext, srcIdkey) {
   console.log("REAL DECRYPT -- ");
+  // TODO remove_one_time_keys seems to remove all of them
+  // client should keep track of which ones to NOT send to 
+  // the server when more are generated
+  // the complexity of this will increase as time goes on though
   let sess = getSession(srcIdkey);
   // receiving communication from new device; create inbound session
   if (sess === null) {
@@ -212,14 +289,19 @@ function decryptHelper(ciphertext, srcIdkey) {
     setSession(sess, srcIdkey);
   }
 
-  let plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
+  let plaintext = db.fromString(sess.decrypt(ciphertext.type, ciphertext.body));
+  if (plaintext.otkeyUsed !== null) {
+    console.log(plaintext.otkeyKey);
+    console.log(plaintext.otkeyUsed);
+    addUsedOtkey(plaintext.otkeyKey, plaintext.otkeyUsed);
+  }
   setSession(sess, srcIdkey);
   // free in-mem session
   sess.free();
 
   console.log(ciphertext);
-  console.log(db.fromString(plaintext));
-  return db.fromString(plaintext);
+  console.log(plaintext);
+  return plaintext;
 }
 
 function dummyDecrypt(ciphertext) {

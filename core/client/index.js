@@ -29,6 +29,8 @@ export const addDevice = sc.addDevice;
 
 /* Export for serverComm */
 export const setOtkey = c.setOtkey;
+export const generateOtkeys = c.generateOtkeys;
+export const addUsedOtkey = c.addUsedOtkey;
 
 /* Export for Apps */
 export const getIdkey = c.getIdkey;
@@ -372,7 +374,7 @@ function isKey(group) {
  * @private
  */
 async function initDevice(dstIdkey, linkedName = null, deviceName = null) {
-  let idkey = await c.generateKeys(dstIdkey);
+  let { idkey, key, otkey } = await c.generateKeys(dstIdkey);
 
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {
@@ -386,6 +388,8 @@ async function initDevice(dstIdkey, linkedName = null, deviceName = null) {
 
   return {
     idkey: idkey,
+    key: key,
+    otkey: otkey,
     linkedName: linkedName,
   };
 }
@@ -413,7 +417,7 @@ export async function createDevice(linkedName = null, deviceName = null) {
  */
 export async function createLinkedDevice(dstIdkey, deviceName = null) {
   if (dstIdkey !== null) {
-    let { idkey, linkedName } = await initDevice(dstIdkey, null, deviceName);
+    let { idkey, key, otkey, linkedName } = await initDevice(dstIdkey, null, deviceName);
     console.log(idkey);
     console.log(linkedName);
     let linkedMembers = getAllSubgroups([linkedName]);
@@ -423,6 +427,8 @@ export async function createLinkedDevice(dstIdkey, deviceName = null) {
       msgType: REQ_UPDATE_LINKED,
       tempName: linkedName,
       srcIdkey: idkey,
+      otkeyKey: key,
+      otkeyUsed: otkey,
       newLinkedMembers: linkedMembers,
     });
     return idkey;

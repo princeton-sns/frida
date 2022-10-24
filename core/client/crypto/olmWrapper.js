@@ -127,6 +127,10 @@ async function createOutboundSession(srcIdkey, dstIdkey, acct) {
     }
     dstOtkey = getOtkeyHelper(dstIdkey);
   }
+  if (dstOtkey === "") {
+    console.log("dest device has been deleted - no otkey");
+    return -1;
+  }
 
   let sess = new Olm.Session();
   sess.create_outbound(acct, dstIdkey, dstOtkey);
@@ -159,8 +163,6 @@ function generateOtkeys(numOtkeys) {
   let otkeys = db.fromString(acct.one_time_keys()).curve25519;
   acct.mark_keys_as_published();
   setAccount(acct);
-
-  // free in-mem acct
   acct.free();
   return {
     idkey: idkey,
@@ -176,7 +178,7 @@ export async function generateKeys() {
   addDevice({ idkey, otkeys });
   connectDevice(idkey);
   // TODO keep track of number of otkeys left on the server?
-  // server currently notifies but want to trust it?
+  // server currently notifies but may not want to trust it to do that
   return idkey;
 }
 
@@ -211,13 +213,14 @@ async function encryptHelper(plaintext, dstIdkey) {
   if (sess === null) {
     console.log("device is being deleted - no sess");
     return "{}";
+  } else if (sess === -1) {
+    return "{}";
   }
+
   let ciphertext = sess.encrypt(plaintext);
   setSession(sess, dstIdkey);
   sess.free();
-
   console.log(db.fromString(plaintext));
-  console.log(ciphertext);
   return ciphertext;
 }
 
@@ -238,9 +241,6 @@ function decryptHelper(ciphertext, srcIdkey) {
   let sess = getSession(srcIdkey);
 
   // if receiving communication from new device; create inbound session
-  // if receiving communication from device that has already sent a message but have not yet replied,
-  // create a new inbound session (b/c sending device has also created a new outbound session
-  // from a new otkey due to no response)
   if (sess === null) {
     sess = createInboundSession(srcIdkey, ciphertext.body);
     if (sess === null) {
@@ -252,6 +252,11 @@ function decryptHelper(ciphertext, srcIdkey) {
   try {
     plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
   } catch (err) {
+    // error will be thrown if receiving msg from device that has already sent 
+    // a msg but this device has not yet replied - sending device has
+    // created a new outbound session from new otkey due to no response, so
+    // this device should create a new inbound session upon this error
+    // FIXME find something to check in advance rather than try/catch block
     console.log(err);
     sess.free();
     sess = createInboundSession(srcIdkey, ciphertext.body);
@@ -263,9 +268,7 @@ function decryptHelper(ciphertext, srcIdkey) {
 
   setSession(sess, srcIdkey);
   sess.free();
-
   console.log(db.fromString(plaintext));
-  console.log(ciphertext);
   return plaintext;
 }
 

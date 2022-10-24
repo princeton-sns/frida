@@ -148,6 +148,10 @@ io.on("connection", (socket) => {
     if (!devices[dstIdkey]) {
       console.log("device does not exist");
       console.log(dstIdkey);
+      io.to(deviceToSocket[srcIdkey]).emit("getOtkey", {
+        idkey: dstIdkey,
+        otkey: "",
+      });
       return;
     }
     let dstOtkeys = devices[dstIdkey].otkeys;

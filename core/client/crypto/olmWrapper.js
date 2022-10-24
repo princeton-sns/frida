@@ -122,20 +122,29 @@ async function createOutboundSession(srcIdkey, dstIdkey, acct) {
     await promiseDelay(200);
     // in case device is being deleted
     if (getIdkey() === null) {
+      console.log("device is being deleted - no idkey");
       return;
     }
     dstOtkey = getOtkeyHelper(dstIdkey);
   }
 
-  console.log("OTKEY FOR NEW SESSION");
-  console.log(srcIdkey);
-  console.log(dstIdkey);
-  console.log(dstOtkey);
-
   let sess = new Olm.Session();
   sess.create_outbound(acct, dstIdkey, dstOtkey);
   setSession(sess, dstIdkey);
   removeOtkey(dstIdkey);
+  return sess;
+}
+
+function createInboundSession(srcIdkey, ciphertextBody) {
+  let sess = new Olm.Session();
+  let acct = getAccount();
+  if (acct === null) {
+    console.log("device is being deleted - no acct");
+    sess.free();
+    return null;
+  }
+  sess.create_inbound_from(acct, srcIdkey, ciphertextBody);
+  acct.free();
   return sess;
 }
 
@@ -185,8 +194,6 @@ export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
 async function encryptHelper(plaintext, dstIdkey) {
   console.log("REAL ENCRYPT -- ");
   let sess = getSession(dstIdkey);
-  console.log(dstIdkey);
-  console.log(sess);
 
   // if sess is null, initiating communication with new device; create outbound session
   // if sess does not have a received message, generate a newsession
@@ -197,15 +204,9 @@ async function encryptHelper(plaintext, dstIdkey) {
       sess.free();
       return "{}";
     }
-    console.log("NEW OUTBOUND SESSION CREATED");
     sess = await createOutboundSession(getIdkey(), dstIdkey, acct);
-    // free in-mem account
     acct.free();
   }
-  console.log(sess);
-  console.log(sess.describe());
-  console.log(sess.session_id());
-  console.log(sess.has_received_message());
 
   if (sess === null) {
     console.log("device is being deleted - no sess");
@@ -213,7 +214,6 @@ async function encryptHelper(plaintext, dstIdkey) {
   }
   let ciphertext = sess.encrypt(plaintext);
   setSession(sess, dstIdkey);
-  // free in-mem session
   sess.free();
 
   console.log(db.fromString(plaintext));
@@ -236,69 +236,32 @@ export function decrypt(ciphertext, srcIdkey, turnEncryptionOff) {
 function decryptHelper(ciphertext, srcIdkey) {
   console.log("REAL DECRYPT -- ");
   let sess = getSession(srcIdkey);
-  console.log(srcIdkey);
-  console.log(sess);
-  console.log(ciphertext);
 
   // if receiving communication from new device; create inbound session
   // if receiving communication from device that has already sent a message but have not yet replied,
   // create a new inbound session (b/c sending device has also created a new outbound session
   // from a new otkey due to no response)
-  if (sess !== null) {
-    console.log(sess.matches_inbound_from(srcIdkey, ciphertext));
-    console.log(sess.describe());
-    console.log(sess.session_id());
-  }
-  if (sess === null) { // || !sess.matches_inbound_from(srcIdkey, ciphertext)) { // FIXME matches_inbound
-    sess = new Olm.Session();
-    let acct = getAccount();
-    if (acct === null) {
-      console.log("device is being deleted - no acct");
-      sess.free();
+  if (sess === null) {
+    sess = createInboundSession(srcIdkey, ciphertext.body);
+    if (sess === null) {
       return "{}";
     }
-    console.log("NEW INBOUND SESSION CREATED");
-    sess.create_inbound_from(acct, srcIdkey, ciphertext.body);
-    console.log(sess.matches_inbound_from(srcIdkey, ciphertext));
-    // free in-mem account
-    acct.free();
-  } //else if (!sess.matches_inbound_from(srcIdkey, ciphertext)) {}
-  console.log(sess);
-  console.log(sess.matches_inbound_from(srcIdkey, ciphertext));
-  console.log(sess.describe());
-  console.log(sess.session_id());
-
-  if (sess === null) {
-    console.log("device is being deleted - no sess");
-    return "{}";
   }
 
-  console.log(ciphertext);
   let plaintext;
   try {
     plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
   } catch (err) {
     console.log(err);
     sess.free();
-    sess = new Olm.Session();
-    let acct = getAccount();
-    if (acct === null) {
-      console.log("device is being deleted");
-      sess.free();
+    sess = createInboundSession(srcIdkey, ciphertext.body);
+    if (sess === null) {
       return "{}";
     }
-    console.log("NEW INBOUND SESSION IN CATCH");
-    sess.create_inbound_from(acct, srcIdkey, ciphertext.body);
-    console.log(sess.matches_inbound_from(srcIdkey, ciphertext));
-    // free in-mem account
-    acct.free();
-
     plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
   }
 
-  console.log(sess.has_received_message());
   setSession(sess, srcIdkey);
-  // free in-mem session
   sess.free();
 
   console.log(db.fromString(plaintext));

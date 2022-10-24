@@ -70,6 +70,8 @@ function handleOffline(
   } else if (deviceToSocket[dstIdkey] !== -1) {
     console.log("-> forwarding immedietely");
     io.to(deviceToSocket[dstIdkey]).emit(eventName, data);
+  } else if (!devices[dstIdkey]) {
+    console.log("device does not exist");
   } else {
     // otherwise atomically append to mailbox array
     console.log("-> appending to mailbox");
@@ -131,16 +133,23 @@ io.on("connection", (socket) => {
     console.log();
     console.log("adding otkeys");
     // TODO lock needed?
-    devices[idkey].otkeys = {
-      ...devices[idkey].otkeys,
-      ...otkeys
-    };
+    if (devices[idkey]) {
+      devices[idkey].otkeys = {
+        ...devices[idkey].otkeys,
+        ...otkeys
+      };
+    }
     printDevices();
   });
 
   socket.on("getOtkey", ({ srcIdkey, dstIdkey }) => {
     console.log();
     console.log("removing otkey");
+    if (!devices[dstIdkey]) {
+      console.log("device does not exist");
+      console.log(dstIdkey);
+      return;
+    }
     let dstOtkeys = devices[dstIdkey].otkeys;
     let numOtkeys = Object.keys(dstOtkeys).length;
     console.log("num otkeys left: " + numOtkeys);
@@ -152,7 +161,7 @@ io.on("connection", (socket) => {
       dstOtkey = dstOtkeys[key];
       break;
     }
-    if (numOtkeys < 4) {
+    if (numOtkeys < 6) {
       io.to(deviceToSocket[dstIdkey]).emit("addOtkeys", {});
     }
     // remove otkey from server

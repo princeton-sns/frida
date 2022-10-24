@@ -122,21 +122,21 @@ function makeGroup(fieldNames) {
 }
 
 /* doubly-linked tree, allows cycles */
-const NAME     = "name";
-const PARENTS  = "parents";
-const CHILDREN = "children";
-const ADMINS   = "admins";
-const WRITERS  = "writers";
-const OTKEYS   = "otkeys";
+const NAME          = "name";
+const PARENTS       = "parents";
+const CHILDREN      = "children";
+const ADMINS        = "admins";
+const WRITERS       = "writers";
+const CONTACT_LEVEL = "contactLevel";
 
-const keyString = [NAME, PARENTS, ADMINS, WRITERS, OTKEYS].join(" ");
+const keyString = [NAME, CONTACT_LEVEL, PARENTS, ADMINS, WRITERS].join(" ");
 const Key   = makeGroup(keyString);
 // readers list isn't necessary, any member that isn't an admin
 // or writer can be assumed to be a reader
 // TODO also deduplicate admins and writers (any writer who is also an
 // admin can _just_ exist in the admin group, since admin abilities are a
 // superset of writer abilities
-const groupString = [NAME, PARENTS, CHILDREN, ADMINS, WRITERS].join(" ");
+const groupString = [NAME, CONTACT_LEVEL, PARENTS, CHILDREN, ADMINS, WRITERS].join(" ");
 const Group = makeGroup(groupString);
 
 /* DB listener plugin */
@@ -315,6 +315,7 @@ export function onMessage(msg) {
     return;
   }
   console.log("SUCCESS");
+  // FIXME need to await? (updateGroup is async)
   demuxFunc(payload);
 }
 
@@ -379,11 +380,11 @@ async function initDevice(linkedName = null, deviceName = null) {
   if (linkedName === null) {
     linkedName = crypto.randomUUID();
   }
-  createGroup(LINKED, linkedName, [], [linkedName], [linkedName], [linkedName]);
-  createGroup(linkedName, null, [LINKED], [idkey], [linkedName], [linkedName]);
-  createKey(idkey, deviceName, [linkedName], [linkedName], [linkedName], []);
+  createGroup(LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
+  createGroup(linkedName, null, false, [LINKED], [idkey], [linkedName], [linkedName]);
+  createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName], []);
 
-  createGroup(CONTACTS, null, [], [], [linkedName], [linkedName]);
+  createGroup(CONTACTS, null, false, [], [], [linkedName], [linkedName]);
 
   return {
     idkey: idkey,
@@ -517,7 +518,7 @@ async function processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers
           value: getGroup(linkedName),
         });
       } else {
-        updateGroup({ groupID: newGroup.id, value: newGroup.value });
+        await updateGroup({ groupID: newGroup.id, value: newGroup.value });
         await newGroupHelper(newGroup.id, newGroup.value, restLinkedIdkeys);
       }
     }
@@ -582,6 +583,13 @@ function groupReplaceHelper(key, fullGroup, IDToReplace, replacementID) {
   }
 }
 
+function groupContainsHelper(key, fullGroup, IDToCheck) {
+  if (fullGroup.value[key]?.includes(IDToCheck)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Replaces specified ID with another ID in all fields of a group.
  *
@@ -606,6 +614,18 @@ function groupReplace(group, IDToReplace, replacementID) {
   groupReplaceHelper(ADMINS, updatedGroup, IDToReplace, replacementID);
   groupReplaceHelper(WRITERS, updatedGroup, IDToReplace, replacementID);
   return updatedGroup;
+}
+
+function groupContains(group, IDToCheck) {
+  if (group.id === IDToCheck) {
+    return true;
+  }
+  let bool = false;
+  bool |= groupContainsHelper(PARENTS, group, IDToCheck);
+  bool |= groupContainsHelper(CHILDREN, group, IDToCheck);
+  bool |= groupContainsHelper(ADMINS, group, IDToCheck);
+  bool |= groupContainsHelper(WRITERS, group, IDToCheck);
+  return bool;
 }
 
 /**
@@ -652,7 +672,20 @@ function linkGroups({ parentID, childID }) {
  * 
  * @private
  */
-function updateGroup({ groupID, value }) {
+async function updateGroup({ groupID, value }) {
+  // cases that handle shared data where a subset of the members
+  // do not already exist in this device's contacts list
+  let contacts = getContacts();
+  // if contactLevel = true but not in contacts, add
+  if (value.contactLevel && !contacts.includes(groupID)) {
+    console.log("add to contacts");
+    await addChildHelper(CONTACTS, groupID, resolveIDs([LINKED], getIdkey()));
+  }
+  // if in contacts but contactLevel = false, make contactLevel = true
+  if (!value.contactLevel && contacts.includes(groupID)) {
+    console.log("set contactLevel to true");
+    value.contactLevel = true;
+  }
   setGroup(groupID, value);
 }
 
@@ -748,11 +781,25 @@ async function parseContactInfo(contactName, contactGroups) {
   let linkedName = getLinkedName();
   let restLinkedIdkeys = resolveIDs([LINKED], idkey);
 
+  // check if "linked" backpointer will be replaced with "contact" backpointer
+  let contactLevelIDs = [];
+  for (let contactGroup of contactGroups) {
+    let deepCopy = JSON.parse(JSON.stringify(contactGroup));
+    if (groupContains(deepCopy, LINKED)) {
+      contactLevelIDs.push(deepCopy.id);
+    }
+  }
+
   for (let contactGroup of contactGroups) {
     let updatedContactGroup = groupReplace(contactGroup, LINKED, CONTACTS);
+    // "linked" backpointer was replaced with "contact" backpointer
+    // set contactLevel field = true
+    if (contactLevelIDs.includes(updatedContactGroup.id)) {
+      updatedContactGroup.value.contactLevel = true;
+    }
     // create group and add admin for enabling future deletion of this contact + groups
     addAdminInMem(updatedContactGroup.value, linkedName);
-    updateGroup({
+    await updateGroup({
       groupID: updatedContactGroup.id,
       value: updatedContactGroup.value,
     });
@@ -777,7 +824,7 @@ async function parseContactInfo(contactName, contactGroups) {
  */
 export async function removeContact(name) {
   // remotely
-  await sendMessage(resolveIDs([LINKED, getIdkey()]), {
+  await sendMessage(resolveIDs([LINKED], getIdkey()), {
     msgType: DELETE_GROUP,
     groupID: name,
   });
@@ -901,8 +948,8 @@ function deleteGroup({ groupID }) {
  *
  * @private
  */
-function createGroup(ID, name, parents, children, admins, writers) {
-  setGroup(ID, new Group(name, parents, children, admins, writers));
+function createGroup(ID, name, contactLevel, parents, children, admins, writers) {
+  setGroup(ID, new Group(name, contactLevel, parents, children, admins, writers));
 }
 
 /**
@@ -915,8 +962,8 @@ function createGroup(ID, name, parents, children, admins, writers) {
  *
  * @private
  */
-function createKey(ID, name, parents, admins, writers, otkeys) {
-  setGroup(ID, new Key(name, parents, admins, writers, otkeys));
+function createKey(ID, name, contactLevel, parents, admins, writers, otkeys) {
+  setGroup(ID, new Key(name, contactLevel, parents, admins, writers, otkeys));
 }
 
 const listRemoveCallback = (ID, newList) => {
@@ -963,7 +1010,7 @@ function getChildren(groupID) {
 }
 
 /**
- * Recursively gets all children groups in the subtree with root groupID.
+ * Recursively gets all children groups in the subtree with root groupID (result includes the root group).
  *
  * @param {string} groupID ID of group to get all subgroups of
  * @returns {Object[]}
@@ -1708,13 +1755,12 @@ async function shareData(prefix, id, toShareGroupID) {
     if (curGroupID === linkedName) {
       sharingGroupID = getNewGroupID();
       // create new sharing group
-      createGroup(sharingGroupID, null, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
+      createGroup(sharingGroupID, null, false, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
       await newGroupHelper(sharingGroupID, getGroup(sharingGroupID), restNewMemberIdkeys);
       // add parent pointers for both previously-existing groups
       // note: have to separately add parents everywhere instead of just doing 
       // it once and sending updated group b/c groups on diff devices have diff
       // permissions/etc, don't want to override that
-      // open problem: how to only do work once without compromising security
       await addParentHelper(curGroupID, sharingGroupID, restNewMemberIdkeys);
       await addParentHelper(toShareGroupID, sharingGroupID, restNewMemberIdkeys);
       // send actual data that group now points to
@@ -1723,8 +1769,23 @@ async function shareData(prefix, id, toShareGroupID) {
       sharingGroupID = curGroupID;
       let curGroupValue = getGroup(sharingGroupID);
       let newMemberIdkeys = resolveIDs([toShareGroupID]);
-      // send existing sharing group to new member devices
+
+      // send existing sharing group subgroups to new member devices
+      let sharingGroupSubgroups = getAllSubgroups([sharingGroupID]);
+      for (let sharingGroupSubgroup of sharingGroupSubgroups) {
+        let newGroup = groupReplace(sharingGroupSubgroup, LINKED, CONTACTS);
+        await newGroupHelper(newGroup.id, newGroup.value, newMemberIdkeys);
+      }
+
+      // send new member subgroups to existing members
       await newGroupHelper(sharingGroupID, curGroupValue, newMemberIdkeys);
+      let toShareSubgroups = getAllSubgroups([toShareGroupID]);
+      let restExistingMemberIdkeys = resolveIDs([curGroupID], idkey);
+      for (let toShareSubgroup of toShareSubgroups) {
+        let newGroup = groupReplace(toShareSubgroup, LINKED, CONTACTS);
+        await newGroupHelper(newGroup.id, newGroup.value, restExistingMemberIdkeys);
+      }
+
       // add child to existing sharing group
       await addChildHelper(sharingGroupID, toShareGroupID, restNewMemberIdkeys);
       // add parent from new child to existing sharing group
@@ -1873,6 +1934,7 @@ async function unshareData(prefix, id, toUnshareGroupID) {
       createGroup(
           sharingGroupID,
           null,
+          false,
           [],
           newChildren,
           oldGroup.admins.filter((x) => x != toUnshareGroupID),

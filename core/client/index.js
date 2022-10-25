@@ -14,8 +14,6 @@
 // external party)
 // how hard is reasoning about this?
 
-// TODO add permission checks for setting cryptographic keys?
-
 import * as sc from "./serverComm/socketIO.js";
 import * as c from  "./crypto/libSodium.js";
 import * as db from "./db/localStorage.js";
@@ -35,10 +33,6 @@ const OUTSTANDING_PUBKEY = "__outstandingPubkey";
 
 
 // FIXME need new special name for LINKED group (confusing when linking non-LINKED groups)
-
-// TODO implement a way for clients to check permissions and revert action before
-// it is propagated, e.g. if well-intentioned clients make a mistake don't want
-// to result in inconsistent state
 
 // valid message types
 const REQ_UPDATE_LINKED     = "requestUpdateLinked";
@@ -468,9 +462,6 @@ function removeOutstandingLinkPubkey() {
  * current device's linked group, and send the requesting device the list of 
  * and group information of any existing devices (including the current one).
  *
- * TODO send other data from this device (e.g. app data)? Would be useful for 
- * backups.
- *
  * @param {string} tempName temporary name of device requesting to link
  * @param {string} srcPubkey pubkey of device requesting to link
  * @param {Object[]} newLinkedMembers linked subgroups of device requesting to link
@@ -604,8 +595,6 @@ function groupReplace(group, IDToReplace, replacementID) {
 /**
  * Updates linked group info and and group info for all devices that are 
  * children of the linked group.
- *
- * TODO also process any other data sent from the device being linked with.
  *
  * @param {Object[]} existingGroups existing groups on linked device
  * @param {Object[]} existingData existing data on linked device
@@ -1911,15 +1900,6 @@ function checkPermissions(payload, srcPubkey) {
       if (hasAdminPriv(srcPubkey, payload.value.admins, false)) {
         permissionsOK = true;
       }
-      // FIXME when adding new admin-priv group to a group with already >1 
-      // admin, both of these above checks fail (parent b/c no parents exist 
-      // since it's a new group, and admins b/c the "listIntersect" of all
-      // admins == the added group (which is being added by another group,
-      // doesn't make sense for it to be able to add itself)
-      // does adding admin privs after creating the group was only a workaround
-      // for this same issue when adding a second admin to a group (e.g. the
-      // problem will come back for the 3rd, 4th, etc # admin)
-      // probably need a special flag or msgType for this TODO think
       break;
     }
     case ADD_PARENT:

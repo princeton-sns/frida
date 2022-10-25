@@ -9,7 +9,7 @@ The server is responsible for forwarding messages and imposing a relative order\
 
 % A simple routing server that upholds relative order for any two clients can be
 % built using a transactional database. 
-The \name{} server is built on top of a database with serializable transactions. Each table in the database represents a mailbox, and each row holds all the information of a message. When the server recieves a batch of messages it performs a transaction appending each message as a row to the appropriate table. Clients read the messages from the table in first-in first-out order, and delete messages after recieving them. This approach s scales with distributed databases. 
+% The \name{} server is built on top of a database with serializable transactions. Each table in the database represents a mailbox, and each row holds all the information of a message. When the server recieves a batch of messages it performs a transaction appending each message as a row to the appropriate table. Clients read the messages from the table in first-in first-out order, and delete messages after recieving them. This approach s scales with distributed databases. 
 
 \todo{small wordy proof about how serializable transactions guarantee relative (if not total) order}
 
@@ -23,8 +23,23 @@ The \name{} server is built on top of a database with serializable transactions.
 Most application functionality in the proposed two-tier architecture is performed on clients, including storing data, facilitating interactions with different users, and managing permissions. The \name{} client-side library exposes a simple API that ensures these functionalities are implemented correctly and consistently across clients and applications. The library facilitates interactions with the local data store (including permissions and maintaining data invariants), sharing across devices and users, and encryption.  
 
 \parlabel{Developer API}
+\todo{do this when specifics are finalized}
+\begin{itemize}
+    \item New User
+    \item New device under user
+    \item establishing connection between to users / defining group
+    \item new shared data object
+    \item imposing data invariants
+        \begin{itemize}
+            \item logical invariant
+            \item conflict resolution
+            \item group and permissions
+        \end{itemize}
+\end{itemize}
 
 \parlabel{Sharing Protocol}
+Trust is established between any two clients by exchanging public keys. \todo{talk about discovery, establishing relationship and exchanging user group information}
+
 When a change to any data object is initiated on a client, the client references the \textit{group} field of the data and gets a list of all clients this data is shared with, each with their own copies. Groups are discussed more thoroughly later on in this section. The client encrypts the message describing the change multiple times, once for each destination client and once for itself. The client then sends this batch of messages to the server. The server forwards each encrypted message to the appropriate destination clients. 
 
 A client recieves messages through its mailbox on the server. Each message describes a change to be performed to a local shared object. A client can choose to accept or reject this change based on the conflict resolution scheme of the object. Whether a change is accepted and committed is deterministic on all clients, as changes are only committed after they've been read from the server, even on the client that initiated the data change. Since the server guarantees an ordering of messages across releavant clients, all clients will reach the same decision on whether to apply a given change, so that data is consistent across client copies. 
@@ -60,4 +75,12 @@ If a client is malicious and attempts to write and dispatch a change to other cl
 \parlabel{Data Invariants}
 The \name{} client-side library facilitates application interactions with a local storage mechanism, e.g. localStorage in browsers, sqlite on smartphones. Applications read and write to storage as usual, but or any shared data, the library will track the change and propagate them to other clients. Likewise, any remote changes recieved from other clients will be applied automatically by the library.
 
-Fascilitating interactions with the underlying data storage mechanism allows \name{} applications to check data invariants before applying changes. \todo{maybe in impl -> what is the interface for defining data invariants}
+Fascilitating interactions with the underlying data storage mechanism allows \name{} applications to check data invariants before applying changes. \todo{what is the notation for this}
+%  \todo{maybe in impl -> what is the interface for defining data invariants}
+
+\subsection{Security}
+\parlabel{Byzantine Clients}
+Detecting malicious interference by clients is handled on the data invariant level.
+
+\parlabel{Reordering Server}
+Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}

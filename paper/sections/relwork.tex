@@ -1,4 +1,4 @@
-\section{Related Work}
+\section{Background and Related Work}
 
 \paragraph{Private messaging.}
 Signal \cite{signal} establishes a privacy protocol for instant messaging, in which messages between users are end-to-end encrypted with additional session keys to achieve forward secrecy in the presence of compromised keys. Group information is stored encrypted on the server, but the server is not entirely oblivious to all group information as it "special". The server also knows which devices belong to which users (a kind of group). Signal leverages other specific properties about messaging in their highly-specific protocol, such as weaker consistency needs and simple application invariants (messages should be appended).
@@ -6,6 +6,59 @@ Signal \cite{signal} establishes a privacy protocol for instant messaging, in wh
 Whatsapp \cite{whatsapp}.
 Matrix \cite{matrix}.
 Stadium \cite{stadium}.
+
+\paragraph{Encryption.}
+Signal \cite{signal} and Matrix \cite{matrix} both provide a set of end-to-end encrypted messaging APIs for private, decentralized communication in an asynchronous settings where 
+clients are intermittently offline. \todo{Describe the high-level properties/guarantees the protocols achieve, like forward secrecy.} In this section we summarize/compare/contrast the encryption protocols of both systems.
+
+Largely, both protocols follow these steps: 
+\begin{enumerate}
+\item
+an initial key-agreement/exchange algorithm using (at least)
+triple diffie-hellman to establish an initial shared secret 
+key on the initiator's end, 
+\item the initiator sends an initial message encrypted via
+(a key derived from) the secret key to the recipient,
+\item on both devices, additional keys are generated from 
+the shared secret key for the double ratchet algorithm, at 
+which point we can say that a session for this pair of 
+devices has been created,
+\item One ratchet does \todo{XYZ}, which repeats for every message.
+\item Mention how sessions must be managed between all
+groups/pairs of devices.
+\end{enumerate}
+
+Notable points:
+\begin{itemize}
+\item One-time and session keys are used for forward secrecy
+\end{itemize}
+
+Differences between the two:
+\begin{enumerate}
+\item
+Signal's key agreement uses slightly different keys than Olm
+(Matrix's cryptographic library) and thus is denoted as extended
+triple diffie hellman (whereas Olm is just diffie-hellman).
+Olm uses one identity key 
+and one one-time key per client (where the recipient's 
+one-time key is published to the server and obtained by the
+initiator). Signal uses one identity key per client, an 
+ephemeral key for the initiating client (which does not leave
+the client), and a bundle published to the server containing
+a signed prekey and a one-time key for the receiving client.
+\temp{Signal's one-time key seems to be optional, maybe if high load and the receiving client cannot upload quickly enough, this could help with performance. Have not yet found an actualy explanation this is just my guess.}
+All identity keys (in both protocols) are published to the server.
+\item Olm uses authenticated encryption, and encrypts the first message with a message key derived from the 
+secret key (referred to as the message key). Signal does 
+not seem to use authenticated 
+encryption, and allows the option to either use the secret
+key directly to encrypt the first message, or another key
+derived from it (via a perfectly-random-function). The first
+message in each protocol also has slightly different 
+contents.
+\item Olm generates three additional keys: a root, chain, 
+and ratchet key.
+\end{enumerate}
 
 \paragraph{Untrusted servers.}
 SPORC \cite{sporc} presents a similar application model that primarily leverages the server to establish a global order of events and remaining functionality is handled on the client. However, the SPORC server has a predefined notion of groups and any group modifications are visible to the server, whereas the \name server is completely oblivious to any notion of groups and treats them just like all other data. SPORC also focuses on "operational transform" applications in which operations are meaningful regardless of the order they are applied in. This property is not the case for most applications (and most applications that \name supports), where some operations can be invalidated by others. Furthermore, SPORC does not generalize their application model, although they hint that it could be done, nor does it examine how application invariants could be maintained in the face of malicious or buggy clients. 
@@ -15,3 +68,6 @@ Depot \cite{depot}.
 Mylar \cite{mylar}.
 CryptDB \cite{cryptdb}.
 
+\paragraph{Peer to peer systems.}
+
+Bayou \cite{}.

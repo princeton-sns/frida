@@ -253,10 +253,7 @@ async function sendMessage(dstIdkeys, payload) {
   let batch = new Array();
   let srcIdkey = getIdkey();
 
-  console.log("sending to...");
-  console.log(dstIdkeys);
   for (let dstIdkey of dstIdkeys) {
-    console.log(dstIdkey);
     let encPayload = await c.encrypt(
       db.toString(payload),
       dstIdkey,
@@ -267,8 +264,6 @@ async function sendMessage(dstIdkeys, payload) {
       encPayload: encPayload,
     });
   }
-  console.log(batch);
-  console.log(srcIdkey);
 
   // send message to server
   sc.sendMessage({
@@ -315,7 +310,7 @@ export function onMessage(msg) {
     return;
   }
   console.log("SUCCESS");
-  // FIXME need to await? (updateGroup is async)
+  // FIXME need to await? (updateGroup is async) but also nothing to wait for...
   demuxFunc(payload);
 }
 
@@ -417,7 +412,6 @@ export async function createLinkedDevice(dstIdkey, deviceName = null) {
   if (dstIdkey !== null) {
     let { idkey, linkedName } = await initDevice(null, deviceName);
     console.log(idkey);
-    console.log(linkedName);
     let linkedMembers = getAllSubgroups([linkedName]);
     // construct message that asks dstIdkey's device to link this device
     setOutstandingLinkIdkey(dstIdkey);
@@ -678,12 +672,10 @@ async function updateGroup({ groupID, value }) {
   let contacts = getContacts();
   // if contactLevel = true but not in contacts, add
   if (value.contactLevel && !contacts.includes(groupID)) {
-    console.log("add to contacts");
     await addChildHelper(CONTACTS, groupID, resolveIDs([LINKED], getIdkey()));
   }
   // if in contacts but contactLevel = false, make contactLevel = true
   if (!value.contactLevel && contacts.includes(groupID)) {
-    console.log("set contactLevel to true");
     value.contactLevel = true;
   }
   setGroup(groupID, value);
@@ -2164,7 +2156,11 @@ function validate(payload) {
 //}
 
 //function getChecked(key) {
+//  console.log("checking permissions then getting");
+//  db.get(key);
 //}
 //
 //function getUnchecked(key) {
+//  console.log("getting without permission checks");
+//  db.get(key);
 //}

@@ -170,8 +170,8 @@ function generateOtkeys(numOtkeys) {
   };
 }
 
-// every device has one set of identity keys and several sets of one-time keys, the
-// public counterparts of which should all be published to the server
+// every device has one set of identity keys and several sets of one-time keys,
+// the public counterparts of which should all be published to the server
 export async function generateKeys() {
   let { idkey, otkeys } = generateOtkeys(initNumOtkeys);
   setIdkey(idkey);
@@ -197,8 +197,8 @@ async function encryptHelper(plaintext, dstIdkey) {
   console.log("REAL ENCRYPT -- ");
   let sess = getSession(dstIdkey);
 
-  // if sess is null, initiating communication with new device; create outbound session
-  // if sess does not have a received message, generate a newsession
+  // if sess is null (initiating communication with new device) or sess does not
+  // have a received message => generate new outbound session
   if (sess === null || !sess.has_received_message()) {
     let acct = getAccount();
     if (acct === null) {
@@ -240,8 +240,8 @@ function decryptHelper(ciphertext, srcIdkey) {
   console.log("REAL DECRYPT -- ");
   let sess = getSession(srcIdkey);
 
-  // if receiving communication from new device (or message
-  // was encrypted with a one-time key) create inbound session
+  // if receiving communication from new device or message was encrypted with
+  // a one-time key, generate new inbound session
   if (sess === null || ciphertext.type === 0) {
     sess = createInboundSession(srcIdkey, ciphertext.body);
     if (sess === null) {

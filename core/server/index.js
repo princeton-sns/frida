@@ -144,7 +144,7 @@ io.on("connection", (socket) => {
 
   socket.on("getOtkey", ({ srcIdkey, dstIdkey }) => {
     console.log();
-    console.log("removing otkey");
+    console.log("getting and removing otkey");
     if (!devices[dstIdkey]) {
       console.log("device does not exist");
       console.log(dstIdkey);

@@ -47,10 +47,6 @@ const OUTSTANDING_IDKEY = "__outstandingIdkey";
 
 // FIXME need new special name for LINKED group (confusing when linking non-LINKED groups)
 
-// TODO implement a way for clients to check permissions and revert action before
-// it is propagated, e.g. if well-intentioned clients make a mistake don't want
-// to result in inconsistent state
-
 // valid message types
 const REQ_UPDATE_LINKED     = "requestUpdateLinked";
 const CONFIRM_UPDATE_LINKED = "confirmUpdateLinked";
@@ -241,9 +237,6 @@ export function disconnectDevice() {
  * Called like: sendMessage(resolveIDs(id), payload) (see example in 
  * deleteAllLinkedDevices()).
  *
- * TODO generate new otkey for every message? why do signal/matrix 
- * generate a batch at a time?
- *
  * @param {string[]} dstIdkeys public keys to send message to
  * @param {Object} payload message contents
  *
@@ -377,7 +370,7 @@ async function initDevice(linkedName = null, deviceName = null) {
   }
   createGroup(LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
   createGroup(linkedName, null, false, [LINKED], [idkey], [linkedName], [linkedName]);
-  createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName], []);
+  createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName]);
 
   createGroup(CONTACTS, null, false, [], [], [linkedName], [linkedName]);
 
@@ -469,9 +462,6 @@ function removeOutstandingLinkIdkey() {
  * Creates a new group for the requesting device, adds the new group ID to the 
  * current device's linked group, and send the requesting device the list of 
  * and group information of any existing devices (including the current one).
- *
- * TODO send other data from this device (e.g. app data)? Would be useful for 
- * backups.
  *
  * @param {string} tempName temporary name of device requesting to link
  * @param {string} srcIdkey idkey of device requesting to link
@@ -577,6 +567,16 @@ function groupReplaceHelper(key, fullGroup, IDToReplace, replacementID) {
   }
 }
 
+/**
+ * Helper function that checks if the specified ID is in the specified 
+ * group field's list.
+ *
+ * @param {string} key name of group field to check
+ * @param {Object} fullGroup actual group to check 
+ * @param {string} IDToCheck id to check for
+ *
+ * @private
+ */
 function groupContainsHelper(key, fullGroup, IDToCheck) {
   if (fullGroup.value[key]?.includes(IDToCheck)) {
     return true;
@@ -610,6 +610,15 @@ function groupReplace(group, IDToReplace, replacementID) {
   return updatedGroup;
 }
 
+/**
+ * Checks if specified ID is in any of a group's fields.
+ *
+ * @param {Object} group group to modify
+ * @param {string} IDToCheck id to check for
+ * @returns {boolean}
+ *
+ * @private
+ */
 function groupContains(group, IDToCheck) {
   if (group.id === IDToCheck) {
     return true;
@@ -625,8 +634,6 @@ function groupContains(group, IDToCheck) {
 /**
  * Updates linked group info and and group info for all devices that are 
  * children of the linked group.
- *
- * TODO also process any other data sent from the device being linked with.
  *
  * @param {Object[]} existingGroups existing groups on linked device
  * @param {Object[]} existingData existing data on linked device
@@ -863,6 +870,11 @@ export async function deleteDevice() {
   deleteSelf(idkey);
 }
 
+/**
+ * Helper function for deleting the current device.
+ *
+ * @param {string} idkey current device's identity key
+ */
 function deleteSelf(idkey) {
   sc.removeDevice(idkey);
   sc.disconnect(idkey);
@@ -954,8 +966,8 @@ function createGroup(ID, name, contactLevel, parents, children, admins, writers)
  *
  * @private
  */
-function createKey(ID, name, contactLevel, parents, admins, writers, otkeys) {
-  setGroup(ID, new Key(name, contactLevel, parents, admins, writers, otkeys));
+function createKey(ID, name, contactLevel, parents, admins, writers) {
+  setGroup(ID, new Key(name, contactLevel, parents, admins, writers));
 }
 
 const listRemoveCallback = (ID, newList) => {
@@ -1791,9 +1803,6 @@ async function shareData(prefix, id, toShareGroupID) {
       errCode: 0,
     };
   }
-  // TODO also share missing contact info? or else how to prevent group/data
-  // from getting out of sync due to holes in who-knows-who (assuming originating
-  // party does not make all modifications to shared object)
   return { ...retval, errCode: 0 };
 }
 

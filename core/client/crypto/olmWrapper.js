@@ -240,32 +240,16 @@ function decryptHelper(ciphertext, srcIdkey) {
   console.log("REAL DECRYPT -- ");
   let sess = getSession(srcIdkey);
 
-  // if receiving communication from new device; create inbound session
-  if (sess === null) {
+  // if receiving communication from new device (or message
+  // was encrypted with a one-time key) create inbound session
+  if (sess === null || ciphertext.type === 0) {
     sess = createInboundSession(srcIdkey, ciphertext.body);
     if (sess === null) {
       return "{}";
     }
   }
 
-  let plaintext;
-  try {
-    plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
-  } catch (err) {
-    // error will be thrown if receiving msg from device that has already sent 
-    // a msg but this device has not yet replied - sending device has
-    // created a new outbound session from new otkey due to no response, so
-    // this device should create a new inbound session upon this error
-    // FIXME find something to check in advance rather than try/catch block
-    console.log(err);
-    sess.free();
-    sess = createInboundSession(srcIdkey, ciphertext.body);
-    if (sess === null) {
-      return "{}";
-    }
-    plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
-  }
-
+  let plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
   setSession(sess, srcIdkey);
   sess.free();
   console.log(db.fromString(plaintext));

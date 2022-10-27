@@ -6,12 +6,12 @@
     \begin{itemize}
         \item explain dummy app, knobs we tune
         \item end-to-end w/little conflict
-        \item conflict -> how bad is it? are txn overheads for conflicting groups horrible? where does bottleneck come from?
+        \item conflict on server -> how bad is it? are txn overheads for conflicting groups horrible? where does bottleneck come from?
     \end{itemize}
     \item Client
     \begin{itemize}
-        \item storage overheads -> storing X amount of data w/tracking metadata requirex X*5 data on device
-        \item latency for change to be committed w/no conflict
+        \item storage overheads -> storing X amount of data w/tracking metadata requirex X*5 data on device, including data for groups, dependency tree, and any snapshots
+        \item latency for change to be committed w/no conflict (including latencies for ops on dependency tree)
     \end{itemize}
 \end{itemize}
 }

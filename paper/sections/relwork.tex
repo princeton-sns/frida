@@ -5,40 +5,47 @@ Signal \cite{signal} establishes a privacy protocol for instant messaging, in wh
 
 Whatsapp \cite{whatsapp}.
 Matrix \cite{matrix}.
-Stadium \cite{stadium}.
 
-\paragraph{Encryption.}
-Signal \cite{signal} and Matrix \cite{matrix} both provide a set of end-to-end encrypted messaging APIs for private, decentralized communication in an asynchronous settings where 
-clients are intermittently offline. \todo{Describe the high-level properties/guarantees the protocols achieve, like forward secrecy.} In this section we summarize/compare/contrast the encryption protocols of both systems.
+Stadium \cite{stadium}. \todo{different subsection for different flavor of private messaging.}
 
-Largely, both protocols follow these steps: 
+\paragraph{Encryption.} \todo{maybe combine with private messaging subsection, although still good to have some separation between encryption and rest of protocol.}
+Signal \cite{signal} and Matrix \cite{matrix} both provide a set of end-to-end 
+encrypted messaging APIs for private, decentralized communication in an 
+asynchronous settings (clients 
+can be intermittently offline). Both protocols achieve forward secrecy (where
+the confidentiality of older messages is preserved in the face of a compromised
+key) 
+\todo{and backwards secrecy?}.
+
+They achieve this through the double ratchet algorithm \cite{}, in which
+two clients each start with a shared secret key (established through an initial
+key-agreement protocol). An initiator client computes the initial shared secret 
+key using it's own public/private keys and the public (possibly-signed) key
+counterparts of the recipient, and sends an initial message to the recipient
+encrypted with the secret key (or some derivation of it). When both the initiator
+and recipient are able to compute this shared secret key, a double ratchet session
+has started. Then each subsequent message sent using this session is encrypted with
+a new key derived from the shared secret key, these keys forming a chain of keys
+such that a compromised key somewhere in that chain does not affect the 
+confidentiality of messages encrypted with earlier or later keys. \todo{Describe
+double ratchet in a bit more detail.} A double
+ratchet session exists for every pair of devices \todo{and separately, every
+group?}, and all sessions must be appropriately managed. 
+
+An example
+of session-management complexity is when the initial message is received by the
+recipient but not replied to. A session is technically created on the recipient
+but the sender must assume that it was not, because it was never confirmed. 
+Therefore, if the sender wants to send another message to the recipient, it must
+re-execute the key-agreement algorithm and generate a new session. This process
+is repeated until the recipient replies to the sender under one of the sessions.
+\todo{more broad session management stuff?}
+
+Differences between the two \todo{need to synthesize this more}:
 \begin{enumerate}
-\item
-an initial key-agreement/exchange algorithm using (at least)
-triple diffie-hellman to establish an initial shared secret 
-key on the initiator's end, 
-\item the initiator sends an initial message encrypted via
-(a key derived from) the secret key to the recipient,
-\item on both devices, additional keys are generated from 
-the shared secret key for the double ratchet algorithm, at 
-which point we can say that a session for this pair of 
-devices has been created,
-\item One ratchet does \todo{XYZ}, which repeats for every message.
-\item Mention how sessions must be managed between all
-groups/pairs of devices.
-\end{enumerate}
-
-Notable points:
-\begin{itemize}
-\item One-time and session keys are used for forward secrecy
-\end{itemize}
-
-Differences between the two:
-\begin{enumerate}
-\item
-Signal's key agreement uses slightly different keys than Olm
-(Matrix's cryptographic library) and thus is denoted as extended
-triple diffie hellman (whereas Olm is just diffie-hellman).
+\item Signal implements \textit{extended} triple diffie-hellman for it's key agreement
+algorithm, which uses slightly different/more keys than Olm's (Matrix's crypto 
+lib) implementation of triple diffie-hellman (not extended).
 Olm uses one identity key 
 and one one-time key per client (where the recipient's 
 one-time key is published to the server and obtained by the
@@ -47,17 +54,19 @@ ephemeral key for the initiating client (which does not leave
 the client), and a bundle published to the server containing
 a signed prekey and a one-time key for the receiving client.
 \temp{Signal's one-time key seems to be optional, maybe if high load and the receiving client cannot upload quickly enough, this could help with performance. Have not yet found an actualy explanation this is just my guess.}
-All identity keys (in both protocols) are published to the server.
-\item Olm uses authenticated encryption, and encrypts the first message with a message key derived from the 
-secret key (referred to as the message key). Signal does 
-not seem to use authenticated 
-encryption, and allows the option to either use the secret
+All identity keys (in both protocols) are long-term and are published to the server.
+\item Olm uses authenticated encryption. Signal does not seem to use authenticated 
+encryption, but does require that one of the keys in the pre-key bundle be 
+signed. 
+\item Signal allows client to either use the secret
 key directly to encrypt the first message, or another key
-derived from it (via a perfectly-random-function). The first
-message in each protocol also has slightly different 
-contents.
-\item Olm generates three additional keys: a root, chain, 
-and ratchet key.
+derived from it (via a perfectly-random-function). Olm always encrypts the first
+message with a key derived from the secret key (the message key).
+\item The contents of the first message are slightly different.
+\item When a session is established, Olm generates three additional keys: a root, 
+chain, and ratchet key (in addition to the message key). Signal also generates
+three keys by different names (\todo{check overlaps in meaning}): a root, 
+sender, and receiving chain.
 \end{enumerate}
 
 \paragraph{Untrusted servers.}

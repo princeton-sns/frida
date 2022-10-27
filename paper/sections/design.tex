@@ -83,4 +83,96 @@ Fascilitating interactions with the underlying data storage mechanism allows \na
 Detecting malicious interference by clients is handled on the data invariant level.
 
 \parlabel{Reordering Server}
-Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}
+\fix{
+Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}}
+
+Each client library utilizes a dependence graph of events to detect a malicious server which may drop or reorder messages.
+
+\todo{
+    \begin{itemize}
+        \item data structure ->
+        \item how do we detect reordering
+        \item how and when to trim
+        \item when to snapshot / agree on a snapshot
+        \item how do we show consistency
+        \item overheads of trimming
+        \item upper bounds on storage
+    \end{itemize}
+}
+
+
+\parlabel{Data Structure}
+
+\texttt{
+    events: set of events, event -> [hash, dependencies, revDependencies, local sequeence number] \\ \\
+    rootNodes: set of root nodes \\
+    leaves: set of leaf node \\
+    locSeq = local sequencer \\
+    devices: set of devices -> each device has a set of events \\
+    removedDevices: set of removed devices
+}
+
+\parlabel{Adding Event}
+% // 1. we hold this dependency event in our (pruned) DAG. We only prune
+% //    events to which correctly implemented devices will never make a
+% //    reference to.
+% // 2. dependencies are in the order in which we've received them
+% // 3. it does not collide with the eventHash, to retain the acyclic nature
+% //    of the graph
+
+\begin{enumerate}
+    \item if \{ event e in events\} abort;
+    \item for d := e.dependencies in order; s = 0;
+    \begin{enumerate}
+        \item if \{d not in events\} abort
+        \item if \{d.setqId < s\} abort
+        \item s = d.seqId + 1
+        \item hash(d) != hash(e)
+    \end{enumerate}
+    \item events.push(e[seqId = locSeq++])
+    \item for d:= e.dependecies
+    \begin{enumerate}
+        \item events[d].revDependencies.push(e)
+    \end{enumerate}
+    \item if e.dependecies == $\emptyset$ then rootNodes.push(e)
+    \item for d:= e.dependecies
+    \begin{enumerate}
+        \item if leaves.includes(d) then leaves.remove(d)
+    \end{enumerate} 
+    \item leaves.push(e) 
+\end{enumerate}
+
+now we have to update seen metadata from sender device
+
+\begin{enumerate}
+    \item initialize l := list of all current roots
+    \item while length(l)>0 
+    \begin{enumerate}
+        \item choose e := l.pop()
+        \item if devices[sender].contains(e), abort;
+        \item else devices[sender].add(e)
+        \item l.add(e.dependecies)
+    \end{enumerate}
+\end{enumerate}
+
+\parlabel{Trimming}
+\begin{enumerate}
+    \item initialize l := list of all current roots
+    \item while length(l)>0 
+    \begin{enumerate}
+        \item choose n := l.pop()
+        \item iterate over \{devices-removedDevices\}, check if each has seen at least one reverse dependency of n; else continue
+        \item for rvDep in n.revDependencies;  if rvDep depends on another node in the set of events that is not n; rootNodes.push(rvDep); l.push(rvDep) ; else \{\}
+        \item events.pop(n), nodes.pop(n)
+    \end{enumerate}
+\end{enumerate}
+
+\parlabel{Add Device}
+\noindent
+\texttt{devices.push(deviceID)}
+
+\parlabel{Remove device}
+
+\parlabel{Snapshot}
+
+

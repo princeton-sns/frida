@@ -86,7 +86,11 @@ Detecting malicious interference by clients is handled on the data invariant lev
 \fix{
 Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}}
 
-Each client library utilizes a dependence graph of events to detect a malicious server which may drop or reorder messages.
+Each client library utilizes a dependence graph of events to detect a malicious server which may drop or reorder messages. This dependence graph is constructed for all events on a device, and has no application-level notions of groups or shared objects.
+
+For example: if device A sends event to devices B and C, where C receives the message out of order in comparison to other messages shared with user B--user C will only be able to detect a malicious server when it interacts with user B again. If an event is dropped only for one device. It is able to detect that message was dropped once it recieves a message from a device that recieved the dropped message. 
+
+\todo{need to prove that you are able to detect reordering within at most two round trips between the two devices. Prove that this is essentially sequential consistency }
 
 \todo{
     \begin{itemize}
@@ -103,8 +107,8 @@ Each client library utilizes a dependence graph of events to detect a malicious 
 
 \parlabel{Data Structure}
 
-\texttt{
-    events: set of events, event -> [hash, dependencies, revDependencies, local sequeence number] \\ \\
+\texttt{ 
+    events: set of events, event -> [hash, dependencies, revDependencies, local sequence number, list of devices that have seen this event] \\ \\
     rootNodes: set of root nodes \\
     leaves: set of leaf node \\
     locSeq = local sequencer \\
@@ -112,7 +116,7 @@ Each client library utilizes a dependence graph of events to detect a malicious 
     removedDevices: set of removed devices
 }
 
-\parlabel{Adding Event}
+\parlabel{Adding Event Recieved}
 % // 1. we hold this dependency event in our (pruned) DAG. We only prune
 % //    events to which correctly implemented devices will never make a
 % //    reference to.
@@ -120,6 +124,7 @@ Each client library utilizes a dependence graph of events to detect a malicious 
 % // 3. it does not collide with the eventHash, to retain the acyclic nature
 % //    of the graph
 
+\noindent Adding event received from other client.
 \begin{enumerate}
     \item if \{ event e in events\} abort;
     \item for d := e.dependencies in order; s = 0;
@@ -153,6 +158,18 @@ now we have to update seen metadata from sender device
         \item else devices[sender].add(e)
         \item l.add(e.dependecies)
     \end{enumerate}
+\end{enumerate}
+
+
+\parlabel{Adding event initiated on own device}
+
+\begin{enumerate}
+    \item iterate over list of own devices, for d
+    \begin{enumerate}
+        \item events-or-device-d = empty
+        \item iterate over list of node leafs, for e, if e.devices.includes(d), events-for-device-d.append(e)
+    \end{enumerate}
+    \item append list of events to message
 \end{enumerate}
 
 \parlabel{Trimming}

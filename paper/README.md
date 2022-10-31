@@ -14,6 +14,10 @@ nix-shell
 make
 ```
 
+### View PDF
+
+TODO
+
 ## On Linux
 
 ### Install required packages
@@ -39,6 +43,20 @@ make
 
 ```sh
 evince paper.pdf
+```
+
+## On Mac
+
+### Build
+
+```sh
+make
+```
+
+### View PDF
+
+```sh
+open paper.pdf
 ```
 
 ## Work distribution

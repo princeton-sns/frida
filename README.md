@@ -2,10 +2,16 @@
 
 ## Documentation
 
-To build documentation, run:
+In the root directory of this repository (the current directory), run:
+
+```sh
+npm install
+```
+
+to build dependencies. Then run:
 
 ```sh
 make
 ```
 
-from this repository's root directory. Then open `doc/index.html` in your preferred browser to view.
+to actually build the documentation. Then open `doc/index.html` in your preferred browser to view the documentation.

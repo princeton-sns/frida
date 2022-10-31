@@ -80,7 +80,6 @@ function handleOffline(
       data: data,
     });
     console.log("updated mailbox");
-    printDevices();
   }
   console.log("-- done handling offline");
 }
@@ -117,7 +116,8 @@ io.on("connection", (socket) => {
     devices[idkey] = { otkeys: otkeys, mailbox: [] };
     console.log();
     console.log("added device");
-    printDevices();
+    console.log(idkey);
+    console.log(otkeys);
   });
 
   socket.on("removeDevice", (idkey) => {
@@ -125,13 +125,16 @@ io.on("connection", (socket) => {
     delete deviceToSocket[idkey];
     console.log();
     console.log("deleted device");
-    printDevices();
+    console.log(idkey);
   });
 
 
   socket.on("addOtkeys", ({ idkey, otkeys }) => {
     console.log();
     console.log("adding otkeys");
+    console.log(idkey);
+    console.log(devices[idkey].otkeys);
+    console.log(otkeys);
     // TODO lock needed?
     if (devices[idkey]) {
       devices[idkey].otkeys = {
@@ -139,12 +142,15 @@ io.on("connection", (socket) => {
         ...otkeys
       };
     }
-    printDevices();
   });
 
   socket.on("getOtkey", ({ srcIdkey, dstIdkey }) => {
     console.log();
     console.log("getting and removing otkey");
+    console.log("requesting device");
+    console.log(srcIdkey);
+    console.log("device with otkeys requested");
+    console.log(dstIdkey);
     if (!devices[dstIdkey]) {
       console.log("device does not exist");
       console.log(dstIdkey);
@@ -155,8 +161,10 @@ io.on("connection", (socket) => {
       return;
     }
     let dstOtkeys = devices[dstIdkey].otkeys;
+    console.log("current otkeys");
+    console.log(dstOtkeys);
     let numOtkeys = Object.keys(dstOtkeys).length;
-    console.log("num otkeys left: " + numOtkeys);
+    console.log("num otkeys currently: " + numOtkeys);
     let key;
     let dstOtkey;
     let keysArr = Object.keys(dstOtkeys);
@@ -165,14 +173,18 @@ io.on("connection", (socket) => {
       dstOtkey = dstOtkeys[key];
       break;
     }
+    console.log("otkey sent to srcIdkey");
+    console.log(dstOtkey);
     if (numOtkeys < 6) {
+      console.log("requesting more otkeys");
       io.to(deviceToSocket[dstIdkey]).emit("addOtkeys", {});
     }
     // remove otkey from server
     delete dstOtkeys[key];
+    numOtkeys = Object.keys(dstOtkeys).length;
+    console.log("num otkeys left: " + numOtkeys);
     // updated devices (TODO needs a lock?)
     devices[dstIdkey].otkeys = dstOtkeys;
-    printDevices();
     // send otkey to srcIdkey
     io.to(deviceToSocket[srcIdkey]).emit("getOtkey", {
       idkey: dstIdkey,

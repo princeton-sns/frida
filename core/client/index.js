@@ -21,15 +21,6 @@ import * as c from  "./crypto/olmWrapper.js";
 import * as db from "./db/localStorageWrapper.js";
 
 export { db };
-// FIXME export sc for crypto only - how to export for just this module?
-// TODO try just importing sc from crypto file
-/* Export for crypto */
-export const getOtkeyFromServer = sc.getOtkeyFromServer;
-export const addDevice = sc.addDevice;
-
-/* Export for serverComm */
-export const setOtkey = c.setOtkey;
-export const generateMoreOtkeys = c.generateMoreOtkeys;
 
 /* Export for Apps */
 export const getIdkey = c.getIdkey;
@@ -204,27 +195,6 @@ export async function init(ip, port, config) {
   }
 }
 
-/**
- * Connects the device to the server, e.g. when a client adds a new
- * device or when a previously-added device comes back online.
- *
- * @param {?string} idkey public key of current device
- */
-export function connectDevice(idkey = null) {
-  if (idkey !== null) {
-    sc.connect(idkey);
-  } else {
-    sc.connect(getIdkey());
-  }
-}
-
-/**
- * Simulates offline devices
- */
-export function disconnectDevice() {
-  sc.disconnect(getIdkey());
-}
-
 /*
  **********************
  * Message Processing *
@@ -242,7 +212,6 @@ export function disconnectDevice() {
  */
 async function sendMessage(dstIdkeys, payload) {
   let batch = new Array();
-  let srcIdkey = getIdkey();
 
   console.log("sending from...");
   console.log(srcIdkey);
@@ -256,15 +225,14 @@ async function sendMessage(dstIdkeys, payload) {
       turnEncryptionOff
     );
     batch.push({
-      dstIdkey: dstIdkey,
-      encPayload: encPayload,
+      deviceId: dstIdkey,
+      payload: encPayload,
     });
   }
   console.log(batch);
 
   // send message to server
   sc.sendMessage({
-    srcIdkey: srcIdkey,
     batch: batch,
   });
 }
@@ -286,14 +254,13 @@ async function sendMessage(dstIdkeys, payload) {
  */
 export async function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
-  console.log(msg);
   let payload = db.fromString(c.decrypt(
       msg.encPayload,
-      msg.srcIdkey,
+      msg.sender,
       turnEncryptionOff
   ));
 
-  let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcIdkey);
+  let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.sender);
   if (demuxFunc === undefined) {
     printBadMessageError(payload.msgType);
     return;
@@ -785,6 +752,20 @@ export function getPendingContacts() {
  */
 
 /**
+ * Deletes the current device's data and removes it's public key from
+ * the server.
+ */
+export async function deleteDevice() {
+  // notify all direct parents and contacts that this group should be removed
+  let idkey = getIdkey();
+  await sendMessage(resolveIDs(getParents(idkey).concat([CONTACTS]), idkey), {
+    msgType: DELETE_GROUP,
+    groupID: idkey,
+  });
+  deleteSelf();
+}
+
+/**
  * Helper function for deleting the current device.
  *
  * @param {string} idkey current device's identity key
@@ -793,7 +774,6 @@ async function deleteDeviceLocally() {
   // notify all direct parents and contacts that this group should be removed
   let idkey = getIdkey();
   await deleteGroup(idkey, resolveIDs(getParents(idkey).concat([CONTACTS])));
-  sc.removeDevice(idkey);
   sc.disconnect(idkey);
   db.clear();
   onUnauth();

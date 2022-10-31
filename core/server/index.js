@@ -78,7 +78,7 @@ app.post('/message', (req, res) => {
   batch.forEach(({ deviceId, payload }) => {
     let device = devices[deviceId];
     if (device?.socket && device?.mailbox) {
-      device.socket.emit('noiseMessage', device.mailbox);
+      device.socket.emit('noiseMessage', [device.mailbox.at(-1)]);
     }
   });
   res.send({});

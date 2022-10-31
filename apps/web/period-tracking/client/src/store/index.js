@@ -15,9 +15,38 @@ frida.init(serverIP, serverPort, {
   onUnauth: () => {
     router.push("/register");
   },
+  validateCallback: (payload) => validateFunc(payload),
   storagePrefixes: [symptomPrefix, periodPrefix],
   encrypt: false,
 });
+
+const validateFunc = (payload) => {
+  let keys = payload.key.split("/");
+
+  // invariant = period setting is one of the predefined values
+  if (keys.includes("period")) {
+    
+    // invariant = period setting is one of the predefined values
+    let i = payload.value.data.period; 
+    if (i != "spotting" 
+        && i !="low" 
+        && i!="medium" 
+        && i!= "high"
+    ){
+        return false;
+    }
+
+    // invariant = no more than one period per day
+    let key = keys[0].concat("/", keys[1], "/", keys[2], "/");
+    console.log(key);
+    console.log(frida.getData(key)); //TODO fix getData impl so we can pull all values with a certain prefix
+    if (frida.getData(key).length != 0) {
+      return false;
+    }
+  }
+
+  return true;
+};
 
 function createAppDBListenerPlugin() {
   return (store) => {
@@ -47,8 +76,13 @@ function createAppDBListenerPlugin() {
         }
       } else if (e.key.includes(periodPrefix)) {
         if (e.newValue == null && e.oldValue) {
+          // FIXME find a better way to match capture in key
+          // FIXME can't test if works until views are updated
+          let ts = frida.db.fromString(e.oldValue).data.timestamp;
+          let date = ts.toDate().concat(ts.toMonth(), ts.toYear());
+          console.log("timestamp" + ts);
           store.commit("REMOVE_PERIOD", {
-            id: frida.db.fromString(e.oldValue).data.id,
+            id: date.concat("/", frida.db.fromString(e.oldValue).data.id),
             remote: true,
           });
         } else {
@@ -94,11 +128,20 @@ const store = createStore({
     },
     ADD_PERIOD(state, { timestamp, period, id, remote }) {
       if (!remote) {
-        frida.setData(periodPrefix, id, {
-          id: id,
-          timestamp: timestamp,
-          period: period,
-        });
+        frida.setData(
+          periodPrefix.concat(
+            "/",
+            String(timestamp.getDate()),
+            String(timestamp.getMonth()),
+            timestamp.getYear()
+          ),
+          id,
+          {
+            id: id,
+            timestamp: timestamp,
+            period: period,
+          }
+        );
       }
       // TODO update state
     },

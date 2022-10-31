@@ -17,7 +17,7 @@
 % or alter individual messages in transit, but does not per- form timing
 % analysis on traffic patterns, e.g. to infer a social graph between devices.
 
-We assume a threat model with \temp{ an honest but curious server and} potentially malicious \temp{servers,} clients and network attackers. \temp{An honest but curious server preserves integrity by working as expected but is able to compromise privacy by insepcting user data it processes.} Users trust the integrity of \temp{servers and} the client-side library in the application model, as well as application code provided by developers. 
+We assume a threat model with potentially malicious servers, clients and network attackers. Users trust the integrity of the client-side library in the application model, as well as application code provided by developers. 
 
 \name{} servers are responsible for routing encrypted messages across clients. A malicious server can compromise cross-client communication but does not expose private user data. A malicious server can drop messages to all clients, drop messages to a subset of clients, or reorder messages for specific destination clients. 
 % The server does not store any data or metadata presistently, and only handles encrypted messages. 

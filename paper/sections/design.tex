@@ -73,9 +73,7 @@ If a client is malicious and attempts to write and dispatch a change to other cl
 
 
 \parlabel{Data Invariants}
-The \name{} client-side library facilitates application interactions with a local storage mechanism, e.g. localStorage in browsers, sqlite on smartphones. Applications read and write to storage as usual, but or any shared data, the library will track the change and propagate them to other clients. Likewise, any remote changes recieved from other clients will be applied automatically by the library.
-
-Fascilitating interactions with the underlying data storage mechanism allows \name{} applications to check data invariants before applying changes. \todo{what is the notation for this}
+The \name{} client-side library facilitates application interactions with a local storage mechanism. Fascilitating interactions with the underlying data storage mechanism allows \name{} applications to check data invariants before applying changes. Developers write validating boolean functions for all defined data types, which are dynamically checked when a change is set to be applied locally. 
 %  \todo{maybe in impl -> what is the interface for defining data invariants}
 
 \subsection{Security}

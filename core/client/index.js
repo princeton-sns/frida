@@ -84,7 +84,10 @@ let defaultOnUnauth = () => {};
 
 // default callback
 let defaultValidateCallback = (payload) => {
-  console.log("validating payload... " + db.toString(payload));
+  // dummy sanity check
+  if ( payload.key === null ){
+      return false;
+  }
   return true;
 }
 
@@ -1426,15 +1429,23 @@ function setDataHelper(key, data, groupID) {
     groupID: groupID,
     data: data,
   };
+
+  let payload = {
+      msgType: UPDATE_DATA,
+      key: key,
+      value: value,
+  }
+
+  //check data invariants
+  if (!validate(payload)) {
+      printBadDataError();
+      return
+  }
   // set data locally
   db.set(key, value);
   let pubkeys = resolveIDs([groupID]).filter((x) => x != pubkey);
   // send to other devices in groupID
-  sendMessage(pubkeys, {
-    msgType: UPDATE_DATA,
-    key: key,
-    value: value,
-  });
+  sendMessage(pubkeys, payload);
 }
 
 /**
@@ -1462,7 +1473,7 @@ export function getData(prefix = null, id = null) {
     });
     return results;
   }
-  if (id === null) {
+  if (id === null) { // TODO extend to iterate not just over groups and permissions
     // get all data within prefix
     let results = [];
     let topLevelNames = getChildren(CONTACTS).concat([getLinkedName()]);

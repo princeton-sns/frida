@@ -1473,7 +1473,7 @@ export function getData(prefix = null, id = null) {
     });
     return results;
   }
-  if (id === null) { 
+  if (id === null) {
     // get all data within prefix
     let results = [];
     let topLevelNames = getChildren(CONTACTS).concat([getLinkedName()]);

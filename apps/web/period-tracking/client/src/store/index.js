@@ -31,10 +31,7 @@ const validateFunc = (payload) => {
     }
 
     // invariant = no more than one period per day
-    if (
-      payload.msgType == "updateData" &&
-      frida.getData(keys[1].concat("/", keys[2])).length > 0
-    ) {
+    if (frida.getData(keys[1].concat("/", keys[2])).length > 0) {
       return false;
     }
   }

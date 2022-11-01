@@ -70,20 +70,16 @@ function createAppDBListenerPlugin() {
         }
       } else if (e.key.includes(periodPrefix)) {
         if (e.newValue == null && e.oldValue) {
-          // FIXME find a better way to match capture in key
-          // FIXME can't test if works until views are updated
-          let ts = frida.db.fromString(e.oldValue).data.timestamp;
-          let date = ts.toDate().concat(ts.toMonth(), ts.toYear());
-          console.log("timestamp" + ts);
           store.commit("REMOVE_PERIOD", {
-            id: date.concat("/", frida.db.fromString(e.oldValue).data.id),
+            id: frida.db.fromString(e.oldValue).data.id,
             remote: true,
           });
         } else {
+          let newData = frida.db.fromString(e.newValue).data;
           store.commit("ADD_PERIOD", {
-            timestamp: frida.db.fromString(e.newValue).data.timestamp,
-            period: frida.db.fromString(e.newValue).data.period,
-            id: frida.db.fromString(e.newValue).data.id,
+            timestamp: newData.timestamp,
+            period: newData.period,
+            id: newData.id,
             remote: true,
           });
         }
@@ -122,20 +118,10 @@ const store = createStore({
     },
     ADD_PERIOD(state, { timestamp, period, id, remote }) {
       if (!remote) {
-        frida.setData(
-          periodPrefix.concat(
-            "/",
-            String(timestamp.getDate()),
-            String(timestamp.getMonth()),
-            timestamp.getYear()
-          ),
-          id,
-          {
-            id: id,
-            timestamp: timestamp,
-            period: period,
-          }
-        );
+        let date = String(timestamp.getDate()).concat(String(timestamp.getMonth()), 
+            String(timestamp.getYear()));
+        let idWithDate = date.concat("/", id);
+        frida.setData(periodPrefix, idWithDate, { id: idWithDate, timestamp: timestamp, period: period });
       }
       // TODO update state
     },

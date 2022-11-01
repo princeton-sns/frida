@@ -23,24 +23,18 @@ frida.init(serverIP, serverPort, {
 const validateFunc = (payload) => {
   let keys = payload.key.split("/");
 
-  // invariant = period setting is one of the predefined values
   if (keys.includes("period")) {
-    
     // invariant = period setting is one of the predefined values
-    let i = payload.value.data.period; 
-    if (i != "spotting" 
-        && i !="low" 
-        && i!="medium" 
-        && i!= "high"
-    ){
-        return false;
+    let i = payload.value.data.period;
+    if (i != "spotting" && i != "low" && i != "medium" && i != "high") {
+      return false;
     }
 
     // invariant = no more than one period per day
-    let key = keys[0].concat("/", keys[1], "/", keys[2], "/");
-    console.log(key);
-    console.log(frida.getData(key)); //TODO fix getData impl so we can pull all values with a certain prefix
-    if (frida.getData(key).length != 0) {
+    if (
+      payload.msgType == "updateData" &&
+      frida.getData(keys[1].concat("/", keys[2])).length > 0
+    ) {
       return false;
     }
   }

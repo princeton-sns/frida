@@ -118,10 +118,17 @@ const store = createStore({
     },
     ADD_PERIOD(state, { timestamp, period, id, remote }) {
       if (!remote) {
-        let date = String(timestamp.getDate()).concat(String(timestamp.getMonth()), 
-            String(timestamp.getYear()));
-        let idWithDate = date.concat("/", id);
-        frida.setData(periodPrefix, idWithDate, { id: idWithDate, timestamp: timestamp, period: period });
+        let idWithDate = String(timestamp.getDate()).concat(
+          String(timestamp.getMonth()),
+          String(timestamp.getYear()),
+          "/",
+          id
+        );
+        frida.setData(periodPrefix, idWithDate, {
+          id: idWithDate,
+          timestamp: timestamp,
+          period: period,
+        });
       }
       // TODO update state
     },

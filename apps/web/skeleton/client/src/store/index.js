@@ -2,11 +2,8 @@ import { createStore } from "vuex";
 import router from "../router";
 import * as frida from "../../../../../../core/client";
 
-// FIXME uncomment
-//let serverIP = "sns26.cs.princeton.edu";
-//let serverPort = "8000";
-let serverIP = "localhost";
-let serverPort = "8080";
+let serverIP = "sns26.cs.princeton.edu";
+let serverPort = "8000";
 
 const skeletonPrefix = "skeletonData";
 

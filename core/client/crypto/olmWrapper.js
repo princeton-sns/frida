@@ -6,7 +6,7 @@
 
 import Olm from "./olm.js";
 import { db } from "../index.js";
-import { getOtkey, addDevice, connectDevice } from "../index.js";
+import { getOtkeyFromServer, addDevice, connectDevice } from "../index.js";
 
 // FIXME what key to use for pickling/unpickling?
 const PICKLE_KEY = "secret_key";
@@ -90,7 +90,7 @@ function setIdkey(idkey) {
 
 /* Otkey Helpers */
 
-function getOtkeyHelper(idkey) {
+function getOtkey(idkey) {
   return db.get(getOtkeyKey(idkey));
 }
 
@@ -113,10 +113,10 @@ function promiseDelay(delay) {
 /* Core Crypto Functions */
 
 async function createOutboundSession(srcIdkey, dstIdkey, acct) {
-  getOtkey({ srcIdkey: srcIdkey, dstIdkey: dstIdkey });
+  getOtkeyFromServer({ srcIdkey: srcIdkey, dstIdkey: dstIdkey });
 
   // polling FIXME use listener
-  let dstOtkey = getOtkeyHelper(dstIdkey);
+  let dstOtkey = getOtkey(dstIdkey);
   while (dstOtkey === null) {
     console.log("~~~~~waiting for otkey");
     await promiseDelay(200);
@@ -125,7 +125,7 @@ async function createOutboundSession(srcIdkey, dstIdkey, acct) {
       console.log("device is being deleted - no idkey");
       return;
     }
-    dstOtkey = getOtkeyHelper(dstIdkey);
+    dstOtkey = getOtkey(dstIdkey);
   }
   if (dstOtkey === "") {
     console.log("dest device has been deleted - no otkey");
@@ -195,6 +195,7 @@ export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
 
 async function encryptHelper(plaintext, dstIdkey) {
   console.log("REAL ENCRYPT -- ");
+  console.log(plaintext);
   let sess = getSession(dstIdkey);
 
   // if sess is null (initiating communication with new device) or sess does not

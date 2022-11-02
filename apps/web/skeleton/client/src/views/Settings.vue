@@ -2,8 +2,8 @@
   <div class="settings">
     <p><u>top name:</u></p>
     <p>{{ name }}</p>
-    <p><u>pubkey:</u></p>
-    <p>{{ pubkey }}</p>
+    <p><u>idkey:</u></p>
+    <p>{{ idkey }}</p>
     <p><u>devices:</u></p>
     <p>{{ devices }}</p>
     <div>
@@ -12,10 +12,7 @@
     <br />
     <div>
       <div>
-        <input
-          v-model="deleteDevicePublicKey"
-          placeholder="device public key"
-        />
+        <input v-model="deleteDeviceIdkey" placeholder="device public key" />
       </div>
       <button @click="deleteLinkedDevice">Delete Linked Device</button>
     </div>
@@ -40,13 +37,13 @@ import { mapState } from "vuex";
 export default {
   data() {
     return {
-      deleteDevicePublicKey: null,
+      deleteDeviceIdkey: null,
     };
   },
   computed: {
     ...mapState({
       name: "name",
-      pubkey: "pubkey",
+      idkey: "idkey",
       devices: "devices",
     }),
   },
@@ -58,9 +55,9 @@ export default {
     deleteLinkedDevice(event) {
       console.log(event);
       this.$store.commit("DELETE_LINKED_DEVICE", {
-        pubkey: this.deleteDevicePublicKey,
+        idkey: this.deleteDeviceIdkey,
       });
-      this.deleteDevicePublicKey = null;
+      this.deleteDeviceIdkey = null;
     },
     deleteAllDevices(event) {
       console.log(event);

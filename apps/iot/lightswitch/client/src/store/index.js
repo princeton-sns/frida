@@ -2,13 +2,21 @@ import { createStore } from "vuex";
 import router from "../router";
 import * as frida from "../../../../../../core/client";
 
-let serverIP = "sns26.cs.princeton.edu";
-let serverPort = "8000";
+let serverIP = "localhost";
+let serverPort = "8080";
 
-const skeletonPrefix = "skeletonData";
+const symptomPrefix = "symptom";
+const periodPrefix = "period";
 
 frida.init(serverIP, serverPort, {
-  storagePrefixes: [skeletonPrefix],
+  onAuth: () => {
+    router.push("/settings");
+  },
+  onUnauth: () => {
+    router.push("/register");
+  },
+  storagePrefixes: [symptomPrefix, periodPrefix],
+  //turnEncryptionOff: true,
 });
 
 function createAppDBListenerPlugin() {
@@ -17,22 +25,36 @@ function createAppDBListenerPlugin() {
     window.addEventListener("storage", (e) => {
       if (e.key === null) {
         console.log("key is null"); // FIXME why is key null?
-        store.commit("REMOVE_PUBKEY");
-      } else if (e.key.includes(frida.pubkeyPrefix)) {
-        console.log("updating pubkey");
-        store.commit("UPDATE_PUBKEY", {
-          pubkey: frida.db.fromString(e.newValue),
+        store.commit("REMOVE_IDKEY");
+      } else if (e.key.includes(frida.idkeyPrefix)) {
+        console.log("updating idkey");
+        store.commit("UPDATE_IDKEY", {
+          idkey: frida.db.fromString(e.newValue),
         });
-      } else if (e.key.includes(skeletonPrefix)) {
+      } else if (e.key.includes(symptomPrefix)) {
         if (e.newValue == null && e.oldValue) {
-          store.commit("REMOVE_SKELETON_DATA", {
+          store.commit("REMOVE_SYMPTOMS", {
             id: frida.db.fromString(e.oldValue).data.id,
             remote: true,
           });
         } else {
-          store.commit("ADD_SKELETON_DATA", {
+          store.commit("ADD_SYMPTOM", {
             timestamp: frida.db.fromString(e.newValue).data.timestamp,
-            stuff: frida.db.fromString(e.newValue).data.value,
+            symptoms: frida.db.fromString(e.newValue).data.symptoms,
+            id: frida.db.fromString(e.newValue).data.id,
+            remote: true,
+          });
+        }
+      } else if (e.key.includes(periodPrefix)) {
+        if (e.newValue == null && e.oldValue) {
+          store.commit("REMOVE_PERIOD", {
+            id: frida.db.fromString(e.oldValue).data.id,
+            remote: true,
+          });
+        } else {
+          store.commit("ADD_PERIOD", {
+            timestamp: frida.db.fromString(e.newValue).data.timestamp,
+            period: frida.db.fromString(e.newValue).data.period,
             id: frida.db.fromString(e.newValue).data.id,
             remote: true,
           });
@@ -44,77 +66,77 @@ function createAppDBListenerPlugin() {
 
 const store = createStore({
   state: {
-    name: frida.getLinkedName(),
-    pubkey: frida.getPubkey(),
+    idkey: frida.getIdkey(),
     // TODO make these lists reactive
-    // TODO show human-readable names instead of pubkeys
-    // deleteLinkedDevice would then have to take in the name, not the pubkey
+    // TODO show human-readable names instead of idkeys
+    // deleteLinkedDevice would then have to take in the name, not the idkey
     devices: frida.getLinkedDevices(),
     friends: frida.getContacts(),
     pendingFriends: frida.getPendingContacts(),
-    skeletonStuff: frida.getData(skeletonPrefix),
+    symptoms: frida.getData(symptomPrefix),
+    period: frida.getData(periodPrefix),
   },
   mutations: {
     /* App-specific mutations */
-    ADD_SKELETON_DATA(state, { timestamp, stuff, id, remote }) {
+    ADD_SYMPTOMS(state, { timestamp, symptoms, id, remote }) {
+      let value = {
+        id: id,
+        timestamp: timestamp,
+        symptoms: symptoms,
+      };
       if (!remote) {
-        frida.setData(skeletonPrefix, id, {
+        frida.setData(symptomPrefix, id, value);
+      }
+      //state.symptoms.push(frida.db.toString({
+      //  id: id,
+      //  data: value,
+      //}));
+    },
+    ADD_PERIOD(state, { timestamp, period, id, remote }) {
+      if (!remote) {
+        frida.setData(periodPrefix, id, {
           id: id,
           timestamp: timestamp,
-          stuff: stuff,
+          period: period,
         });
       }
       // TODO update state
     },
-    REMOVE_SKELETON_DATA(state, { id, remote }) {
+    SHARE_SYMPTOMS(state, { id, friendName, remote }) {
       if (!remote) {
-        frida.removeData(skeletonPrefix, id);
+        frida.grantReaderPrivs(symptomPrefix, id, friendName);
+      }
+    },
+    SHARE_PERIOD(state, { id, friendName, remote }) {
+      if (!remote) {
+        frida.grantReaderPrivs(periodPrefix, id, friendName);
+      }
+    },
+    UNSHARE_SYMPTOMS(state, { id, friendName, remote }) {
+      if (!remote) {
+        frida.revokeAllPrivs(symptomPrefix, id, friendName);
+      }
+    },
+    UNSHARE_PERIOD(state, { id, friendName, remote }) {
+      if (!remote) {
+        frida.revokeAllPrivs(periodPrefix, id, friendName);
+      }
+    },
+    REMOVE_SYMPTOMS(state, { id, remote }) {
+      if (!remote) {
+        frida.removeData(symptomPrefix, id);
       }
       // TODO update state
     },
-    SHARE_SKELETON_DATA(state, { id, friendName, priv, remote }) {
+    REMOVE_PERIOD(state, { id, remote }) {
       if (!remote) {
-        switch (priv) {
-          case "r":
-            frida.grantReaderPrivs(skeletonPrefix, id, friendName);
-            break;
-          case "w":
-            frida.grantWriterPrivs(skeletonPrefix, id, friendName);
-            break;
-          case "a":
-            frida.grantAdminPrivs(skeletonPrefix, id, friendName);
-            break;
-          default:
-            console.log(
-              "invalid radio value encountered while trying to share data: " +
-                priv
-            );
-        }
+        frida.removeData(periodPrefix, id);
       }
+      // TODO update state
     },
-    UNSHARE_SKELETON_DATA(state, { id, friendName, priv, remote }) {
-      if (!remote) {
-        switch (priv) {
-          case "a":
-            frida.revokeAdminPrivs(skeletonPrefix, id, friendName);
-            break;
-          case "w":
-            frida.revokeWriterPrivs(skeletonPrefix, id, friendName);
-            break;
-          case "r":
-            frida.revokeAllPrivs(skeletonPrefix, id, friendName);
-            break;
-          default:
-            console.log(
-              "invalid radio value encountered while trying to unshare data: " +
-                priv
-            );
-        }
-      }
-    },
-    ADD_FRIEND(state, { pubkey }) {
-      frida.addContact(pubkey);
-      //let friendName = frida.addContact(pubkey);
+    ADD_FRIEND(state, { idkey }) {
+      frida.addContact(idkey);
+      //let friendName = frida.addContact(idkey);
       //state.pendingFriends.push(friendName);
     },
     //CONFIRM_FRIEND(state, { name }) {
@@ -132,39 +154,41 @@ const store = createStore({
       let idx = state.friends.indexOf(name);
       if (idx !== -1) state.friends.splice(idx, 1);
     },
-    UPDATE_PUBKEY(state, { pubkey }) {
-      state.pubkey = pubkey;
-      state.devices.push(pubkey);
+    UPDATE_IDKEY(state, { idkey }) {
+      state.idkey = idkey;
+      state.devices.push(idkey);
     },
-    REMOVE_PUBKEY(state) {
-      state.pubkey = "";
+    REMOVE_IDKEY(state) {
+      state.idkey = "";
       state.devices = [];
     },
     /* App-agnostic mutations */
     NEW_DEVICE(state, { topName, deviceName }) {
-      let pubkey = frida.createDevice(topName, deviceName);
-      state.pubkey = pubkey;
-      state.devices.push(pubkey);
+      // FIXME should await...?
+      let idkey = frida.createDevice(topName, deviceName);
+      state.idkey = idkey;
+      state.devices.push(idkey);
     },
-    NEW_LINKED_DEVICE(state, { pubkey, deviceName }) {
-      let curPubkey = frida.createLinkedDevice(pubkey, deviceName);
-      state.pubkey = curPubkey;
-      state.devices.push(curPubkey);
+    NEW_LINKED_DEVICE(state, { idkey, deviceName }) {
+      // FIXME should await...?
+      let curIdkey = frida.createLinkedDevice(idkey, deviceName);
+      state.idkey = curIdkey;
+      state.devices.push(curIdkey);
     },
     // TODO LINK_DEVICE for two pre-existing devices (how to handle group diffs?)
     DELETE_DEVICE(state) {
       frida.deleteDevice();
-      state.pubkey = "";
+      state.idkey = "";
       state.devices = [];
     },
-    DELETE_LINKED_DEVICE(state, { pubkey }) {
-      frida.deleteLinkedDevice(pubkey);
-      let idx = state.devices.indexOf(pubkey);
+    DELETE_LINKED_DEVICE(state, { idkey }) {
+      frida.deleteLinkedDevice(idkey);
+      let idx = state.devices.indexOf(idkey);
       if (idx !== -1) state.devices.splice(idx, 1);
     },
     DELETE_ALL_DEVICES(state) {
       frida.deleteAllLinkedDevices();
-      state.pubkey = "";
+      state.idkey = "";
       state.devices = [];
     },
     /* Simulate offline devices */

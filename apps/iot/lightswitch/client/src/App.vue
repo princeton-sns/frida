@@ -18,9 +18,8 @@ let serverIP = "sns26.cs.princeton.edu";
 let serverPort = "8000";
 const skeletonPrefix = "skeletonData";
 frida.init(serverIP, serverPort, {storagePrefixes: [skeletonPrefix],});
-frida.createDevice("blah", "blah");
+frida.createDevice(null, null);
 /* eslint-disable no-unused-vars */
-
 /* eslint-enable no-unused-vars */
 </script>
 
@@ -31,6 +30,3 @@ frida.createDevice("blah", "blah");
     <!-- <p>{{ pubkey }}</p>-->
   </div>
 </template>
-
-
-

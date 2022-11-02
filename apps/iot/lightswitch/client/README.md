@@ -1,4 +1,4 @@
-# [Vue.js](https://v3.vuejs.org/guide/introduction.html) Skeleton App
+# [Vue.js](https://v3.vuejs.org/guide/introduction.html) Period Tracking App
 
 ## Build
 

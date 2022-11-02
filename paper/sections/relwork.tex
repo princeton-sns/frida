@@ -16,6 +16,7 @@ can be intermittently offline). Both protocols achieve forward secrecy (where
 the confidentiality of older messages is preserved in the face of a compromised
 key) 
 \todo{and backwards secrecy?}.
+\todo{describe these guarantees more.}
 
 They achieve this through the double ratchet algorithm \cite{}, in which
 two clients each start with a shared secret key (established through an initial
@@ -67,7 +68,58 @@ message with a key derived from the secret key (the message key).
 chain, and ratchet key (in addition to the message key). Signal also generates
 three keys by different names (\todo{check overlaps in meaning}): a root, 
 sender, and receiving chain.
+\item Olm supports group messages (encrypted with a single group key) \todo{as
+does Signal} figure out the difference. One might be that Signal only supports
+group messages via a centralized setting (?) while Olm already does some of that
+heavy lifting for us, but \todo{need to confirm}.
 \end{enumerate}
+
+\todo{Potential new (but not novel) encryption scheme for group messages.}
+
+The encryption library that Matrix relies on (Olm), implements the double ratchet
+algorithm from Signal for pairwise messages, using a slightly different key 
+exchange algorithm to bootstrap it. But group messages are where things start to 
+diverge. 
+
+In Olm, the group message encryption protocol is called Megolm. Megolm 
+communicates group keys from the group creator to all other members of the
+group via the aforementioned pairwise encryption scheme. Then the sender
+encrypts the first group message (containing more than just keys) with a group
+key (determined from a ratchet session similar to that for pairwise encryption).
+This improves upon just using pairwise encryption for all members of the group
+in situations where the data being communicated is large (and thus the sender
+does not need to encrypt it N times, where there are N+1 members in the group).
+Furthermore, it saves space on the server for roughly the entirety of time that
+it exists there (depending on the implementation).
+However, every time sessions are rotated, a new group session key must be 
+resent to all other members of the group, which adds two round trips overhead
+and server load, whereas rotating sessions in pairwise communication happens
+without any extra roung trips.
+
+Signal, on the other hand, (appears to) use pairwise encryption even for
+group messages. This maintains a relatively low overhead when most messages are
+short strings of text, but quickly grows for documents and media. In such cases, 
+an optimization ("Sender Key") is proposed that encrypts the document/media with 
+a single, symmetric key, and only sends the symmetric key through the pairwise 
+encrypted channels. \todo{confirm} This optimization is roughly used for WhatsApp, 
+and in Signal for documents/media. This style of encryption is also used in other
+systems like \tocite{pgp} PGP and \todo{find more}.
+
+These approaches delineate several points on the tradeoff spectrum between 
+usability and privacy. Megolm group encryption with longstanding sessions is
+more usable but less private (if a session key is compromised there are more 
+messages that could potentially be leaked). Megolm group encryption with short-
+lived sessions is more private but less usable (round trip wait times). Signal
+pairwise encryption for group messages is good for privacy (group messages
+are indistinguishable from individual ones), but incurs high overhead. The 
+Signal optimization has better overhead, but reveals to the server which devices
+are in the group because of mailbox access patterns (this also happens in Megolm).
+However, since \name{} imposes a total order on events (\todo{at least for now}),
+one message going to multiple devices must nevertheless arrive to the server at
+the same time (for ordering them as the same event), and thus group membership
+at this level is necessarily leaked anyway. This gives \name{} the opportunity
+to choose the most efficient encryption mechanism that leaks this amount of 
+information, which we believe to be the Sender Key optimization.
 
 \paragraph{Untrusted servers.}
 SPORC \cite{sporc} presents a similar application model that primarily leverages the server to establish a global order of events and remaining functionality is handled on the client. However, the SPORC server has a predefined notion of groups and any group modifications are visible to the server, whereas the \name server is completely oblivious to any notion of groups and treats them just like all other data. SPORC also focuses on "operational transform" applications in which operations are meaningful regardless of the order they are applied in. This property is not the case for most applications (and most applications that \name supports), where some operations can be invalidated by others. Furthermore, SPORC does not generalize their application model, although they hint that it could be done, nor does it examine how application invariants could be maintained in the face of malicious or buggy clients. 

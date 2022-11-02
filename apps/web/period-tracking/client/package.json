@@ -1,5 +1,5 @@
 {
-  "name": "book-rec-app",
+  "name": "period-tracking-app",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,7 +11,6 @@
     "@vueform/multiselect": "^2.5.2",
     "core-js": "^3.6.5",
     "debounce": "^1.2.1",
-    "libfrida": "file:../../../libfrida",
     "socket.io-client": "^4.3.2",
     "vue": "^3.0.0",
     "vue-router": "^4.0.0-0",

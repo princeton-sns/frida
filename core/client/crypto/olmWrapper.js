@@ -195,6 +195,7 @@ export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
 
 async function encryptHelper(plaintext, dstIdkey) {
   console.log("REAL ENCRYPT -- ");
+  console.log(plaintext);
   let sess = getSession(dstIdkey);
 
   // if sess is null (initiating communication with new device) or sess does not

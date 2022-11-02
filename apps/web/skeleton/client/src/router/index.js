@@ -4,7 +4,7 @@ import Register from "../views/Register.vue";
 import Friends from "../views/Friends.vue";
 import Settings from "../views/Settings.vue";
 
-import { getPubkey } from "../../../../../../core/client";
+import { getIdkey } from "../../../../../../core/client";
 
 const routes = [
   {
@@ -34,7 +34,7 @@ const routes = [
 ];
 
 function existsCurrentDevice(to, from, next) {
-  if (!getPubkey()) {
+  if (!getIdkey()) {
     next("/register");
   } else {
     next();

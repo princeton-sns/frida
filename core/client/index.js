@@ -244,45 +244,23 @@ async function sendMessage(dstIdkeys, payload) {
   let batch = new Array();
   let srcIdkey = getIdkey();
 
-  if (dstIdkeys.length === 1) {
-    console.log("ONE TO ONE MESSAGE");
-    console.log("sending from...");
-    console.log(srcIdkey);
-    console.log("sending to...");
-    console.log(dstIdkeys);
+  console.log("sending from...");
+  console.log(srcIdkey);
+  console.log("sending to...");
+  console.log(dstIdkeys);
 
+  for (let dstIdkey of dstIdkeys) {
     let encPayload = await c.encrypt(
       db.toString(payload),
-      dstIdkeys[0],
+      dstIdkey,
       turnEncryptionOff
     );
     batch.push({
-      dstIdkey: dstIdkeys[0],
+      dstIdkey: dstIdkey,
       encPayload: encPayload,
     });
-    console.log(batch);
-  } else if (dstIdkeys.length >= 1) {
-    console.log("GROUP MESSAGE");
-    console.log("sending from...");
-    console.log(srcIdkey);
-    console.log("all dstIdkeys");
-    console.log(dstIdkeys);
-
-    for (let dstIdkey of dstIdkeys) {
-      console.log("sending to...");
-      console.log(dstIdkey);
-      let encPayload = await c.encrypt(
-        db.toString(payload),
-        dstIdkey,
-        turnEncryptionOff
-      );
-      batch.push({
-        dstIdkey: dstIdkey,
-        encPayload: encPayload,
-      });
-    }
-    console.log(batch);
   }
+  console.log(batch);
 
   // send message to server
   sc.sendMessage({
@@ -1281,15 +1259,16 @@ async function removeAdminRemotely(groupID, adminID, idkeys) {
  * @private
  */
 async function removeAdmin(prefix, id, toUnshareGroupID) {
-  // FIXME check errCode
-  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
-  // FIXME send everything
-  let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), getIdkey());
-  // remotely
-  await removeAdminRemotely(curGroupID, toUnshareGroupID, idkeys);
-  // locally
-  if (execLocal) {
-    removeAdminLocally({ groupID: curGroupID, writerID: toUnshareGroupID });
+  let { curGroupID, errCode } = unshareChecks(prefix, id, toUnshareGroupID);
+  if (errCode === 0) {
+    // FIXME send everything
+    let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), getIdkey());
+    // remotely
+    await removeAdminRemotely(curGroupID, toUnshareGroupID, idkeys);
+    // locally
+    if (execLocal) {
+      removeAdminLocally({ groupID: curGroupID, adminID: toUnshareGroupID });
+    }
   }
 }
 
@@ -1379,15 +1358,16 @@ async function removeWriterRemotely(groupID, writerID, idkeys) {
  * @private
  */
 async function removeWriter(prefix, id, toUnshareGroupID) {
-  // FIXME check errCode
-  let { curGroupID } = unshareChecks(prefix, id, toUnshareGroupID);
-  // FIXME send everything
-  let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), getIdkey());
-  // remotely
-  await removeWriterRemotely(curGroupID, toUnshareGroupID, idkeys);
-  // locally
-  if (execLocal) {
-    removeWriterLocally({ groupID: curGroupID, writerID: toUnshareGroupID });
+  let { curGroupID, errCode } = unshareChecks(prefix, id, toUnshareGroupID);
+  if (errCode === 0) {
+    // FIXME send everything
+    let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), getIdkey());
+    // remotely
+    await removeWriterRemotely(curGroupID, toUnshareGroupID, idkeys);
+    // locally
+    if (execLocal) {
+      removeWriterLocally({ groupID: curGroupID, writerID: toUnshareGroupID });
+    }
   }
 }
 
@@ -1809,29 +1789,29 @@ async function shareData(prefix, id, toShareGroupID) {
       await setDataHelper(key, value.data, sharingGroupID);
     } else { // sharing group already exists for this data object, modify existing group
       sharingGroupID = curGroupID;
-      let curGroupValue = getGroup(sharingGroupID);
-      let newMemberIdkeys = resolveIDs([toShareGroupID]);
 
       // send existing sharing group subgroups to new member devices
       let sharingGroupSubgroups = getAllSubgroups([sharingGroupID]);
+      let newMemberIdkeys = resolveIDs([toShareGroupID]);
+      // FIXME send bulk updateGroup message
       for (let sharingGroupSubgroup of sharingGroupSubgroups) {
         let newGroup = groupReplace(sharingGroupSubgroup, LINKED, CONTACTS);
         await updateGroup(newGroup.id, newGroup.value, newMemberIdkeys);
       }
 
       // send new member subgroups to existing members
-      await updateGroup(sharingGroupID, curGroupValue, newMemberIdkeys);
       let toShareSubgroups = getAllSubgroups([toShareGroupID]);
       let existingMemberIdkeys = resolveIDs([curGroupID]);
+      // FIXME send bulk updateGroup message
       for (let toShareSubgroup of toShareSubgroups) {
         let newGroup = groupReplace(toShareSubgroup, LINKED, CONTACTS);
         await updateGroup(newGroup.id, newGroup.value, existingMemberIdkeys);
       }
 
       // add child to existing sharing group
-      await addChild(sharingGroupID, toShareGroupID, newMemberIdkeys);
+      await addChild(sharingGroupID, toShareGroupID, newGroupIdkeys);
       // add parent from new child to existing sharing group
-      await addParent(toShareGroupID, sharingGroupID, newMemberIdkeys);
+      await addParent(toShareGroupID, sharingGroupID, newGroupIdkeys);
       // send actual data that group now points to
       await setDataHelper(key, value.data, sharingGroupID);
     }

@@ -38,8 +38,8 @@ export function init(ip, port) {
     socket.emit("addOtkeys", generateMoreOtkeys());
   });
 
-  socket.on("noiseMessage", (msg) => {
-    onMessage(msg);
+  socket.on("noiseMessage", async (msg) => {
+    await onMessage(msg);
   });
 }
 
@@ -63,6 +63,6 @@ export function removeDevice(idkey) {
   socket.emit("removeDevice", idkey);
 }
 
-export function getOtkey(idkeys) {
+export function getOtkeyFromServer(idkeys) {
   socket.emit("getOtkey", idkeys);
 }

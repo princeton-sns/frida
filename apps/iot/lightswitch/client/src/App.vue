@@ -17,8 +17,10 @@ import * as frida from "../../../../../core/client";
 let serverIP = "sns26.cs.princeton.edu";
 let serverPort = "8000";
 const skeletonPrefix = "skeletonData";
-frida.init(serverIP, serverPort, {storagePrefixes: [skeletonPrefix],});
-frida.createDevice(null, null);
+(async () => {
+  await frida.init(serverIP, serverPort, {storagePrefixes: [skeletonPrefix],});
+  frida.createDevice(null, null);
+})();
 /* eslint-disable no-unused-vars */
 /* eslint-enable no-unused-vars */
 </script>

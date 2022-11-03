@@ -177,7 +177,7 @@ const store = createStore({
     },
     // TODO LINK_DEVICE for two pre-existing devices (how to handle group diffs?)
     DELETE_DEVICE(state) {
-      frida.deleteDevice();
+      frida.deleteThisDevice();
       state.idkey = "";
       state.devices = [];
     },

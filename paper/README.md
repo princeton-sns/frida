@@ -66,8 +66,8 @@ open paper.pdf
 - [ ] [Shai/Leon] Persistent DB server (maybe better data structure; maybe Rust/Go)
 - [ ] [Leo] Configurable app
 - [ ] [Chris] IoT lightswitch app
-- [ ] [Shai/Leon] Flesh out byzantine server detection protocol (~1 paper paragraph)
-- [ ] [Shai] App invariant enforcement
+- [X] [Shai/Leon] Flesh out byzantine server detection protocol (~1 paper paragraph)
+- [X] [Shai] App invariant enforcement
 - [ ] [?] Server macro-benchmarks
 - [ ] [?] Server micro-benchmarks (per feature; also storage overhead, etc)
 - [ ] [?] Social media app

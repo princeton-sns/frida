@@ -23,6 +23,7 @@ The server is responsible for forwarding messages and imposing ordering on all r
 Most application functionality in the proposed architecture is performed on clients, including storing data, facilitating interactions with different users, and managing permissions. The \name{} client-side library exposes a simple API that ensures these functionalities are implemented correctly and consistently across clients and applications. The library facilitates interactions with the local data store (including checking permissions and maintaining data invariants), sharing across devices and users, and encryption.  
 
 \parlabel{Developer API}
+\fix{perhaps move this to implementation section, and show a table of available functions a developer can call.}
 The \name{} client-side library exposes an API to application developers. All calls to read and write from the data store or interact with other clients must be done through the \name{} API. When writing a client application, developers will first initiate a \name{} client instance through the library-which will establish communication with the server and assign the client a unique public key as an identifier. Developers will also provide a list of data object types. 
 Upon instantiation, the library will write to the data store to initialize needed data structures for the application. Developers then build their applications such that reads and writes for data are executed by using the library's data functions such as \texttt{setData} and \texttt{removeData} which encapsulate data store accesses. The \name{} library will assign data objects unique identifiers. 
 
@@ -72,9 +73,3 @@ The \name{} client-side library facilitates application interactions with a loca
 \parlabel{Conflict Resolution}
 Concurrent operations on data are entirely permissible in this model and must be handled deterministically across all clients. If two clients initiate changes to the same data structure, the server will impose an order on those operations by default. Both clients will then receive the acknowledgement and the new message in some order, and must resolve conflict deterministically based on a pre-set scheme. For example, if a data object follows a first-writer-wins scheme and initiates a data change that then arrives after a different remote change, the initiating client must accept the remote change and abort its proposed change by comparing the before and after values of the change. The client can then attempt to apply the change again, but must treat it as an entirely new data change.
 
-\subsection{Security}
-\parlabel{Byzantine Clients}
-Detecting malicious interference by clients is handled on the data invariant level.
-
-\parlabel{Reordering Server}
-Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}

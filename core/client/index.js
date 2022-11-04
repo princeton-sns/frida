@@ -1740,7 +1740,7 @@ export async function grantAdminPrivs(prefix, id, toShareGroupID) {
  *
  * @private
  */
-async function shareData(prefix, id, toShareGroupID) {
+export async function shareData(prefix, id, toShareGroupID) {
   let idkey = getIdkey();
   let key = getDataKey(prefix, id);
   let value = db.get(key);

@@ -232,7 +232,7 @@ async function sendMessage(dstIdkeys, payload) {
   console.log(batch);
 
   // send message to server
-  sc.sendMessage({
+  await sc.sendMessage({
     batch: batch,
   });
 }

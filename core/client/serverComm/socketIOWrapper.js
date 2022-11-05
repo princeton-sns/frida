@@ -25,7 +25,7 @@ export async function init(ip, port) {
     }
   });
 
-  socket.on("addOtkeys", async () => {
+  socket.on("addOtkeys", async ({ needs }) => {
     let u = new URL("/self/otkeys", url);
 
     let response = (await fetch(u, {
@@ -34,7 +34,7 @@ export async function init(ip, port) {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + idkey
       },
-      body: JSON.stringify(generateMoreOtkeys().otkeys)
+      body: JSON.stringify(generateMoreOtkeys(needs).otkeys)
     }));
     if (response.ok) {
       return (await response.json())['otkey']

@@ -155,8 +155,8 @@ export async function generateKeys() {
   return idkey;
 }
 
-export function generateMoreOtkeys() {
-  return generateOtkeys(moreNumOtkeys);
+export function generateMoreOtkeys(needs = moreNumOtkeys) {
+  return generateOtkeys(needs);
 }
 
 export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {

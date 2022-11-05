@@ -18,11 +18,6 @@ let seqID = 0;
 // List of idkeys and corresponding mailboxes
 let devices = {};
 
-// Maps that make unlinking a socketID from a idkey more efficient, 
-// since it needs to determine idkey from socketID
-let deviceToSocket = {};
-let socketToDevice = {};
-
 app.get('/devices/otkey', (req, res) => {
   let deviceId = decodeURIComponent(req.query.device_id);
   let device = devices[deviceId];

@@ -5,7 +5,7 @@
  */
 
 import io from "socket.io-client";
-import { getIdkey, generateMoreOtkeys } from "../crypto/olmWrapper.js";
+import { generateKeys, generateMoreOtkeys } from "../crypto/olmWrapper.js";
 import { onMessage } from "../index.js";
 
 const HTTP_PREFIX = "http://";
@@ -15,9 +15,9 @@ let url;
 let socket;
 let idkey;
 
-export function init(ip, port) {
+export async function init(ip, port) {
   url = HTTP_PREFIX + ip + COLON + port;
-  idkey = getIdkey();
+  idkey = await generateKeys();
 
   socket = io(url, {
     auth: {

@@ -183,7 +183,7 @@ function printBadGroupPermissionsError() {
  */
 export async function init(ip, port, config) {
   await c.init();
-  sc.init(ip, port);
+  await sc.init(ip, port);
   onAuth = config.onAuth ?? defaultOnAuth;
   onUnauth = config.onUnauth ?? defaultOnUnauth;
   validateCallback = config.validateCallback ?? defaultValidateCallback;

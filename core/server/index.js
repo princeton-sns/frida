@@ -18,11 +18,6 @@ let seqID = 0;
 // List of idkeys and corresponding mailboxes
 let devices = {};
 
-// Maps that make unlinking a socketID from a idkey more efficient, 
-// since it needs to determine idkey from socketID
-let deviceToSocket = {};
-let socketToDevice = {};
-
 app.get('/devices/otkey', (req, res) => {
   let deviceId = decodeURIComponent(req.query.device_id);
   let device = devices[deviceId];
@@ -46,7 +41,7 @@ app.get('/devices/otkey', (req, res) => {
 
   delete device.otkeys[key];
   if (Object.keys(device.otkeys).length < 6 && device.socket);
-    io.to(device.socket).emit("addOtkeys", {});
+    device.socket.emit('addOtkeys', { needs: 12 - Object.keys(device.otkeys).length });
   }
 );
 
@@ -120,7 +115,7 @@ io.on("connection", (socket) => {
     socket.emit('noiseMessage', device.mailbox);
   }
 
-  if (Object.keys(device.otkeys).length < 12) {
+  if (Object.keys(device.otkeys).length < 6) {
     socket.emit('addOtkeys', { needs: 12 - Object.keys(device.otkeys).length });
   }
 

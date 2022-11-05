@@ -5,7 +5,7 @@
  */
 
 import io from "socket.io-client";
-import { getIdkey, generateMoreOtkeys } from "../crypto/olmWrapper.js";
+import { generateKeys, generateMoreOtkeys } from "../crypto/olmWrapper.js";
 import { onMessage } from "../index.js";
 
 const HTTP_PREFIX = "http://";
@@ -15,9 +15,9 @@ let url;
 let socket;
 let idkey;
 
-export function init(ip, port) {
+export async function init(ip, port) {
   url = HTTP_PREFIX + ip + COLON + port;
-  idkey = getIdkey();
+  idkey = await generateKeys();
 
   socket = io(url, {
     auth: {
@@ -25,7 +25,7 @@ export function init(ip, port) {
     }
   });
 
-  socket.on("addOtkeys", async () => {
+  socket.on("addOtkeys", async ({ needs }) => {
     let u = new URL("/self/otkeys", url);
 
     let response = (await fetch(u, {
@@ -34,7 +34,7 @@ export function init(ip, port) {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + idkey
       },
-      body: JSON.stringify(generateMoreOtkeys().otkeys)
+      body: JSON.stringify(generateMoreOtkeys(needs).otkeys)
     }));
     if (response.ok) {
       return (await response.json())['otkey']

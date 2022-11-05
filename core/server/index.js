@@ -41,7 +41,7 @@ app.get('/devices/otkey', (req, res) => {
 
   delete device.otkeys[key];
   if (Object.keys(device.otkeys).length < 6 && device.socket);
-    io.to(device.socket).emit("addOtkeys", {});
+    device.socket.emit('addOtkeys', { needs: 12 - Object.keys(device.otkeys).length });
   }
 );
 
@@ -115,7 +115,7 @@ io.on("connection", (socket) => {
     socket.emit('noiseMessage', device.mailbox);
   }
 
-  if (Object.keys(device.otkeys).length < 12) {
+  if (Object.keys(device.otkeys).length < 6) {
     socket.emit('addOtkeys', { needs: 12 - Object.keys(device.otkeys).length });
   }
 

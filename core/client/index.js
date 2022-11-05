@@ -213,8 +213,6 @@ export async function init(ip, port, config) {
 async function sendMessage(dstIdkeys, payload) {
   let batch = new Array();
 
-  console.log("sending from...");
-  console.log(srcIdkey);
   console.log("sending to...");
   console.log(dstIdkeys);
 
@@ -750,20 +748,6 @@ export function getPendingContacts() {
  * Deletion *
  ************
  */
-
-/**
- * Deletes the current device's data and removes it's public key from
- * the server.
- */
-export async function deleteDevice() {
-  // notify all direct parents and contacts that this group should be removed
-  let idkey = getIdkey();
-  await sendMessage(resolveIDs(getParents(idkey).concat([CONTACTS]), idkey), {
-    msgType: DELETE_GROUP,
-    groupID: idkey,
-  });
-  deleteSelf();
-}
 
 /**
  * Helper function for deleting the current device.

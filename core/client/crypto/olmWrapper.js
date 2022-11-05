@@ -90,10 +90,6 @@ function setIdkey(idkey) {
 
 /* Otkey Helpers */
 
-function getOtkey(idkey) {
-  return db.get(getOtkeyKey(idkey));
-}
-
 export function setOtkey(idkey, otkey) {
   db.set(getOtkeyKey(idkey), otkey);
 }
@@ -105,8 +101,7 @@ function removeOtkey(idkey) {
 /* Core Crypto Functions */
 
 async function createOutboundSession(dstIdkey, acct) {
-  let dstOtkey = await getOtkey(dstIdkey);
-  let dstOtkey = await getOtkeyFromServer({ srcIdkey: srcIdkey, dstIdkey: dstIdkey });
+  let dstOtkey = await getOtkeyFromServer(dstIdkey);
   if (!dstOtkey) {
     console.log("dest device has been deleted - no otkey");
     return -1;

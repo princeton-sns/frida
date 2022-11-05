@@ -5,7 +5,8 @@
  */
 
 import io from "socket.io-client";
-import { onMessage, getIdkey, generateMoreOtkeys } from "../crypto/olmWrapper.js";
+import { getIdkey, generateMoreOtkeys } from "../crypto/olmWrapper.js";
+import { onMessage } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
@@ -77,7 +78,7 @@ export async function sendMessage(msg) {
   }
 }
 
-export async function getOtkey(device_id) {
+export async function getOtkeyFromServer(device_id) {
   let u = new URL("/devices/otkey", url);
   let params = u.searchParams;
   console.log(device_id);

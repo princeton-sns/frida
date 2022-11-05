@@ -2,8 +2,10 @@ import { createStore } from "vuex";
 import router from "../router";
 import * as frida from "../../../../../../core/client";
 
-let serverIP = "sns26.cs.princeton.edu";
-let serverPort = "8000";
+//let serverIP = "sns26.cs.princeton.edu";
+//let serverPort = "8000";
+let serverIP = "localhost";
+let serverPort = "8080";
 
 const skeletonPrefix = "skeletonData";
 
@@ -174,13 +176,6 @@ const store = createStore({
       frida.deleteAllLinkedDevices();
       state.idkey = "";
       state.devices = [];
-    },
-    /* Simulate offline devices */
-    RECONNECT_DEVICE() {
-      frida.connectDevice();
-    },
-    DISCONNECT_DEVICE() {
-      frida.disconnectDevice();
     },
   },
   plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],

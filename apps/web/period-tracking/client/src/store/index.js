@@ -191,13 +191,6 @@ const store = createStore({
       state.idkey = "";
       state.devices = [];
     },
-    /* Simulate offline devices */
-    RECONNECT_DEVICE() {
-      frida.connectDevice();
-    },
-    DISCONNECT_DEVICE() {
-      frida.disconnectDevice();
-    },
   },
   plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],
 });

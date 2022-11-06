@@ -572,7 +572,7 @@ async function updateGroupLocally({ groupID, value }) {
   let contacts = getContacts();
   // if contactLevel = true but not in contacts, add
   if (value.contactLevel && !contacts.includes(groupID)) {
-    await addChild(CONTACTS, groupID, resolveIDs([LINKED]));
+    await addChild(CONTACTS, groupID, [getIdkey()]);
   }
   // if in contacts but contactLevel = false, make contactLevel = true
   if (!value.contactLevel && contacts.includes(groupID)) {
@@ -618,6 +618,7 @@ async function updateGroup(groupID, value, allIdkeys) {
 async function requestContact(reqContactName, reqContactGroups, idkeys) {
   await sendMessage(idkeys, {
     msgType: REQ_CONTACT,
+    reqIdkey: getIdkey(),
     reqContactName: reqContactName,
     reqContactGroups: reqContactGroups,
   });
@@ -658,11 +659,11 @@ async function confirmContact(contactName, contactGroups, idkeys) {
  *
  * @private
  */
-async function processContactRequest({ reqContactName, reqContactGroups }) {
+async function processContactRequest({ reqIdkey, reqContactName, reqContactGroups }) {
   if (confirm(`Add new contact: ${reqContactName}?`)) {
     await parseContactInfo(reqContactName, reqContactGroups);
     let linkedName = getLinkedName();
-    await confirmContact(linkedName, getAllSubgroups([linkedName]), resolveIDs([reqContactName]));
+    await confirmContact(linkedName, getAllSubgroups([linkedName]), [reqIdkey]);
   }
 }
 

@@ -1471,16 +1471,17 @@ async function unlinkAndDeleteGroup(groupID, parentID, idkeys) {
  */
 
 /**
- * Get storage key for item given prefix and id.
+ * Get storage key for item given both prefix and id or just key.
  *
  * @param {string} prefix key prefix (GROUPS or app-specific)
- * @param {string} id auto-incremented id
  * @returns {string}
  *
  * @private
  */
-function getDataKey(prefix, id) {
-  return DATA + SLASH + prefix + SLASH + id + SLASH;
+function getDataKey() {
+  let args = Array.prototype.slice.call(arguments);
+  let params = args.join(SLASH);
+  return DATA + SLASH + params + SLASH;
 }
 
 /**
@@ -1611,6 +1612,45 @@ export function getData(prefix = null, id = null) {
   // get single data item
   return db.get(getDataKey(prefix, id))?.data ?? null;
 }
+
+
+/**
+ * If only prefix is specified, gets a list of object keys  that  begin
+ * with that prefix. Allows getting keys for either a single prefix at 
+ * a time or _all_ app prefixes.
+ *
+ * @param {?string} prefix data prefix
+ * @returns {Object|Object[]|null}
+ */
+export function getDataByKey(key) {
+  return db.get(key);
+}
+
+
+
+/**
+ * If only prefix is specified, gets a list of object keys  that  begin
+ * with that prefix. Allows getting keys for either a single prefix at 
+ * a time or _all_ app prefixes.
+ *
+ * @param {?string} prefix data prefix
+ * @returns {Object|Object[]|null}
+ */
+export function getDataKeys(prefix = null) {
+  if (prefix === null) {
+    // get all app keys with certain prefix
+    let results = [];
+    let appPrefixes = storagePrefixes.filter((x) => x != GROUP);
+    appPrefixes.forEach((appPrefix) => {
+      db.getMany(getDataPrefix(appPrefix)).forEach((dataObj) => {
+        results.push(dataObj.key);
+      });
+    });
+    return results;
+  }
+  return db.getKeys(getDataPrefix(prefix)) ?? null;
+}
+
 
 /**
  * Deletes data key (and associated value).

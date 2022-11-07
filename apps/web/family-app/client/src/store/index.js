@@ -158,6 +158,39 @@ function createAppDBListenerPlugin() {
   };
 }
 
+// return only list of families
+function getFamilies(){
+    let all_keys = frida.getDataKeys(familyPrefix);
+    let family_keys = []; 
+    for (let i = 0; i< all_keys.length; i++) {
+      let key = all_keys[i];
+      if (!key.includes(messagePrefix) && !key.includes(imagePrefix)) {
+        family_keys.push(key);
+      }
+    }
+    
+    let results = [];
+    for (let i = 0; i < family_keys.length; i++) {
+      results.push(frida.getDataByKey(family_keys[i]));
+    }
+    return results;
+}
+
+// returns all the messages
+function getMessages() {
+    let all_items = frida.getData(messagePrefix);
+    console.log(all_items);
+    let messages = []; 
+    for (let i = 0; i< all_items.length; i++) {
+      //let key = all_items[i].key;
+      //if (key.includes(messagePrefix) && !key.includes(commentPrefix) && !key.includes(reactPrefix)) {
+        messages.push(all_items[i]);
+      //}
+    }
+    console.log(messages);
+    return messages;
+}
+
 function concatDataPrefix() {
   let args = Array.prototype.slice.call(arguments, 1);
   return args.join("/");
@@ -174,6 +207,8 @@ const store = createStore({
     friends: frida.getContacts(),
     pendingFriends: frida.getPendingContacts(),
     media: frida.getData(familyPrefix),
+    families: getFamilies(),
+    messages: getMessages(),
   },
   mutations: {
     /* App-specific mutations */
@@ -196,7 +231,8 @@ const store = createStore({
     ADD_MESSAGE(state, { timestamp, familyId, id, message, remote }) {
       if (!remote) {
         frida.setData(
-          concatDataPrefix(familyPrefix, familyId, messagePrefix),
+          //concatDataPrefix(familyPrefix, familyId, messagePrefix),
+          messagePrefix, //FIXME: for debuggin
           id,
           {
             id: id,

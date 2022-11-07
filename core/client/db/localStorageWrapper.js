@@ -29,6 +29,17 @@ export function getMany(keyPrefix) {
   return results;
 }
 
+export function getKeys(keyPrefix) {
+ let results = [];
+ for (let i = 0; i < localStorage.length; i++) {
+   let key = localStorage.key(i);
+   if (key.startsWith(keyPrefix)) {
+     results.push(key);
+   }
+ }
+ return results; 
+}
+
 export function remove(key) {
   localStorage.removeItem(key);
 }

@@ -171,6 +171,7 @@ let serverComm;
 export async function init(ip, port, config) {
   olmCrypto = new OlmCrypto();
   await olmCrypto.init();
+  console.log(olmCrypto.getIdkey());
   serverComm = new ServerComm(olmCrypto, ip, port);
   await serverComm.init();
   onAuth = config.onAuth ?? defaultOnAuth;
@@ -321,6 +322,7 @@ function isKey(group) {
  */
 async function initDevice(linkedName = null, deviceName = null) {
   let idkey = await olmCrypto.generateInitialKeys();
+  consoe.log(idkey);
 
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {
@@ -347,7 +349,6 @@ async function initDevice(linkedName = null, deviceName = null) {
  */
 export async function createDevice(linkedName = null, deviceName = null) {
   let { idkey } = await initDevice(linkedName, deviceName);
-  console.log(idkey);
   onAuth();
   return idkey;
 }
@@ -362,7 +363,6 @@ export async function createDevice(linkedName = null, deviceName = null) {
 export async function createLinkedDevice(dstIdkey, deviceName = null) {
   if (dstIdkey !== null) {
     let { idkey, linkedName } = await initDevice(null, deviceName);
-    console.log(idkey);
     let linkedMembers = getAllSubgroups([linkedName]);
     // construct message that asks dstIdkey's device to link this device
     setOutstandingLinkIdkey(dstIdkey);

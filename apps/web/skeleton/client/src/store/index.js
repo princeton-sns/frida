@@ -160,7 +160,6 @@ const store = createStore({
       state.devices = [];
     },
   },
-  //plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],
   plugins: [createAppDBListenerPlugin()],
 });
 

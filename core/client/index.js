@@ -322,7 +322,7 @@ function isKey(group) {
  */
 async function initDevice(linkedName = null, deviceName = null) {
   let idkey = await olmCrypto.generateInitialKeys();
-  consoe.log(idkey);
+  console.log(idkey);
 
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {

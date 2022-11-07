@@ -26,12 +26,6 @@ function createAppDBListenerPlugin() {
     window.addEventListener("storage", (e) => {
       if (e.key === null) {
         console.log("key is null"); // FIXME why is key null?
-        store.commit("REMOVE_IDKEY");
-      } else if (e.key.includes(frida.idkeyPrefix)) {
-        console.log("updating idkey");
-        store.commit("UPDATE_IDKEY", {
-          idkey: frida.db.fromString(e.newValue),
-        });
       } else if (e.key.includes(skeletonPrefix)) {
         if (e.newValue == null && e.oldValue) {
           store.commit("REMOVE_SKELETON_DATA", {
@@ -54,7 +48,6 @@ function createAppDBListenerPlugin() {
 const store = createStore({
   state: {
     name: frida.getLinkedName(),
-    idkey: frida.getIdkey(),
     // TODO make these lists reactive
     // TODO show human-readable names instead of idkeys
     // deleteLinkedDevice would then have to take in the name, not the idkey
@@ -123,7 +116,6 @@ const store = createStore({
     },
     ADD_FRIEND(state, { idkey }) {
       frida.addContact(idkey);
-      //let friendName = frida.addContact(idkey);
       //state.pendingFriends.push(friendName);
     },
     //CONFIRM_FRIEND(state, { name }) {
@@ -141,29 +133,20 @@ const store = createStore({
       let idx = state.friends.indexOf(name);
       if (idx !== -1) state.friends.splice(idx, 1);
     },
-    UPDATE_IDKEY(state, { idkey }) {
-      state.idkey = idkey;
-      state.devices.push(idkey);
-    },
-    REMOVE_IDKEY(state) {
-      state.idkey = "";
-      state.devices = [];
-    },
     /* App-agnostic mutations */
     NEW_DEVICE(state, { topName, deviceName }) {
       let idkey = frida.createDevice(topName, deviceName);
-      state.idkey = idkey;
+      state.name = topName;
       state.devices.push(idkey);
     },
     NEW_LINKED_DEVICE(state, { idkey, deviceName }) {
       let curIdkey = frida.createLinkedDevice(idkey, deviceName);
-      state.idkey = curIdkey;
       state.devices.push(curIdkey);
     },
     // TODO LINK_DEVICE for two pre-existing devices (how to handle group diffs?)
     DELETE_DEVICE(state) {
       frida.deleteThisDevice();
-      state.idkey = "";
+      state.name = "";
       state.devices = [];
     },
     DELETE_LINKED_DEVICE(state, { idkey }) {
@@ -173,7 +156,7 @@ const store = createStore({
     },
     DELETE_ALL_DEVICES(state) {
       frida.deleteAllLinkedDevices();
-      state.idkey = "";
+      state.name = "";
       state.devices = [];
     },
   },

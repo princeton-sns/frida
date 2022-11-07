@@ -1,9 +1,7 @@
 <template>
   <div class="settings">
-    <p><u>top name:</u></p>
+    <p><u>linked name:</u></p>
     <p>{{ name }}</p>
-    <p><u>idkey:</u></p>
-    <p>{{ idkey }}</p>
     <p><u>devices:</u></p>
     <p>{{ devices }}</p>
     <div>
@@ -43,7 +41,6 @@ export default {
   computed: {
     ...mapState({
       name: "name",
-      idkey: "idkey",
       devices: "devices",
     }),
   },

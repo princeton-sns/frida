@@ -66,7 +66,8 @@ function createAppDBListenerPlugin() {
 
 const store = createStore({
   state: {
-    idkey: frida.getIdkey(),
+    name: frida.getLinkedName(),
+    //idkey: frida.getIdkey(),
     // TODO make these lists reactive
     // TODO show human-readable names instead of idkeys
     // deleteLinkedDevice would then have to take in the name, not the idkey
@@ -192,7 +193,8 @@ const store = createStore({
       state.devices = [];
     },
   },
-  plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],
+  //plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],
+  plugins: [createAppDBListenerPlugin()],
 });
 
 export default store;

@@ -1,7 +1,7 @@
 <template>
   <div class="settings">
-    <p>idkey:</p>
-    <p>{{ idkey }}</p>
+    <p>linked name:</p>
+    <p>{{ name }}</p>
     <p>devices:</p>
     <p>{{ devices }}</p>
     <div>
@@ -40,7 +40,7 @@ export default {
   },
   computed: {
     ...mapState({
-      idkey: "idkey",
+      name: "name",
       devices: "devices",
     }),
   },

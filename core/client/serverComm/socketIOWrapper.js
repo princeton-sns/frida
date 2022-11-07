@@ -1,85 +1,87 @@
 /*
- ****************
- * Server comms *
- ****************
+ *************************
+ * Server Communications *
+ *************************
  */
 
 import io from "socket.io-client";
-import { generateKeys, generateMoreOtkeys } from "../crypto/olmWrapper.js";
+// FIXME probably need another "class" to wrap the basic client protocol
 import { onMessage } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
 
-let url;
-let socket;
-let idkey;
+// constructors cannot be async, so init() is doing most of the work
+export function ServerComm(olmCrypto, ip, port) {
+  this.url = HTTP_PREFIX + ip + COLON + port;
+  this.olmCrypto = olmCrypto;
+}
 
-export async function init(ip, port) {
-  url = HTTP_PREFIX + ip + COLON + port;
-  idkey = await generateKeys();
+// ServerComm.prototype.init = async () => { DOESN'T WORK!!!
+ServerComm.prototype.init = async function() {
+  this.idkey = await this.olmCrypto.generateInitialKeys();
 
-  socket = io(url, {
+  this.socket = io(this.url, {
     auth: {
-      deviceId: idkey
+      deviceId: this.idkey
     }
   });
 
-  socket.on("addOtkeys", async ({ needs }) => {
-    let u = new URL("/self/otkeys", url);
+  this.socket.on("addOtkeys", async ({ needs }) => {
+    let u = new URL("/self/otkeys", this.url);
 
     let response = (await fetch(u, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + idkey
+        'Authorization': 'Bearer ' + this.idkey
       },
-      body: JSON.stringify(generateMoreOtkeys(needs).otkeys)
+      body: JSON.stringify(this.olmCrypto.generateMoreOtkeys(needs).otkeys)
     }));
     if (response.ok) {
       return (await response.json())['otkey']
     }
   });
 
-  socket.on("noiseMessage", async (msgs) => {
+  this.socket.on("noiseMessage", async (msgs) => {
     console.log("Noise message", msgs);
     msgs.forEach(msg => {
       onMessage(msg);
     });
     let maxId = Math.max(...msgs.map(msg => msg.seqID));
-    let u = new URL("/self/messages", url);
+    let u = new URL("/self/messages", this.url);
     (await fetch(u, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + idkey
+        'Authorization': 'Bearer ' + this.idkey
       },
       body: JSON.stringify({seqID: maxId})
     }));
   });
 }
 
-export async function sendMessage(msg) {
+ServerComm.prototype.sendMessage = async function(msg) {
   console.log(msg);
-  let u = new URL("/message", url);
+  let u = new URL("/message", this.url);
 
   const headers = new Headers();
-  headers.append('Authorization', 'Bearer ' + idkey)
+  headers.append('Authorization', 'Bearer ' + this.idkey)
   let response = (await fetch(u, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + idkey
+      'Authorization': 'Bearer ' + this.idkey
     },
     body: JSON.stringify(msg)
   }));
   if (response.ok) {
     return (await response.json())
   }
-}
+};
 
-export async function getOtkeyFromServer(device_id) {
-  let u = new URL("/devices/otkey", url);
+ServerComm.prototype.getOtkeyFromServer = async function(device_id) {
+  let u = new URL("/devices/otkey", this.url);
   let params = u.searchParams;
   console.log(device_id);
   params.set("device_id", encodeURIComponent(device_id));
@@ -92,10 +94,10 @@ export async function getOtkeyFromServer(device_id) {
   if (response.ok) {
     return (await response.json())['otkey']
   }
-}
+};
 
-export function disconnect() {
-  if (socket) {
-    socket.disconnect();
+ServerComm.prototype.disconnect = function() {
+  if (this.socket) {
+    this.socket.disconnect();
   }
-}
+};

@@ -5,7 +5,7 @@ import Friends from "../views/Friends.vue";
 import Settings from "../views/Settings.vue";
 //import Shared from "../views/Shared.vue";
 
-import { getIdkey } from "../../../../../../core/client";
+import { getLinkedName } from "../../../../../../core/client";
 
 const routes = [
   {
@@ -40,7 +40,7 @@ const routes = [
 ];
 
 function existsCurrentDevice(to, from, next) {
-  if (!getIdkey()) {
+  if (!getLinkedName()) {
     next("/register");
   } else {
     next();

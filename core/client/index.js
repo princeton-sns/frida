@@ -16,15 +16,15 @@
 
 // TODO add permission checks for setting cryptographic keys?
 
-import * as sc from "./serverComm/socketIOWrapper.js";
-import * as c from  "./crypto/olmWrapper.js";
+import { ServerComm } from "./serverComm/socketIOWrapper.js";
+import { OlmCrypto } from  "./crypto/olmWrapper.js";
 import * as db from "./db/localStorageWrapper.js";
 
 export { db };
 
-/* Export for Apps */
-export const getIdkey = c.getIdkey;
-export const idkeyPrefix = c.IDKEY;
+// TODO instead of using olmCrypto.getIdkey() everywhere, idkey is not 
+// expected to change so just set some object state once a device is
+// created (could still be in olmCrypto)
 
 /* Local variables */
 
@@ -114,31 +114,15 @@ const ADMINS        = "admins";
 const WRITERS       = "writers";
 const CONTACT_LEVEL = "contactLevel";
 
-const keyString = [NAME, CONTACT_LEVEL, PARENTS, ADMINS, WRITERS].join(" ");
-const Key   = makeGroup(keyString);
 // readers list isn't necessary, any member that isn't an admin
 // or writer can be assumed to be a reader
 // TODO also deduplicate admins and writers (any writer who is also an
 // admin can _just_ exist in the admin group, since admin abilities are a
 // superset of writer abilities)
+const keyString = [NAME, CONTACT_LEVEL, PARENTS, ADMINS, WRITERS].join(" ");
+const Key   = makeGroup(keyString);
 const groupString = [NAME, CONTACT_LEVEL, PARENTS, CHILDREN, ADMINS, WRITERS].join(" ");
 const Group = makeGroup(groupString);
-
-/* DB listener plugin */
-
-function createDBListenerPlugin() {
-  return () => {
-    window.addEventListener("storage", (e) => {
-      if (e.key === null) {
-        onUnauth();
-      } else if (e.key.includes(c.IDKEY)) {
-        onAuth();
-      }
-    });
-  };
-}
-
-export { createDBListenerPlugin as dbListenerPlugin };
 
 /* Error messages */
 
@@ -172,6 +156,9 @@ function printBadGroupPermissionsError() {
  *********************
  */
 
+let olmCrypto;
+let serverComm;
+
 /**
  * Initializes client-server connection and client state.
  *
@@ -182,8 +169,10 @@ function printBadGroupPermissionsError() {
  *           validateCallback: callback}} config client configuration options
  */
 export async function init(ip, port, config) {
-  await c.init();
-  await sc.init(ip, port);
+  olmCrypto = new OlmCrypto();
+  await olmCrypto.init();
+  serverComm = new ServerComm(olmCrypto, ip, port);
+  await serverComm.init();
   onAuth = config.onAuth ?? defaultOnAuth;
   onUnauth = config.onUnauth ?? defaultOnUnauth;
   validateCallback = config.validateCallback ?? defaultValidateCallback;
@@ -217,7 +206,8 @@ async function sendMessage(dstIdkeys, payload) {
   console.log(dstIdkeys);
 
   for (let dstIdkey of dstIdkeys) {
-    let encPayload = await c.encrypt(
+    let encPayload = await olmCrypto.encrypt(
+      serverComm,
       db.toString(payload),
       dstIdkey,
       turnEncryptionOff
@@ -230,7 +220,7 @@ async function sendMessage(dstIdkeys, payload) {
   console.log(batch);
 
   // send message to server
-  await sc.sendMessage({
+  await serverComm.sendMessage({
     batch: batch,
   });
 }
@@ -252,7 +242,7 @@ async function sendMessage(dstIdkeys, payload) {
  */
 export async function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
-  let payload = db.fromString(c.decrypt(
+  let payload = db.fromString(olmCrypto.decrypt(
       msg.encPayload,
       msg.sender,
       turnEncryptionOff
@@ -330,7 +320,7 @@ function isKey(group) {
  * @private
  */
 async function initDevice(linkedName = null, deviceName = null) {
-  let idkey = await c.generateKeys();
+  let idkey = await olmCrypto.generateInitialKeys();
 
   // enforce that linkedName exists; deviceName is not necessary
   if (linkedName === null) {
@@ -549,7 +539,7 @@ async function linkGroupsRemotely(parentID, childID, idkeys) {
 
 async function linkGroups(parentID, childID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await linkGroupsRemotely(parentID, childID, idkeys);
   // locally
@@ -572,7 +562,7 @@ async function updateGroupLocally({ groupID, value }) {
   let contacts = getContacts();
   // if contactLevel = true but not in contacts, add
   if (value.contactLevel && !contacts.includes(groupID)) {
-    await addChild(CONTACTS, groupID, [getIdkey()]);
+    await addChild(CONTACTS, groupID, [olmCrypto.getIdkey()]);
   }
   // if in contacts but contactLevel = false, make contactLevel = true
   if (!value.contactLevel && contacts.includes(groupID)) {
@@ -600,7 +590,7 @@ async function updateGroupRemotely(groupID, value, idkeys) {
  */
 async function updateGroup(groupID, value, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await updateGroupRemotely(groupID, value, idkeys);
   // locally
@@ -618,7 +608,7 @@ async function updateGroup(groupID, value, allIdkeys) {
 async function requestContact(reqContactName, reqContactGroups, idkeys) {
   await sendMessage(idkeys, {
     msgType: REQ_CONTACT,
-    reqIdkey: getIdkey(),
+    reqIdkey: olmCrypto.getIdkey(),
     reqContactName: reqContactName,
     reqContactGroups: reqContactGroups,
   });
@@ -757,9 +747,9 @@ export function getPendingContacts() {
  */
 async function deleteDeviceLocally() {
   // notify all direct parents and contacts that this group should be removed
-  let idkey = getIdkey();
+  let idkey = olmCrypto.getIdkey();
   await deleteGroup(idkey, resolveIDs(getParents(idkey).concat([CONTACTS])));
-  sc.disconnect(idkey);
+  serverComm.disconnect(idkey);
   db.clear();
   onUnauth();
 }
@@ -772,7 +762,7 @@ async function deleteDeviceRemotely(idkeys) {
 
 async function deleteDevice(allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await deleteDeviceRemotely(idkeys);
   // locally
@@ -786,7 +776,7 @@ async function deleteDevice(allIdkeys) {
  * the server.
  */
 export async function deleteThisDevice() {
-  await deleteDevice([getIdkey()]);
+  await deleteDevice([olmCrypto.getIdkey()]);
 }
 
 /**
@@ -841,7 +831,7 @@ async function deleteGroupRemotely(groupID, idkeys) {
 
 async function deleteGroup(groupID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await deleteGroupRemotely(groupID, idkeys);
   // locally
@@ -986,7 +976,7 @@ async function addChildRemotely(groupID, childID, idkeys) {
  */
 async function addChild(groupID, childID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await addChildRemotely(groupID, childID, idkeys);
   // locally
@@ -1054,7 +1044,7 @@ async function addParentRemotely(groupID, parentID, idkeys) {
  */
 async function addParent(groupID, parentID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await addParentRemotely(groupID, parentID, idkeys);
   // locally
@@ -1087,7 +1077,7 @@ async function removeParentRemotely(groupID, parentID, idkeys) {
 
 async function removeParent(groupID, parentID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await removeParentRemotely(groupID, parentID, idkeys);
   // locally
@@ -1182,7 +1172,7 @@ async function addAdminRemotely(groupID, adminID, idkeys) {
  */
 async function addAdmin(groupID, adminID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await addAdminRemotely(groupID, adminID, idkeys);
   // locally
@@ -1227,7 +1217,7 @@ async function removeAdmin(prefix, id, toUnshareGroupID) {
   let { curGroupID, errCode } = unshareChecks(prefix, id, toUnshareGroupID);
   if (errCode === 0) {
     // FIXME send everything
-    let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), getIdkey());
+    let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), olmCrypto.getIdkey());
     // remotely
     await removeAdminRemotely(curGroupID, toUnshareGroupID, idkeys);
     // locally
@@ -1281,7 +1271,7 @@ async function addWriterRemotely(groupID, writerID, idkeys) {
  */
 async function addWriter(groupID, writerID, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await addWriterRemotely(groupID, writerID, idkeys);
   // locally
@@ -1326,7 +1316,7 @@ async function removeWriter(prefix, id, toUnshareGroupID) {
   let { curGroupID, errCode } = unshareChecks(prefix, id, toUnshareGroupID);
   if (errCode === 0) {
     // FIXME send everything
-    let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), getIdkey());
+    let { idkeys, execLocal } = adaptor(resolveIDs([curGroupID]), olmCrypto.getIdkey());
     // remotely
     await removeWriterRemotely(curGroupID, toUnshareGroupID, idkeys);
     // locally
@@ -1482,7 +1472,7 @@ async function updateDataRemotely(key, value, idkeys) {
 
 async function updateData(key, value, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await updateDataRemotely(key, value, idkeys);
   // locally
@@ -1503,7 +1493,7 @@ async function updateData(key, value, allIdkeys) {
  */
 async function setDataHelper(key, data, groupID) {
   // check permissions
-  let idkey = getIdkey();
+  let idkey = olmCrypto.getIdkey();
   if (!hasWriterPriv(idkey, groupID)) {
     printBadDataPermissionsError();
     return;
@@ -1597,7 +1587,7 @@ async function deleteDataRemotely(key, idkeys) {
 
 async function deleteData(key, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  let { idkeys, execLocal } = adaptor(allIdkeys, olmCrypto.getIdkey());
   // remotely
   await deleteDataRemotely(key, idkeys);
   // locally
@@ -1620,7 +1610,7 @@ async function removeDataHelper(key, curGroupID = null, toUnshareGroupID = null)
     curGroupID = db.get(key)?.groupID;
   }
   if (curGroupID !== null) {
-    let idkey = getIdkey();
+    let idkey = olmCrypto.getIdkey();
     if (!hasWriterPriv(idkey, curGroupID)) {
       printBadDataPermissionsError();
       return;
@@ -1706,7 +1696,7 @@ export async function grantAdminPrivs(prefix, id, toShareGroupID) {
  * @private
  */
 export async function shareData(prefix, id, toShareGroupID) {
-  let idkey = getIdkey();
+  let idkey = olmCrypto.getIdkey();
   let key = getDataKey(prefix, id);
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
@@ -1832,7 +1822,7 @@ export async function revokeAllPrivs(prefix, id, toUnshareGroupID) {
  * @private
  */
 function unshareChecks(prefix, id, toUnshareGroupID) {
-  let idkey = getIdkey();
+  let idkey = olmCrypto.getIdkey();
   let key = getDataKey(prefix, id);
   let value = db.get(key);
   let curGroupID = value?.groupID ?? null;
@@ -1973,7 +1963,7 @@ function checkPermissions(payload, srcIdkey) {
       }
       break;
     } case DELETE_DEVICE: {
-      if (hasAdminPriv(srcIdkey, getIdkey())) {
+      if (hasAdminPriv(srcIdkey, olmCrypto.getIdkey())) {
         permissionsOK = true;
       }
       break;

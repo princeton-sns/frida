@@ -17,7 +17,6 @@ frida.init(serverIP, serverPort, {
     router.push("/register");
   },
   storagePrefixes: [skeletonPrefix],
-  // toggle encryption for benchmarking
   //turnEncryptionOff: true,
 });
 
@@ -178,7 +177,8 @@ const store = createStore({
       state.devices = [];
     },
   },
-  plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],
+  //plugins: [frida.dbListenerPlugin(), createAppDBListenerPlugin()],
+  plugins: [createAppDBListenerPlugin()],
 });
 
 export default store;

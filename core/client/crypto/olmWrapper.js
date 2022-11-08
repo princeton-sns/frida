@@ -6,7 +6,7 @@
 
 import Olm from "./olm.js";
 import { db } from "../index.js";
-import { getOtkeyFromServer, addDevice, connectDevice } from "../index.js";
+import { getOtkeyFromServer } from "../serverComm/socketIOWrapper.js";
 
 // FIXME what key to use for pickling/unpickling?
 const PICKLE_KEY = "secret_key";
@@ -90,10 +90,6 @@ function setIdkey(idkey) {
 
 /* Otkey Helpers */
 
-function getOtkey(idkey) {
-  return db.get(getOtkeyKey(idkey));
-}
-
 export function setOtkey(idkey, otkey) {
   db.set(getOtkeyKey(idkey), otkey);
 }
@@ -102,32 +98,11 @@ function removeOtkey(idkey) {
   db.remove(getOtkeyKey(idkey));
 }
 
-/* Promise Helpers */
-
-function promiseDelay(delay) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, delay);
-  });
-}
-
 /* Core Crypto Functions */
 
-async function createOutboundSession(srcIdkey, dstIdkey, acct) {
-  getOtkeyFromServer({ srcIdkey: srcIdkey, dstIdkey: dstIdkey });
-
-  // polling FIXME use listener
-  let dstOtkey = getOtkey(dstIdkey);
-  while (dstOtkey === null) {
-    console.log("~~~~~waiting for otkey");
-    await promiseDelay(200);
-    // in case device is being deleted
-    if (getIdkey() === null) {
-      console.log("device is being deleted - no idkey");
-      return;
-    }
-    dstOtkey = getOtkey(dstIdkey);
-  }
-  if (dstOtkey === "") {
+async function createOutboundSession(dstIdkey, acct) {
+  let dstOtkey = await getOtkeyFromServer(dstIdkey);
+  if (!dstOtkey) {
     console.log("dest device has been deleted - no otkey");
     return -1;
   }
@@ -147,7 +122,7 @@ function createInboundSession(srcIdkey, ciphertextBody) {
     sess.free();
     return null;
   }
-  sess.create_inbound_from(acct, srcIdkey, ciphertextBody);
+  sess.create_inbound(acct, ciphertextBody);
   acct.free();
   return sess;
 }
@@ -173,17 +148,15 @@ function generateOtkeys(numOtkeys) {
 // every device has one set of identity keys and several sets of one-time keys,
 // the public counterparts of which should all be published to the server
 export async function generateKeys() {
-  let { idkey, otkeys } = generateOtkeys(initNumOtkeys);
+  let { idkey } = generateOtkeys(initNumOtkeys);
   setIdkey(idkey);
-  addDevice({ idkey, otkeys });
-  connectDevice(idkey);
   // TODO keep track of number of otkeys left on the server?
   // server currently notifies but may not want to trust it to do that
   return idkey;
 }
 
-export function generateMoreOtkeys() {
-  return generateOtkeys(moreNumOtkeys);
+export function generateMoreOtkeys(needs = moreNumOtkeys) {
+  return generateOtkeys(needs);
 }
 
 export async function encrypt(plaintext, dstIdkey, turnEncryptionOff) {
@@ -207,7 +180,7 @@ async function encryptHelper(plaintext, dstIdkey) {
       sess.free();
       return "{}";
     }
-    sess = await createOutboundSession(getIdkey(), dstIdkey, acct);
+    sess = await createOutboundSession(dstIdkey, acct);
     acct.free();
   }
 

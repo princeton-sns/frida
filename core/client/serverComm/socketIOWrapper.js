@@ -5,64 +5,97 @@
  */
 
 import io from "socket.io-client";
-import { onMessage, getIdkey, setOtkey, generateMoreOtkeys } from "../index.js";
+import { generateKeys, generateMoreOtkeys } from "../crypto/olmWrapper.js";
+import { onMessage } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
 
+let url;
 let socket;
+let idkey;
 
-export function init(ip, port) {
-  let url = HTTP_PREFIX + ip + COLON + port;
-  socket = io(url);
+export async function init(ip, port) {
+  url = HTTP_PREFIX + ip + COLON + port;
+  idkey = await generateKeys();
 
-  socket.on("connect", () => {
-    let idkey = getIdkey();
-    if (idkey) {
-      connect(idkey);
+  socket = io(url, {
+    auth: {
+      deviceId: idkey
     }
   });
 
-  //socket.onAny((eventName, ...args) => {
-  //  console.log(eventName);
-  //  console.log(args);
-  //});
+  socket.on("addOtkeys", async ({ needs }) => {
+    let u = new URL("/self/otkeys", url);
 
-  socket.on("getOtkey", ({ idkey, otkey }) => {
-    // TODO use a listener
-    setOtkey(idkey, otkey);
+    let response = (await fetch(u, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + idkey
+      },
+      body: JSON.stringify(generateMoreOtkeys(needs).otkeys)
+    }));
+    if (response.ok) {
+      return (await response.json())['otkey']
+    }
   });
 
-
-  socket.on("addOtkeys", () => {
-    socket.emit("addOtkeys", generateMoreOtkeys());
+  socket.on("noiseMessage", async (msgs) => {
+    console.log("Noise message", msgs);
+    msgs.forEach(msg => {
+      onMessage(msg);
+    });
+    let maxId = Math.max(...msgs.map(msg => msg.seqID));
+    let u = new URL("/self/messages", url);
+    (await fetch(u, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + idkey
+      },
+      body: JSON.stringify({seqID: maxId})
+    }));
   });
-
-  socket.on("noiseMessage", async (msg) => {
-    await onMessage(msg);
-  });
 }
 
-export function connect(idkey) {
-  socket.emit("linkSocket", idkey);
+export async function sendMessage(msg) {
+  console.log(msg);
+  let u = new URL("/message", url);
+
+  const headers = new Headers();
+  headers.append('Authorization', 'Bearer ' + idkey)
+  let response = (await fetch(u, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + idkey
+    },
+    body: JSON.stringify(msg)
+  }));
+  if (response.ok) {
+    return (await response.json())
+  }
 }
 
-export function disconnect(idkey) {
-  socket.emit("unlinkSocket", idkey);
+export async function getOtkeyFromServer(device_id) {
+  let u = new URL("/devices/otkey", url);
+  let params = u.searchParams;
+  console.log(device_id);
+  params.set("device_id", encodeURIComponent(device_id));
+  console.log(params);
+
+  let response = (await fetch(u, {
+    method: 'GET',
+
+  }));
+  if (response.ok) {
+    return (await response.json())['otkey']
+  }
 }
 
-export function sendMessage(msg) {
-  socket.emit("noiseMessage", msg);
-}
-
-export function addDevice(keys) {
-  socket.emit("addDevice", keys);
-}
-
-export function removeDevice(idkey) {
-  socket.emit("removeDevice", idkey);
-}
-
-export function getOtkeyFromServer(idkeys) {
-  socket.emit("getOtkey", idkeys);
+export function disconnect() {
+  if (socket) {
+    socket.disconnect();
+  }
 }

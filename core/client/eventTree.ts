@@ -50,7 +50,7 @@ class EventTree {
     // 3. it does not collide with the eventHash, to retain the acyclic nature
     //    of the graph
     let currentSeq = 0;
-    for (let dep in dependencies) {
+    for (const dep of dependencies) {
       let depEntry = this.eventMap.get(dep);
 
       // Check if we have a local version of this dependency:
@@ -76,7 +76,7 @@ class EventTree {
     });
 
     // Propagate the reverse dependencies:
-    for (let dep in dependencies) {
+    for (const dep of dependencies) {
       let depEvent = this.eventMap.get(dep) as { revDependencies: string[] };
       depEvent.revDependencies.push(eventHash);
     }
@@ -90,7 +90,7 @@ class EventTree {
     // If a current leaf node in our tree is a dependency of this event, we can
     // remove it as a leaf. This is because this current event will become a new
     // leaf of the tree:
-    for (let dep in dependencies) {
+    for (const dep of dependencies) {
       this.leafs.delete(dep);
     }
 
@@ -144,7 +144,7 @@ class EventTree {
     // tree:
     this.pruneTree();
 
-    return false;
+    return true;
   }
 
   // To ensure that we don't prune tree events which may still be referenced by
@@ -177,7 +177,7 @@ class EventTree {
   }
 
   allDevicesKnowEvent(eventHash: string): boolean {
-    for (let deviceId in this.deviceKnownEvents.keys()) {
+    for (const deviceId of this.deviceKnownEvents.keys()) {
       if (!this.deviceKnowsEvent(deviceId, eventHash)) {
         return false;
       }
@@ -204,10 +204,10 @@ class EventTree {
       // knows of at least one of these reverse dependencies, then we can
       // remove it from the tree given it will never be referenced any more:
       let remainDevices = new Set(this.deviceKnownEvents.keys());
-      for (let revDepHash in rootEvent.revDependencies) {
+      for (const revDepHash of rootEvent.revDependencies) {
         let revDep = this.eventMap.get(revDepHash) as { localSeq: number };
 
-        for (let devId in remainDevices) {
+        for (const devId of remainDevices) {
           if (this.deviceKnowsEventSeqNo(devId, revDep.localSeq)) {
             remainDevices.delete(devId);
           }
@@ -230,13 +230,13 @@ class EventTree {
       // root is in its set of dependencies, and it is the only event we hold
       // which is in that root's reverse dependencies), promote this node to a
       // new root:
-      for (let revDepHash in rootEvent.revDependencies) {
+      for (const revDepHash of rootEvent.revDependencies) {
         let revDep = this.eventMap.get(revDepHash) as {
           dependencies: string[];
         };
 
         let hasPathToOtherRoot = false;
-        for (let revDepDepHash in revDep.dependencies) {
+        for (const revDepDepHash of revDep.dependencies) {
           if (hasPathToOtherRoot) {
             break;
           }
@@ -248,7 +248,7 @@ class EventTree {
             let revDepDepRoot = this.eventMap.get(revDepDepHash) as {
               revDependencies: string[];
             };
-            for (let revDepDepRootRevDepHash in revDepDepRoot.revDependencies) {
+            for (const revDepDepRootRevDepHash of revDepDepRoot.revDependencies) {
               if (
                 this.eventMap.has(revDepDepRootRevDepHash)
                 && revDepHash !== revDepDepRootRevDepHash
@@ -274,3 +274,14 @@ class EventTree {
     }
   }
 }
+
+
+console.log("Hello World!")
+let t = new EventTree();
+// t.addDevice("z");
+console.log(t.insertEvent("a", [], "device1", "device1"));
+console.log(t.insertEvent("b", ["a"], "device2", "device1"));
+console.log(t.insertEvent("c", ["a"], "device3", "device1"));
+console.log(t.insertEvent("d", ["b", "c"], "device1", "device1"));
+console.log(t.eventMap.has("a"))
+console.log(t.eventMap.has("b"))

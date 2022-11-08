@@ -1,0 +1,22 @@
+[package]
+name = "eventgraph-web-demo"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+# [profile.release]
+# lto = true
+
+[dependencies]
+# Misc WebAssembly support crates
+wasm-bindgen = "0.2.83"
+web-sys = { version = "0.3.22", features = [ "console" ] }
+js-sys = { version = "0.3.60" }
+console_error_panic_hook = "0.1.5"
+
+# Application logic
+eventgraph = { path = "../eventgraph" }

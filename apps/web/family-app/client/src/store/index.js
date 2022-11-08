@@ -79,6 +79,7 @@ function createAppDBListenerPlugin() {
           });
         } else {
           let val = frida.db.fromString(e.newValue).data;
+          console.log(val);
           store.commit("ADD_MESSAGE", {
             timestamp: val.timestamp,
             familyId: val.familyId,
@@ -159,40 +160,41 @@ function createAppDBListenerPlugin() {
 }
 
 // return only list of families
-function getFamilies(){
-    let all_keys = frida.getDataKeys(familyPrefix);
-    let family_keys = []; 
-    for (let i = 0; i< all_keys.length; i++) {
-      let key = all_keys[i];
-      if (!key.includes(messagePrefix) && !key.includes(imagePrefix)) {
-        family_keys.push(key);
-      }
+function getFamilies() {
+  let all_keys = frida.getDataKeys(familyPrefix);
+  let family_keys = [];
+  for (let i = 0; i < all_keys.length; i++) {
+    let key = all_keys[i];
+    if (!key.includes(messagePrefix) && !key.includes(imagePrefix)) {
+      family_keys.push(key);
     }
-    
-    let results = [];
-    for (let i = 0; i < family_keys.length; i++) {
-      results.push(frida.getDataByKey(family_keys[i]));
-    }
-    return results;
+  }
+
+  let results = [];
+  for (let i = 0; i < family_keys.length; i++) {
+    results.push(frida.getDataByKey(family_keys[i]).data);
+  }
+  return results;
 }
 
 // returns all the messages
 function getMessages() {
-    let all_items = frida.getData(messagePrefix);
-    console.log(all_items);
-    let messages = []; 
-    for (let i = 0; i< all_items.length; i++) {
-      //let key = all_items[i].key;
-      //if (key.includes(messagePrefix) && !key.includes(commentPrefix) && !key.includes(reactPrefix)) {
-        messages.push(all_items[i]);
-      //}
-    }
-    console.log(messages);
-    return messages;
+  let all_items = frida.getData(messagePrefix);
+  console.log(all_items);
+  let messages = [];
+  for (let i = 0; i < all_items.length; i++) {
+    //let key = all_items[i].key;
+    //if (key.includes(messagePrefix) && !key.includes(commentPrefix) && !key.includes(reactPrefix)) {
+    messages.push(all_items[i].data);
+    //}
+  }
+  console.log(messages);
+  return messages;
 }
 
 function concatDataPrefix() {
-  let args = Array.prototype.slice.call(arguments, 1);
+  let args = Array.prototype.slice.call(arguments);
+  console.log("args:" + args);
   return args.join("/");
 }
 
@@ -231,8 +233,7 @@ const store = createStore({
     ADD_MESSAGE(state, { timestamp, familyId, id, message, remote }) {
       if (!remote) {
         frida.setData(
-          //concatDataPrefix(familyPrefix, familyId, messagePrefix),
-          messagePrefix, //FIXME: for debuggin
+          concatDataPrefix(familyPrefix, familyId, messagePrefix),
           id,
           {
             id: id,
@@ -240,14 +241,6 @@ const store = createStore({
             timestamp: timestamp,
             message: message,
           }
-        );
-        let group = frida.db.fromString(
-          concatDataPrefix(familyPrefix, familyId)
-        ).data.groupId;
-        frida.shareData(
-          concatDataPrefix(familyPrefix, familyId, messagePrefix),
-          id,
-          group
         );
       }
     },

@@ -9,7 +9,13 @@
     </div>
     <div>
       <div>
-        <v-select @input="familyName" :options="families" />
+        <v-select
+          v-model="family"
+          :options="families"
+          :value="family"
+          label="familyName"
+          track-by="id"
+        />
         <input v-model="message" placeholder="send message to family" />
         <button @click="sendMessage">Send Message</button>
       </div>
@@ -17,9 +23,8 @@
     <br />
     <p><u>Your Families</u></p>
     <div>
-      <!-- Show existing data -->
       <div v-for="family in families" :key="family">
-        <p>Stuff: {{ family.data.familyName }}</p>
+        <p>{{ family.familyName }}</p>
         <!-- Logic for initiating various data sharing for this datum -->
         <br />
       </div>
@@ -27,7 +32,7 @@
     <p><u>Recent Messages</u></p>
     <div>
       <div v-for="message in messages" :key="message">
-        <p> text: {{message.data.message}}</p>
+        <p>text: {{ message.message }}</p>
       </div>
     </div>
   </div>
@@ -47,6 +52,7 @@ export default {
     return {
       familyName: null,
       message: null,
+      family: null,
       shareName: "",
       unshareName: "",
       sharePrivs: "r",
@@ -64,12 +70,12 @@ export default {
       });
     },
     sendMessage(event) {
-       console.log("hola" + event);
-        this.$store.commit("ADD_MESSAGE", {
-          timestamp: new Date(),
-          familyName: this.familyName,
-          message: this.message,
-          id: crypto.randomUUID(),
+      console.log(event);
+      this.$store.commit("ADD_MESSAGE", {
+        timestamp: new Date(),
+        familyId: this.family.id,
+        message: this.message,
+        id: crypto.randomUUID(),
       });
     },
   },

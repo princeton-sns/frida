@@ -178,23 +178,26 @@ function getFamilies() {
 }
 
 // returns all the messages
-function getMessages() {
-  let all_items = frida.getData(messagePrefix);
-  console.log(all_items);
+function getMessages(prefix) {
+  let all_items = frida.getDataKeys(prefix);
   let messages = [];
   for (let i = 0; i < all_items.length; i++) {
-    //let key = all_items[i].key;
-    //if (key.includes(messagePrefix) && !key.includes(commentPrefix) && !key.includes(reactPrefix)) {
-    messages.push(all_items[i].data);
-    //}
+    let key = all_items[i];
+    if (key.includes(messagePrefix) && !key.includes(commentPrefix) && !key.includes(reactPrefix)) {
+      messages.push(all_items[i]);
+    }
   }
-  console.log(messages);
-  return messages;
+  
+  let results = [];
+  for (let i = 0; i < messages.length; i++) {
+    results.push(frida.getDataByKey(messages[i]).data);
+  }
+ 
+  return results;
 }
 
 function concatDataPrefix() {
   let args = Array.prototype.slice.call(arguments);
-  console.log("args:" + args);
   return args.join("/");
 }
 
@@ -210,7 +213,7 @@ const store = createStore({
     pendingFriends: frida.getPendingContacts(),
     media: frida.getData(familyPrefix),
     families: getFamilies(),
-    messages: getMessages(),
+    messages: getMessages(familyPrefix),
   },
   mutations: {
     /* App-specific mutations */

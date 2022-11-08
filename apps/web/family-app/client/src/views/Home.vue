@@ -32,7 +32,7 @@
     <p><u>Recent Messages</u></p>
     <div>
       <div v-for="message in messages" :key="message">
-        <p>text: {{ message.message }}</p>
+        <p>In {{ message.familyId }}: {{ message.message }}</p>
       </div>
     </div>
   </div>

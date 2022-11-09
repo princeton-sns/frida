@@ -1,0 +1,9 @@
+\section{Security}
+\parlabel{Byzantine Clients}
+Preventing malicious interference by clients is handled through session rotation as part of the encryption scheme and the on the data invariant level. There are multiple attack scenarios protected by our scheme. If a malicious client attempts to connect to a truthful one, the truthful client can simply reject the request for a connection. If two clients already established a trustful relationship, a client turned malicious could be disconnected from others, but users must indicate that themselves if suspicious activity is recognized. If a trusted client attempts to make an unauthorized change, either lacking permissions or attempting to break some invariants, the permissions and invariant checks on all other clients will reject the changes and maintain data integrity.
+
+\parlabel{Reordering Server}
+Detecting a malicious server, \textit{i.e.} a server that reorders or drops message, is handled on a lower level than the object tracking level. \todo{describe scheme once we finalize it, small wordy proof}
+
+\todo{merge text from mal-server branch}
+

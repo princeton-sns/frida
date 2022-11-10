@@ -4,7 +4,7 @@
  **********
  */
 
-import Olm from "./olm.js";
+import Olm from "./olm.cjs";
 import { db } from "../index.js";
 import { getOtkeyFromServer, addDevice, connectDevice } from "../index.js";
 
@@ -24,7 +24,7 @@ const moreNumOtkeys = 5;
 
 export async function init() {
   await Olm.init({
-    locateFile: () => "/olm.wasm",
+    locateFile: () => "olm.wasm",
   });
 }
 

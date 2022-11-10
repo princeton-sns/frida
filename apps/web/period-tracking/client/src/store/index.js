@@ -3,7 +3,8 @@ import router from "../router";
 import * as frida from "../../../../../../core/client";
 
 let serverIP = "localhost";
-let serverPort = "8080";
+// let serverIP = "sns26.cs.princeton.edu"
+let serverPort = "8000";
 
 const symptomPrefix = "symptom";
 const periodPrefix = "period";
@@ -52,6 +53,7 @@ function createAppDBListenerPlugin() {
             remote: true,
           });
         } else {
+          console.log(e.newValue);
           store.commit("ADD_PERIOD", {
             timestamp: frida.db.fromString(e.newValue).data.timestamp,
             period: frida.db.fromString(e.newValue).data.period,

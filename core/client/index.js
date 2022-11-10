@@ -1560,7 +1560,13 @@ async function setDataHelper(key, data, groupID) {
  * @param {string} id app-specific object id
  */
 export async function setData(prefix, id, data) {
-  await setDataHelper(getDataKey(prefix, id), data, getLinkedName());
+  var data_to_update = db.get(getDataKey(prefix, id));
+  if(data_to_update !== null){
+    await setDataHelper(getDataKey(prefix, id), data, data_to_update.groupID);
+  }
+  else{
+    await setDataHelper(getDataKey(prefix, id), data, getLinkedName());
+  }
 }
 
 /**

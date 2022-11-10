@@ -1098,7 +1098,7 @@ export class Higher {
    * @private
    */
   // FIXME getMany should maybe use "id" as the first field instead of "key"
-  // unless the key is the full localstorage key
+  // (so it can return groupObjType[]) unless the key really is the full LS key
   #getAllGroups(): { key: string, value: groupValType }[] {
     return this.localStorageWrapper.getMany(this.#getDataPrefix(Higher.GROUP));
   }
@@ -1159,7 +1159,13 @@ export class Higher {
    * 
    * @private
    */
-  async #updateGroupLocally({ groupID, groupValue }: { groupID: string, groupValue: groupValType }) {
+  async #updateGroupLocally({
+      groupID,
+      groupValue
+  }: {
+      groupID: string,
+      groupValue: groupValType
+  }) {
     // cases that handle shared data where a subset of the members
     // do not already exist in this device's contacts list
     let contacts = this.getContacts();
@@ -1367,7 +1373,6 @@ export class Higher {
     return this.#getGroup(groupID)?.writers ?? [];
   }
 
-  // TODO lock/seal equivalent of "const" ?
   #listRemoveCallback(ID: string, newList: string[]): string[] {
     let idx = newList.indexOf(ID);
     if (idx !== -1) newList.splice(idx, 1);
@@ -1413,7 +1418,13 @@ export class Higher {
    *
    * @private
    */
-  #addChildLocally({ groupID, childID }: { groupID: string, childID: string }): groupValType {
+  #addChildLocally({
+      groupID,
+      childID
+  }: {
+      groupID: string,
+      childID: string
+  }): groupValType {
     return this.#updateList(CHILDREN, groupID, childID, this.#listAddCallback);
   }
   
@@ -1469,7 +1480,13 @@ export class Higher {
    *
    * @private
    */
-  #addParentLocally({ groupID, parentID }: { groupID: string, parentID: string }): groupValType {
+  #addParentLocally({
+      groupID,
+      parentID
+  }: {
+      groupID: string,
+      parentID: string
+  }): groupValType {
     return this.#updateList(PARENTS, groupID, parentID, this.#listAddCallback);
   }
   
@@ -1512,7 +1529,13 @@ export class Higher {
    *
    * @private
    */
-  #removeParentLocally({ groupID, parentID }: { groupID: string, parentID: string }): groupValType {
+  #removeParentLocally({
+      groupID,
+      parentID
+  }: {
+      groupID: string,
+      parentID: string
+  }): groupValType {
     return this.#updateList(PARENTS, groupID, parentID, this.#listRemoveCallback);
   }
   
@@ -1563,7 +1586,13 @@ export class Higher {
    *
    * @private
    */
-  #addAdminLocally({ groupID, adminID }: { groupID: string, adminID: string }): groupValType {
+  #addAdminLocally({
+      groupID,
+      adminID
+  }: {
+      groupID: string,
+      adminID: string
+  }): groupValType {
     return this.#updateList(ADMINS, groupID, adminID, this.#listAddCallback);
   }
   
@@ -1606,7 +1635,13 @@ export class Higher {
    *
    * @private
    */
-  #removeAdminLocally({ groupID, adminID }: { groupID: string, adminID: string }): groupValType {
+  #removeAdminLocally({
+      groupID,
+      adminID
+  }: {
+      groupID: string,
+      adminID: string
+  }): groupValType {
     return this.#updateList(ADMINS, groupID, adminID, this.#listRemoveCallback);
   }
   
@@ -1650,7 +1685,13 @@ export class Higher {
    *
    * @private
    */
-  #addWriterLocally({ groupID, writerID }: { groupID: string, writerID: string }): groupValType {
+  #addWriterLocally({
+      groupID,
+      writerID
+  }: {
+      groupID: string,
+      writerID: string
+  }): groupValType {
     return this.#updateList(WRITERS, groupID, writerID, this.#listAddCallback);
   }
   
@@ -1693,7 +1734,13 @@ export class Higher {
    *
    * @private
    */
-  #removeWriterLocally({ groupID, writerID }: { groupID: string, writerID: string }): groupValType {
+  #removeWriterLocally({
+      groupID,
+      writerID
+  }: {
+      groupID: string,
+      writerID: string
+  }): groupValType {
     return this.#updateList(WRITERS, groupID, writerID, this.#listRemoveCallback);
   }
   
@@ -1740,7 +1787,12 @@ export class Higher {
    *
    * @private
    */
-  #groupReplaceHelper(key, fullGroup, IDToReplace, replacementID) {
+  #groupReplaceHelper(
+      key: string,
+      fullGroup: groupObjType,
+      IDToReplace: string,
+      replacementID: string
+  ) {
     if (fullGroup.value[key]?.includes(IDToReplace)) {
       let updated = fullGroup.value[key].filter((x) => x != IDToReplace);
       updated.push(replacementID);
@@ -1761,7 +1813,11 @@ export class Higher {
    *
    * @private
    */
-  #groupContainsHelper(key, fullGroup, IDToCheck) {
+  #groupContainsHelper(
+      key: string,
+      fullGroup: groupObjType,
+      IDToCheck: string
+  ): boolean {
     if (fullGroup.value[key]?.includes(IDToCheck)) {
       return true;
     }
@@ -1779,7 +1835,11 @@ export class Higher {
    *
    * @private
    */
-  #groupReplace(group, IDToReplace, replacementID) {
+  #groupReplace(
+      group: groupObjType,
+      IDToReplace: string,
+      replacementID: string
+  ): groupObjType {
     let updatedGroup = group;
     if (group.id === IDToReplace) {
       updatedGroup = {
@@ -1803,7 +1863,10 @@ export class Higher {
    *
    * @private
    */
-  #groupContains(group, IDToCheck) {
+  #groupContains(
+      group: groupObjType,
+      IDToCheck: string
+  ): boolean {
     if (group.id === IDToCheck) {
       return true;
     }
@@ -1815,7 +1878,8 @@ export class Higher {
     return bool;
   }
   
-  #adaptor(idkeys, idkey) {
+  #adaptor(idkeys: string[], idkey: string): 
+      { idkeys: string[], execLocal: boolean } {
     if (idkeys.includes(idkey)) {
       return {
         idkeys: idkeys.filter((x) => x !== idkey),
@@ -1837,16 +1901,13 @@ export class Higher {
    *
    * @private
    */
-  #listIntersect(list1, list2) {
+  #listIntersect(list1: string[], list2: string[]): string[] {
     let intersection = [];
     list1.forEach((e) => {
       if (list2.includes(e)) intersection.push(e);
     });
     return intersection;
   }
-
-
-
 
   /*
    *************************
@@ -1877,7 +1938,7 @@ export class Higher {
    *
    * @private
    */
-  async #shareData(prefix, id, toShareGroupID) {
+  async #shareData(prefix: string, id: string, toShareGroupID: string) {
     let idkey = this.core.olmWrapper.getIdkey();
     let key = this.#getDataKey(prefix, id);
     let value = this.localStorageWrapper.get(key);
@@ -1970,7 +2031,7 @@ export class Higher {
    *
    * @private
    */
-  #unshareChecks(prefix, id, toUnshareGroupID) {
+  #unshareChecks(prefix: string, id: string, toUnshareGroupID: string) {
     let idkey = this.core.olmWrapper.getIdkey();
     let key = this.#getDataKey(prefix, id);
     let value = this.localStorageWrapper.get(key);
@@ -2019,7 +2080,7 @@ export class Higher {
    *
    * @private
    */
-  async #unshareData(prefix, id, toUnshareGroupID) {
+  async #unshareData(prefix: string, id: string, toUnshareGroupID: string) {
     let { key, value, curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
     if (errCode === 0 && curGroupID !== null) {
       // delete data from toUnshareGroupID devices before deleting related group
@@ -2208,8 +2269,8 @@ export class Higher {
    *
    * @private
    */
-  #hasAdminPriv(toCheckID, groupIDs, inDB = null) {
-    if (inDB === null) { // groupIDs is a single value
+  #hasAdminPriv(toCheckID: string, groupIDs: string | string[], inDB: boolean = null): boolean {
+    if (typeof groupIDs === "string") { // groupIDs is a single value
       return this.#isMember(toCheckID, this.#getAdmins(groupIDs));
     } else if (inDB) { // inDB == true
       return this.#isMember(toCheckID, this.#getAdminsIntersection(groupIDs));
@@ -2227,7 +2288,7 @@ export class Higher {
    *
    * @private
    */
-  #hasWriterPriv(toCheckID, groupID) {
+  #hasWriterPriv(toCheckID: string, groupID: string): boolean {
     return this.#isMember(toCheckID, this.#getWriters(groupID));
   }
   
@@ -2240,7 +2301,7 @@ export class Higher {
    *
    * @private
    */
-  #isMember(toCheckGroupID, groupIDList) {
+  #isMember(toCheckGroupID: string, groupIDList: string[]): boolean {
     let isMemberRetval = false;
     groupIDList.forEach((groupID) => {
       if (groupID === toCheckGroupID) {
@@ -2260,7 +2321,7 @@ export class Higher {
    * @param {string} id data object id
    * @param {string} toShareGroupID group to grant read privileges to
    */
-  async grantReaderPrivs(prefix, id, toShareGroupID) {
+  async grantReaderPrivs(prefix: string, id: string, toShareGroupID: string) {
     await this.#shareData(prefix, id, toShareGroupID);
   }
   
@@ -2272,7 +2333,7 @@ export class Higher {
    * @param {string} id data object id
    * @param {string} toShareGroupID group to grant read/write privileges to
    */
-  async grantWriterPrivs(prefix, id, toShareGroupID) {
+  async grantWriterPrivs(prefix: string, id: string, toShareGroupID: string) {
     let { newGroupIdkeys, sharingGroupID, errCode } = await this.#shareData(prefix, id, toShareGroupID);
     if (errCode === 0 && sharingGroupID !== null) {
       // add writer
@@ -2288,7 +2349,7 @@ export class Higher {
    * @param {string} id data object id
    * @param {string} toShareGroupID group to grant read/write/admin privileges to
    */
-  async grantAdminPrivs(prefix, id, toShareGroupID) {
+  async grantAdminPrivs(prefix: string, id: string, toShareGroupID: string) {
     let { newGroupIdkeys, sharingGroupID, errCode } = await this.#shareData(prefix, id, toShareGroupID);
     if (errCode === 0 && sharingGroupID !== null) {
       // add writer
@@ -2305,7 +2366,7 @@ export class Higher {
    * @param {string} id data object id
    * @param {string} toUnshareGroupID id of member to revoke write privileges of
    */
-  async revokeWriterPrivs(prefix, id, toUnshareGroupID) {
+  async revokeWriterPrivs(prefix: string, id: string, toUnshareGroupID: string) {
     await this.#removeWriter(prefix, id, toUnshareGroupID);
   }
   
@@ -2316,7 +2377,7 @@ export class Higher {
    * @param {string} id data object id
    * @param {string} toUnshareGroupID id of member to revoke admin privileges of
    */
-  async revokeAdminPrivs(prefix, id, toUnshareGroupID) {
+  async revokeAdminPrivs(prefix: string, id: string, toUnshareGroupID: string) {
     await this.#removeAdmin(prefix, id, toUnshareGroupID);
   }
   
@@ -2327,7 +2388,7 @@ export class Higher {
    * @param {string} id data object id
    * @param {string} toUnshareGroupID id of member to revoke privileges of
    */
-  async revokeAllPrivs(prefix, id, toUnshareGroupID) {
+  async revokeAllPrivs(prefix: string, id: string, toUnshareGroupID: string) {
     await this.#unshareData(prefix, id, toUnshareGroupID);
   }
 }

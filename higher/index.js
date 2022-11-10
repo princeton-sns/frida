@@ -868,7 +868,7 @@ export class Higher {
      * @private
      */
     // FIXME getMany should maybe use "id" as the first field instead of "key"
-    // unless the key is the full localstorage key
+    // (so it can return groupObjType[]) unless the key really is the full LS key
     #getAllGroups() {
         return this.localStorageWrapper.getMany(this.#getDataPrefix(Higher.GROUP));
     }
@@ -1120,7 +1120,6 @@ export class Higher {
     #getWriters(groupID) {
         return this.#getGroup(groupID)?.writers ?? [];
     }
-    // TODO lock/seal equivalent of "const" ?
     #listRemoveCallback(ID, newList) {
         let idx = newList.indexOf(ID);
         if (idx !== -1)
@@ -1888,7 +1887,7 @@ export class Higher {
      * @private
      */
     #hasAdminPriv(toCheckID, groupIDs, inDB = null) {
-        if (inDB === null) { // groupIDs is a single value
+        if (typeof groupIDs === "string") { // groupIDs is a single value
             return this.#isMember(toCheckID, this.#getAdmins(groupIDs));
         }
         else if (inDB) { // inDB == true

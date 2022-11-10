@@ -15,8 +15,10 @@ var config = {
     serverIP: "localhost",
     serverPort: "8080",
     dataPrefix: "ConfigAppData",
-    num_clients: 7,
-    data_size: 32
+    num_clients: 3,
+    data_size: 32,
+    duration: 1,
+    rate: 2
 }
 
 if (typeof localStorage === "undefined" || localStorage === null) {
@@ -43,33 +45,58 @@ await frida.init(
     }
 );
 
-// await frida.deleteThisDevice();
+function waitFor(conditionFunction) {
+    const poll = resolve => {
+      if(conditionFunction()) resolve();
+      else setTimeout(_ => poll(resolve), 400);
+    }
+    return new Promise(poll);
+}
+
+function sync(cond, after){
+    waitFor(cond).then(after);
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function generate_obj(oid = null){
+    if(oid === null){
+        oid =  crypto.randomUUID();
+    }
+    var timestamp = new Date();
+    var dataObj = new ArrayBuffer(config.data_size);
+    return {id: oid, timestamp: new Date(), dataObj: crypto.randomBytes(config.data_size).toString('hex')};
+}
+
+async function update_data(oid){
+    // await frida.setData(config.dataPrefix, oid, generate_obj(oid));
+    frida.setData(config.dataPrefix, oid, generate_obj(oid));
+}
+
 await frida.createDevice("LinkedDevice " + tid, "device_" + tid);
 await new Promise(r => setTimeout(r, 1000));
 
 var idkey = frida.getIdkey();
-// console.log("device_" )
-process.send({wid: tid, idKey: idkey});
+var oid;
+
+process.send({type: "idkey", wid: tid, idKey: idkey});
 
 
 
 console.log("device_"+tid + ": " + idkey);
 
-// console.log("contacts of client: " + frida.getContacts())
+process.on('message', (msg) => {
+    if(msg.type == "ready_to_send"){
+        oid = msg.obj_id;
+        simulate_send();
+    }
+});
 
-// console.log("linked name:", frida.getLinkedName());
-// console.log("linked devices:", frida.getLinkedDevices());
-
-
-// var timestamp = new Date();
-// var dataObj = new ArrayBuffer(data_size);
-// var id =  crypto.randomUUID();
-
-// await frida.setData(configPrefix, id, {
-//     id: id,
-//     timestamp: timestamp,
-//     dataObj: dataObj,
-// });
-
-// console.log("data:", frida.getData(configPrefix));
-
+async function simulate_send(){
+    for(var cnt = 0; cnt < config.duration * config.rate; cnt++){
+        await sleep(1000/config.rate);
+        update_data(oid);
+    }
+}

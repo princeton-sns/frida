@@ -12,7 +12,7 @@ var config = {
     num_clients: 3,
     data_size: 32,
     duration: 1,
-    rate: 10
+    rate: 2
 }
 
 var wrks = new Array(config.num_clients);
@@ -55,7 +55,8 @@ function generate_obj(oid = null){
 }
 
 async function update_data(oid){
-    await frida.setData(config.dataPrefix, oid, generate_obj(oid))
+    // await frida.setData(config.dataPrefix, oid, generate_obj(oid));
+    frida.setData(config.dataPrefix, oid, generate_obj(oid));
 }
 
 await frida.init(config.serverIP,
@@ -82,11 +83,11 @@ for(var i = 1; i < config.num_clients; i++) {
     });
 
     wrks[i].on('message', (msg) => {
-        wrk_ids[msg.wid] = msg.idKey;
-        frida.addContact(msg.idKey);
-        idkey_msg_cnt += 1;
-        // console.log("message contacts: " + frida.getContacts());
-        // console.log("messages received " + msg);
+        if(msg.type == "idkey"){
+            wrk_ids[msg.wid] = msg.idKey;
+            frida.addContact(msg.idKey);
+            idkey_msg_cnt += 1;
+        }
     });
 }
 
@@ -113,12 +114,18 @@ async function grantPrivs(){
         await sleep(100);
     }
 
-    await sleep(1000);
+    const wait_time = 5;
+    console.log("*********************** Starting simulation in %d seconds ***********************", wait_time);
+    await sleep(wait_time * 1000);
+    for(var i = 1; i < config.num_clients; i++) {
+        wrks[i].send({type: "ready_to_send", obj_id: oid});
+    }
+    simulate_send();
+}
 
-
-    // console.log("-----------------------preparing writing data phase...");
+async function simulate_send(){
     for(var cnt = 0; cnt < config.duration * config.rate; cnt++){
         await sleep(1000/config.rate);
-        await update_data(oid);
+        update_data(oid);
     }
 }

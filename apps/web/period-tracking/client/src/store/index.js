@@ -1,6 +1,6 @@
 import { createStore } from "vuex";
 import router from "../router";
-import * as frida from "../../../../../../core/client";
+import { Higher } from "../../../../../../higher";
 
 let serverIP = "localhost";
 let serverPort = "8080";
@@ -8,7 +8,7 @@ let serverPort = "8080";
 const symptomPrefix = "symptom";
 const periodPrefix = "period";
 
-frida.init(serverIP, serverPort, {
+export let frida = new Higher({
   onAuth: () => {
     router.push("/settings");
   },
@@ -17,7 +17,10 @@ frida.init(serverIP, serverPort, {
   },
   storagePrefixes: [symptomPrefix, periodPrefix],
   //turnEncryptionOff: true,
-});
+}, serverIP, serverPort);
+
+// FIXME should be awaited on but need to restructure this file
+frida.init();
 
 function createAppDBListenerPlugin() {
   return (store) => {
@@ -67,8 +70,8 @@ const store = createStore({
     devices: frida.getLinkedDevices(),
     friends: frida.getContacts(),
     pendingFriends: frida.getPendingContacts(),
-    symptoms: frida.getData(symptomPrefix),
-    period: frida.getData(periodPrefix),
+    symptoms: frida.getDataByPrefix(symptomPrefix),
+    period: frida.getDataByPrefix(periodPrefix),
   },
   mutations: {
     /* App-specific mutations */

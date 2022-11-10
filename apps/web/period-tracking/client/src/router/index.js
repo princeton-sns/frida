@@ -5,7 +5,7 @@ import Friends from "../views/Friends.vue";
 import Settings from "../views/Settings.vue";
 //import Shared from "../views/Shared.vue";
 
-import { getLinkedName } from "../../../../../../core/client";
+import { frida } from "../store";
 
 const routes = [
   {
@@ -40,7 +40,7 @@ const routes = [
 ];
 
 function existsCurrentDevice(to, from, next) {
-  if (!getLinkedName()) {
+  if (!frida.getLinkedName()) {
     next("/register");
   } else {
     next();

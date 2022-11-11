@@ -6,6 +6,7 @@
  ************
  */
 
+import EventEmitter from "events";
 import { OlmWrapper } from  "./crypto/olmWrapper.js";
 import { ServerComm } from "./serverComm/socketIOWrapper.js";
 import { payloadType } from "../../higher";
@@ -24,7 +25,7 @@ export type inboundEncPayloadType = {
 export class Core {
   olmWrapper: OlmWrapper;
   #serverComm: ServerComm;
-  #onMessageCallback: (payloadType, string) => void;
+  eventEmitter: EventEmitter;
 
   /**
    * Initializes client-server connection and client state.
@@ -36,19 +37,22 @@ export class Core {
    *           validateCallback: callback}} config client configuration options
    */
   constructor(
+      eventEmitter: EventEmitter,
       turnEncryptionOff: boolean,
-      onMessageCallback,
       ip?: string,
       port?: string) {
-    // FIXME use eventEmitter for onMessageCallback
     this.olmWrapper = new OlmWrapper(turnEncryptionOff);
-    this.#serverComm = new ServerComm(this.olmWrapper, this.onMessage, ip, port);
-    this.#onMessageCallback = onMessageCallback;
+    this.eventEmitter = eventEmitter;
+    // register listener for incoming messages
+    this.eventEmitter.on('serverMsg', (msg) => {
+      this.onMessage(msg);
+    });
+    this.#serverComm = new ServerComm(this.eventEmitter, ip, port);
   }
 
   async init() {
     await this.olmWrapper.init();
-    await this.#serverComm.init();
+    await this.#serverComm.init(this.olmWrapper);
   }
 
   /**
@@ -91,7 +95,10 @@ export class Core {
         msg.encPayload,
         msg.sender,
     ));
-    this.#onMessageCallback(payload, msg.sender);
+    this.eventEmitter.emit('coreMsg', {
+      payload: payload,
+      sender: msg.sender,
+    });
   }
 
   disconnect() {

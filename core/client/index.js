@@ -10,7 +10,7 @@ import { ServerComm } from "./serverComm/socketIOWrapper.js";
 export class Core {
     olmWrapper;
     #serverComm;
-    #onMessageCallback;
+    eventEmitter;
     /**
      * Initializes client-server connection and client state.
      *
@@ -20,15 +20,18 @@ export class Core {
      *           onUnauth: callback,
      *           validateCallback: callback}} config client configuration options
      */
-    constructor(turnEncryptionOff, onMessageCallback, ip, port) {
-        // FIXME use eventEmitter for onMessageCallback
+    constructor(eventEmitter, turnEncryptionOff, ip, port) {
         this.olmWrapper = new OlmWrapper(turnEncryptionOff);
-        this.#serverComm = new ServerComm(this.olmWrapper, this.onMessage, ip, port);
-        this.#onMessageCallback = onMessageCallback;
+        this.eventEmitter = eventEmitter;
+        // register listener for incoming messages
+        this.eventEmitter.on('serverMsg', (msg) => {
+            this.onMessage(msg);
+        });
+        this.#serverComm = new ServerComm(this.eventEmitter, ip, port);
     }
     async init() {
         await this.olmWrapper.init();
-        await this.#serverComm.init();
+        await this.#serverComm.init(this.olmWrapper);
     }
     /**
      * Called like: sendMessage(resolveIDs(id), payload) (see example in
@@ -59,7 +62,10 @@ export class Core {
     onMessage(msg) {
         console.log("seqID: " + msg.seqID);
         let payload = JSON.parse(this.olmWrapper.decrypt(msg.encPayload, msg.sender));
-        this.#onMessageCallback(payload, msg.sender);
+        this.eventEmitter.emit('coreMsg', {
+            payload: payload,
+            sender: msg.sender,
+        });
     }
     disconnect() {
         this.#serverComm.disconnect();

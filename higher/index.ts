@@ -22,6 +22,7 @@
 
 // TODO need new special name for LINKED group (confusing when linking non-LINKED groups)
 
+import EventEmitter from "events";
 import { Core } from "../core/client";
 import { LocalStorageWrapper } from "../core/client/db/localStorageWrapper.js";
 
@@ -175,6 +176,8 @@ export class Higher {
   validateCallback: (payloadType) => boolean;
   core: Core;
   localStorageWrapper: LocalStorageWrapper;
+  eventEmitter: EventEmitter;
+  demuxFunc;
 
   constructor(
       // TODO type config
@@ -191,7 +194,12 @@ export class Higher {
         this.storagePrefixes.push(prefix);
       });
     }
-    this.core = new Core(this.turnEncryptionOff, this.#onMessage, ip, port);
+    this.eventEmitter = new EventEmitter();
+    // register listener for incoming messages
+    this.eventEmitter.on('coreMsg', async ({ payload, sender }) => {
+      await this.#onMessage(payload, sender);
+    });
+    this.core = new Core(this.eventEmitter, this.turnEncryptionOff, ip, port);
     this.localStorageWrapper = new LocalStorageWrapper();
   }
 
@@ -250,8 +258,8 @@ export class Higher {
       payload: payloadType,
       sender: string
   ) {
-    let { permissionsOK, demuxFunc } = this.#checkPermissions(payload, sender);
-    if (demuxFunc === undefined) {
+    let permissionsOK = this.#checkPermissions(payload, sender);
+    if (this.demuxFunc === undefined) {
       this.#printBadMessageError(payload.msgType);
       return;
     }
@@ -264,7 +272,7 @@ export class Higher {
       return;
     }
     console.log("SUCCESS");
-    await demuxFunc(payload);
+    await this.demuxFunc(payload);
   }
 
   /**
@@ -2173,7 +2181,7 @@ export class Higher {
   #checkPermissions(
       payload: payloadType,
       srcIdkey: string
-  ): { permissionsOK: boolean, demuxFunc: (payloadType) => void } {
+  ): boolean {
     let permissionsOK = false;
   
     // no reader checks, any device that gets data should correctly be a reader
@@ -2251,11 +2259,10 @@ export class Higher {
         break;
       default:
     }
+
+    this.demuxFunc = this.demuxMap[payload.msgType];
   
-    return {
-      permissionsOK: permissionsOK,
-      demuxFunc: this.demuxMap[payload.msgType],
-    };
+    return permissionsOK;
   }
   
   /**

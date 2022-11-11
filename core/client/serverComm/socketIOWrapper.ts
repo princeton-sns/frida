@@ -4,6 +4,7 @@
  *************************
  */
 
+import EventEmitter from "events";
 import io from "socket.io-client";
 import { OlmWrapper } from "../crypto/olmWrapper.js";
 import { outboundEncPayloadType, inboundEncPayloadType } from "../index.js";
@@ -13,25 +14,25 @@ export class ServerComm {
   #port: string;
   #url:  string;
   #olmWrapper: OlmWrapper;
-  #onMessage: (inboundEncPayloadType) => void;
   #idkey: string;
   // TODO type
   #socket;
 
+  eventEmitter: EventEmitter;
+
   constructor(
-      olmWrapper: OlmWrapper,
-      onMessage: (inboundEncPayloadType) => void,
+      eventEmitter: EventEmitter,
       ip?: string,
       port?: string
   ) {
     this.#ip = ip ?? "localhost";
     this.#port = port ?? "8080";
     this.#url = "http://" + this.#ip + ":" + this.#port;
-    this.#olmWrapper = olmWrapper;
-    this.#onMessage = onMessage;
+    this.eventEmitter = eventEmitter;
   }
 
-  async init() {
+  async init(olmWrapper: OlmWrapper) {
+    this.#olmWrapper = olmWrapper;
     this.#idkey = await this.#olmWrapper.generateInitialKeys();
 
     this.#socket = io(this.#url, {
@@ -59,7 +60,7 @@ export class ServerComm {
     this.#socket.on("noiseMessage", async (msgs: inboundEncPayloadType[]) => {
       console.log("Noise message", msgs);
       msgs.forEach(msg => {
-        this.#onMessage(msg);
+        this.eventEmitter.emit('serverMsg', msg);
       });
       let maxId: number = Math.max(...msgs.map(msg => msg.seqID));
       let u: URL = new URL("/self/messages", this.#url);

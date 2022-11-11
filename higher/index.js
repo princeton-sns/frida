@@ -17,6 +17,7 @@
 // expected to change so just set some object state once a device is
 // created (could still be in olmWrapper)
 // TODO need new special name for LINKED group (confusing when linking non-LINKED groups)
+import EventEmitter from "events";
 import { Core } from "../core/client";
 import { LocalStorageWrapper } from "../core/client/db/localStorageWrapper.js";
 /* doubly-linked tree, allows cycles */
@@ -102,6 +103,8 @@ export class Higher {
     validateCallback;
     core;
     localStorageWrapper;
+    eventEmitter;
+    demuxFunc;
     constructor(
     // TODO type config
     config, ip, port) {
@@ -114,7 +117,12 @@ export class Higher {
                 this.storagePrefixes.push(prefix);
             });
         }
-        this.core = new Core(this.turnEncryptionOff, this.#onMessage, ip, port);
+        this.eventEmitter = new EventEmitter();
+        // register listener for incoming messages
+        this.eventEmitter.on('coreMsg', async ({ payload, sender }) => {
+            await this.#onMessage(payload, sender);
+        });
+        this.core = new Core(this.eventEmitter, this.turnEncryptionOff, ip, port);
         this.localStorageWrapper = new LocalStorageWrapper();
     }
     async init() {
@@ -160,8 +168,8 @@ export class Higher {
      *           srcIdkey: string }} msg message with encrypted contents
      */
     async #onMessage(payload, sender) {
-        let { permissionsOK, demuxFunc } = this.#checkPermissions(payload, sender);
-        if (demuxFunc === undefined) {
+        let permissionsOK = this.#checkPermissions(payload, sender);
+        if (this.demuxFunc === undefined) {
             this.#printBadMessageError(payload.msgType);
             return;
         }
@@ -174,7 +182,7 @@ export class Higher {
             return;
         }
         console.log("SUCCESS");
-        await demuxFunc(payload);
+        await this.demuxFunc(payload);
     }
     /**
      * Resolves a list of one or more group IDs to a list of public keys.
@@ -1870,10 +1878,8 @@ export class Higher {
                 break;
             default:
         }
-        return {
-            permissionsOK: permissionsOK,
-            demuxFunc: this.demuxMap[payload.msgType],
-        };
+        this.demuxFunc = this.demuxMap[payload.msgType];
+        return permissionsOK;
     }
     /**
      * Check if one groupID has admin privileges for another groupID.

@@ -9,6 +9,7 @@
   "author": "Natalie Popescu",
   "license": "ISC",
   "dependencies": {
+    "events": "^3.3.0",
     "typescript": "^4.8.4"
   }
 }

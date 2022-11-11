@@ -9,18 +9,18 @@ export class ServerComm {
     #port;
     #url;
     #olmWrapper;
-    #onMessage;
     #idkey;
     // TODO type
     #socket;
-    constructor(olmWrapper, onMessage, ip, port) {
+    eventEmitter;
+    constructor(eventEmitter, ip, port) {
         this.#ip = ip ?? "localhost";
         this.#port = port ?? "8080";
         this.#url = "http://" + this.#ip + ":" + this.#port;
-        this.#olmWrapper = olmWrapper;
-        this.#onMessage = onMessage;
+        this.eventEmitter = eventEmitter;
     }
-    async init() {
+    async init(olmWrapper) {
+        this.#olmWrapper = olmWrapper;
         this.#idkey = await this.#olmWrapper.generateInitialKeys();
         this.#socket = io(this.#url, {
             auth: {
@@ -44,7 +44,7 @@ export class ServerComm {
         this.#socket.on("noiseMessage", async (msgs) => {
             console.log("Noise message", msgs);
             msgs.forEach(msg => {
-                this.#onMessage(msg);
+                this.eventEmitter.emit('serverMsg', msg);
             });
             let maxId = Math.max(...msgs.map(msg => msg.seqID));
             let u = new URL("/self/messages", this.#url);

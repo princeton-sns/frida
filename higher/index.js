@@ -439,15 +439,9 @@ export class Higher {
             msgType: Higher.DELETE_DEVICE,
         });
     }
-    async #deleteDevice(allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #deleteDevice(idkeys) {
         await this.#deleteDeviceRemotely(idkeys);
-        // locally
-        if (execLocal) {
-            this.#deleteDeviceLocally();
-        }
+        // TODO impl pending state
     }
     /**
      * Deletes the current device's data and removes it's public key from
@@ -647,15 +641,9 @@ export class Higher {
             dataValue: value,
         });
     }
-    async #updateData(key, value, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #updateData(key, value, idkeys) {
         await this.#updateDataRemotely(key, value, idkeys);
-        // locally
-        if (execLocal) {
-            this.#updateDataLocally({ key: key, dataValue: value });
-        }
+        // TODO impl pending state
     }
     /**
      * Function that handles propagating data to all members of the
@@ -695,15 +683,9 @@ export class Higher {
             key: key,
         });
     }
-    async #deleteData(key, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #deleteData(key, idkeys) {
         await this.#deleteDataRemotely(key, idkeys);
-        // locally
-        if (execLocal) {
-            this.#deleteDataLocally({ key: key });
-        }
+        // TODO impl pending state
     }
     /**
      * Function that handles propagating data removal to all members of the
@@ -822,7 +804,7 @@ export class Higher {
      * @param {string} prefix data prefix
      * @param {string} id data id (app-specific)
      */
-    async #removeData(prefix, id) {
+    async removeData(prefix, id) {
         await this.#removeDataHelper(this.#getDataKey(prefix, id));
     }
     /*
@@ -963,15 +945,9 @@ export class Higher {
      *
      * @private
      */
-    async #updateGroup(groupID, value, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #updateGroup(groupID, value, idkeys) {
         await this.#updateGroupRemotely(groupID, value, idkeys);
-        // locally
-        if (execLocal) {
-            await this.#updateGroupLocally({ groupID: groupID, groupValue: value });
-        }
+        // TODO impl pending state
     }
     /**
      * Links parentID with childID by updating their childrens and parents lists,
@@ -993,15 +969,9 @@ export class Higher {
             childID: childID,
         });
     }
-    async #linkGroups(parentID, childID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #linkGroups(parentID, childID, idkeys) {
         await this.#linkGroupsRemotely(parentID, childID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#linkGroupsLocally({ parentID: parentID, childID: childID });
-        }
+        // TODO impl pending state
     }
     /**
      * Unlinks the group denoted by groupID from its parents and children
@@ -1035,15 +1005,9 @@ export class Higher {
             groupID: groupID,
         });
     }
-    async #deleteGroup(groupID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #deleteGroup(groupID, idkeys) {
         await this.#deleteGroupRemotely(groupID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#deleteGroupLocally({ groupID: groupID });
-        }
+        // TODO impl pending state
     }
     /**
      * Removes the parent back-pointer to the group-to-delete and then deletes
@@ -1187,15 +1151,9 @@ export class Higher {
      *
      * @private
      */
-    async #addChild(groupID, childID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #addChild(groupID, childID, idkeys) {
         await this.#addChildRemotely(groupID, childID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#addChildLocally({ groupID: groupID, childID: childID });
-        }
+        // TODO impl pending state
     }
     /**
      * Removes a child (ID or idkey) from an existing group's children list.
@@ -1239,15 +1197,9 @@ export class Higher {
      *
      * @private
      */
-    async #addParent(groupID, parentID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #addParent(groupID, parentID, idkeys) {
         await this.#addParentRemotely(groupID, parentID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#addParentLocally({ groupID: groupID, parentID: parentID });
-        }
+        // TODO impl pending state
     }
     /**
      * Removes a parent (ID or idkey) from an existing group's parents list.
@@ -1269,15 +1221,9 @@ export class Higher {
             parentID: parentID,
         });
     }
-    async #removeParent(groupID, parentID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #removeParent(groupID, parentID, idkeys) {
         await this.#removeParentRemotely(groupID, parentID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#removeParentLocally({ groupID: groupID, parentID: parentID });
-        }
+        // TODO impl pending state
     }
     /**
      * Adds admin to admins list of a group (modifies group in place). Necessary
@@ -1326,15 +1272,9 @@ export class Higher {
      *
      * @private
      */
-    async #addAdmin(groupID, adminID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #addAdmin(groupID, adminID, idkeys) {
         await this.#addAdminRemotely(groupID, adminID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#addAdminLocally({ groupID: groupID, adminID: adminID });
-        }
+        // TODO impl pending state
     }
     /**
      * Removes an admin (ID or idkey) from an existing group's admins list.
@@ -1369,14 +1309,8 @@ export class Higher {
     async #removeAdmin(prefix, id, toUnshareGroupID) {
         let { curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
         if (errCode === 0) {
-            // FIXME send everything
-            let { idkeys, execLocal } = this.#adaptor(this.#resolveIDs([curGroupID]), this.core.olmWrapper.getIdkey());
-            // remotely
-            await this.#removeAdminRemotely(curGroupID, toUnshareGroupID, idkeys);
-            // locally
-            if (execLocal) {
-                this.#removeAdminLocally({ groupID: curGroupID, adminID: toUnshareGroupID });
-            }
+            await this.#removeAdminRemotely(curGroupID, toUnshareGroupID, this.#resolveIDs([curGroupID]));
+            // TODO impl pending state
         }
     }
     /**
@@ -1407,15 +1341,9 @@ export class Higher {
      *
      * @private
      */
-    async #addWriter(groupID, writerID, allIdkeys) {
-        // FIXME send everything
-        let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-        // remotely
+    async #addWriter(groupID, writerID, idkeys) {
         await this.#addWriterRemotely(groupID, writerID, idkeys);
-        // locally
-        if (execLocal) {
-            this.#addWriterLocally({ groupID: groupID, writerID: writerID });
-        }
+        // TODO impl pending state
     }
     /**
      * Removes a writer (ID or idkey) from an existing group's writers list.
@@ -1450,14 +1378,8 @@ export class Higher {
     async #removeWriter(prefix, id, toUnshareGroupID) {
         let { curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
         if (errCode === 0) {
-            // FIXME send everything
-            let { idkeys, execLocal } = this.#adaptor(this.#resolveIDs([curGroupID]), this.core.olmWrapper.getIdkey());
-            // remotely
-            await this.#removeWriterRemotely(curGroupID, toUnshareGroupID, idkeys);
-            // locally
-            if (execLocal) {
-                this.#removeWriterLocally({ groupID: curGroupID, writerID: toUnshareGroupID });
-            }
+            await this.#removeWriterRemotely(curGroupID, toUnshareGroupID, this.#resolveIDs([curGroupID]));
+            // TODO impl pending state
         }
     }
     /**
@@ -1541,18 +1463,6 @@ export class Higher {
         bool ||= this.#groupContainsHelper(ADMINS, group, IDToCheck);
         bool ||= this.#groupContainsHelper(WRITERS, group, IDToCheck);
         return bool;
-    }
-    #adaptor(idkeys, idkey) {
-        if (idkeys.includes(idkey)) {
-            return {
-                idkeys: idkeys.filter((x) => x !== idkey),
-                execLocal: true,
-            };
-        }
-        return {
-            idkeys: idkeys,
-            execLocal: false,
-        };
     }
     /**
      * Helper function for determining the intersection between two lists.

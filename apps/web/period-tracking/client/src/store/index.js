@@ -8,16 +8,20 @@ let serverPort = "8080";
 const symptomPrefix = "symptom";
 const periodPrefix = "period";
 
-export let frida = new Higher({
-  onAuth: () => {
-    router.push("/settings");
+export let frida = new Higher(
+  {
+    onAuth: () => {
+      router.push("/settings");
+    },
+    onUnauth: () => {
+      router.push("/register");
+    },
+    storagePrefixes: [symptomPrefix, periodPrefix],
+    //turnEncryptionOff: true,
   },
-  onUnauth: () => {
-    router.push("/register");
-  },
-  storagePrefixes: [symptomPrefix, periodPrefix],
-  //turnEncryptionOff: true,
-}, serverIP, serverPort);
+  serverIP,
+  serverPort
+);
 
 // FIXME should be awaited on but need to restructure this file
 frida.init();
@@ -31,28 +35,28 @@ function createAppDBListenerPlugin() {
       } else if (e.key.includes(symptomPrefix)) {
         if (e.newValue == null && e.oldValue) {
           store.commit("REMOVE_SYMPTOMS", {
-            id: frida.db.fromString(e.oldValue).data.id,
+            id: JSON.parse(e.oldValue).data.id,
             remote: true,
           });
         } else {
           store.commit("ADD_SYMPTOM", {
-            timestamp: frida.db.fromString(e.newValue).data.timestamp,
-            symptoms: frida.db.fromString(e.newValue).data.symptoms,
-            id: frida.db.fromString(e.newValue).data.id,
+            timestamp: JSON.parse(e.newValue).data.timestamp,
+            symptoms: JSON.parse(e.newValue).data.symptoms,
+            id: JSON.parse(e.newValue).data.id,
             remote: true,
           });
         }
       } else if (e.key.includes(periodPrefix)) {
         if (e.newValue == null && e.oldValue) {
           store.commit("REMOVE_PERIOD", {
-            id: frida.db.fromString(e.oldValue).data.id,
+            id: JSON.parse(e.oldValue).data.id,
             remote: true,
           });
         } else {
           store.commit("ADD_PERIOD", {
-            timestamp: frida.db.fromString(e.newValue).data.timestamp,
-            period: frida.db.fromString(e.newValue).data.period,
-            id: frida.db.fromString(e.newValue).data.id,
+            timestamp: JSON.parse(e.newValue).data.timestamp,
+            period: JSON.parse(e.newValue).data.period,
+            id: JSON.parse(e.newValue).data.id,
             remote: true,
           });
         }
@@ -84,7 +88,7 @@ const store = createStore({
       if (!remote) {
         frida.setData(symptomPrefix, id, value);
       }
-      //state.symptoms.push(frida.db.toString({
+      //state.symptoms.push(JSON.stringify({
       //  id: id,
       //  data: value,
       //}));

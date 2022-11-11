@@ -585,15 +585,9 @@ export class Higher {
     });
   }
   
-  async #deleteDevice(allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #deleteDevice(idkeys: string[]) {
     await this.#deleteDeviceRemotely(idkeys);
-    // locally
-    if (execLocal) {
-      this.#deleteDeviceLocally();
-    }
+    // TODO impl pending state
   }
 
   /**
@@ -839,15 +833,9 @@ export class Higher {
     });
   }
   
-  async #updateData(key: string, value: any, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #updateData(key: string, value: any, idkeys: string[]) {
     await this.#updateDataRemotely(key, value, idkeys);
-    // locally
-    if (execLocal) {
-      this.#updateDataLocally({ key: key, dataValue: value });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -891,15 +879,9 @@ export class Higher {
     });
   }
   
-  async #deleteData(key: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #deleteData(key: string, idkeys: string[]) {
     await this.#deleteDataRemotely(key, idkeys);
-    // locally
-    if (execLocal) {
-      this.#deleteDataLocally({ key: key });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1032,7 +1014,7 @@ export class Higher {
    * @param {string} prefix data prefix
    * @param {string} id data id (app-specific)
    */
-  async #removeData(prefix: string, id: string) {
+  async removeData(prefix: string, id: string) {
     await this.#removeDataHelper(this.#getDataKey(prefix, id));
   }
 
@@ -1205,15 +1187,9 @@ export class Higher {
    *
    * @private
    */
-  async #updateGroup(groupID: string, value: groupValType, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #updateGroup(groupID: string, value: groupValType, idkeys: string[]) {
     await this.#updateGroupRemotely(groupID, value, idkeys);
-    // locally
-    if (execLocal) {
-      await this.#updateGroupLocally({ groupID: groupID, groupValue: value });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1238,15 +1214,9 @@ export class Higher {
     });
   }
   
-  async #linkGroups(parentID: string, childID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #linkGroups(parentID: string, childID: string, idkeys: string[]) {
     await this.#linkGroupsRemotely(parentID, childID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#linkGroupsLocally({ parentID: parentID, childID: childID });
-    }
+    // TODO impl pending state
   }
 
   /**
@@ -1283,15 +1253,9 @@ export class Higher {
     });
   }
   
-  async #deleteGroup(groupID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #deleteGroup(groupID: string, idkeys: string[]) {
     await this.#deleteGroupRemotely(groupID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#deleteGroupLocally({ groupID: groupID });
-    }
+    // TODO impl pending state
   }
 
   /**
@@ -1454,15 +1418,9 @@ export class Higher {
    *
    * @private
    */
-  async #addChild(groupID: string, childID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #addChild(groupID: string, childID: string, idkeys: string[]) {
     await this.#addChildRemotely(groupID, childID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#addChildLocally({ groupID: groupID, childID: childID });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1516,15 +1474,9 @@ export class Higher {
    *
    * @private
    */
-  async #addParent(groupID: string, parentID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #addParent(groupID: string, parentID: string, idkeys: string[]) {
     await this.#addParentRemotely(groupID, parentID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#addParentLocally({ groupID: groupID, parentID: parentID });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1555,15 +1507,9 @@ export class Higher {
     });
   }
   
-  async #removeParent(groupID: string, parentID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #removeParent(groupID: string, parentID: string, idkeys: string[]) {
     await this.#removeParentRemotely(groupID, parentID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#removeParentLocally({ groupID: groupID, parentID: parentID });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1622,15 +1568,9 @@ export class Higher {
    *
    * @private
    */
-  async #addAdmin(groupID: string, adminID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #addAdmin(groupID: string, adminID: string, idkeys: string[]) {
     await this.#addAdminRemotely(groupID, adminID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#addAdminLocally({ groupID: groupID, adminID: adminID });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1674,14 +1614,8 @@ export class Higher {
   async #removeAdmin(prefix: string, id: string, toUnshareGroupID: string) {
     let { curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
     if (errCode === 0) {
-      // FIXME send everything
-      let { idkeys, execLocal } = this.#adaptor(this.#resolveIDs([curGroupID]), this.core.olmWrapper.getIdkey());
-      // remotely
-      await this.#removeAdminRemotely(curGroupID, toUnshareGroupID, idkeys);
-      // locally
-      if (execLocal) {
-        this.#removeAdminLocally({ groupID: curGroupID, adminID: toUnshareGroupID });
-      }
+      await this.#removeAdminRemotely(curGroupID, toUnshareGroupID, this.#resolveIDs([curGroupID]));
+      // TODO impl pending state
     }
   }
   
@@ -1721,15 +1655,9 @@ export class Higher {
    *
    * @private
    */
-  async #addWriter(groupID: string, writerID: string, allIdkeys: string[]) {
-    // FIXME send everything
-    let { idkeys, execLocal } = this.#adaptor(allIdkeys, this.core.olmWrapper.getIdkey());
-    // remotely
+  async #addWriter(groupID: string, writerID: string, idkeys: string[]) {
     await this.#addWriterRemotely(groupID, writerID, idkeys);
-    // locally
-    if (execLocal) {
-      this.#addWriterLocally({ groupID: groupID, writerID: writerID });
-    }
+    // TODO impl pending state
   }
   
   /**
@@ -1773,14 +1701,8 @@ export class Higher {
   async #removeWriter(prefix: string, id: string, toUnshareGroupID: string) {
     let { curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
     if (errCode === 0) {
-      // FIXME send everything
-      let { idkeys, execLocal } = this.#adaptor(this.#resolveIDs([curGroupID]), this.core.olmWrapper.getIdkey());
-      // remotely
-      await this.#removeWriterRemotely(curGroupID, toUnshareGroupID, idkeys);
-      // locally
-      if (execLocal) {
-        this.#removeWriterLocally({ groupID: curGroupID, writerID: toUnshareGroupID });
-      }
+      await this.#removeWriterRemotely(curGroupID, toUnshareGroupID, this.#resolveIDs([curGroupID]));
+      // TODO impl pending state
     }
   }
 
@@ -1884,20 +1806,6 @@ export class Higher {
     bool ||= this.#groupContainsHelper(ADMINS, group, IDToCheck);
     bool ||= this.#groupContainsHelper(WRITERS, group, IDToCheck);
     return bool;
-  }
-  
-  #adaptor(idkeys: string[], idkey: string): 
-      { idkeys: string[], execLocal: boolean } {
-    if (idkeys.includes(idkey)) {
-      return {
-        idkeys: idkeys.filter((x) => x !== idkey),
-        execLocal: true,
-      };
-    }
-    return {
-      idkeys: idkeys,
-      execLocal: false,
-    };
   }
   
   /**

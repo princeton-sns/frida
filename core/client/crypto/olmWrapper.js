@@ -4,7 +4,22 @@
  **************
  */
 import Olm from "./olm.js";
-import { LocalStorageWrapper } from "../db/localStorageWrapper.js";
+// TODO can eventually make data abstraction module use these basic methods
+class ThinLSWrapper {
+    constructor() { }
+    set(key, value) {
+        localStorage.setItem(key, JSON.stringify(value));
+    }
+    get(key) {
+        return JSON.parse(localStorage.getItem(key));
+    }
+    remove(key) {
+        localStorage.removeItem(key);
+    }
+    clear() {
+        localStorage.clear();
+    }
+}
 export class OlmWrapper {
     // FIXME what key to use for pickling/unpickling?
     static PICKLE_KEY = "secret_key";
@@ -19,10 +34,10 @@ export class OlmWrapper {
     // used by encryptHelper and decryptHelper
     static #selfSessionUseOutbound = false;
     #turnEncryptionOff = false;
-    #localStorageWrapper;
+    #thinLSWrapper;
     constructor(turnEncryptionOff) {
         this.#turnEncryptionOff = turnEncryptionOff;
-        this.#localStorageWrapper = new LocalStorageWrapper();
+        this.#thinLSWrapper = new ThinLSWrapper();
     }
     async init() {
         await Olm.init({
@@ -30,14 +45,14 @@ export class OlmWrapper {
         });
     }
     getIdkey() {
-        return this.#localStorageWrapper.get(OlmWrapper.IDKEY);
+        return this.#thinLSWrapper.get(OlmWrapper.IDKEY);
     }
     #setIdkey(idkey) {
-        this.#localStorageWrapper.set(OlmWrapper.IDKEY, idkey);
+        this.#thinLSWrapper.set(OlmWrapper.IDKEY, idkey);
     }
     #getAccount() {
         // check that account exists
-        let pickled = this.#localStorageWrapper.get(OlmWrapper.ACCT_KEY);
+        let pickled = this.#thinLSWrapper.get(OlmWrapper.ACCT_KEY);
         if (pickled === null) {
             return null;
         }
@@ -47,7 +62,7 @@ export class OlmWrapper {
         return acct;
     }
     #setAccount(acct) {
-        this.#localStorageWrapper.set(OlmWrapper.ACCT_KEY, acct.pickle(OlmWrapper.PICKLE_KEY));
+        this.#thinLSWrapper.set(OlmWrapper.ACCT_KEY, acct.pickle(OlmWrapper.PICKLE_KEY));
     }
     #getSessionKey(idkey, toggle = undefined) {
         if (toggle !== undefined) {
@@ -60,7 +75,7 @@ export class OlmWrapper {
     }
     #getSession(idkey, toggle = undefined) {
         // check that session exists
-        let pickled = this.#localStorageWrapper.get(this.#getSessionKey(idkey, toggle));
+        let pickled = this.#thinLSWrapper.get(this.#getSessionKey(idkey, toggle));
         if (pickled === null) {
             return null;
         }
@@ -70,7 +85,7 @@ export class OlmWrapper {
         return sess;
     }
     #setSession(sess, idkey, toggle = undefined) {
-        this.#localStorageWrapper.set(this.#getSessionKey(idkey, toggle), sess.pickle(OlmWrapper.PICKLE_KEY));
+        this.#thinLSWrapper.set(this.#getSessionKey(idkey, toggle), sess.pickle(OlmWrapper.PICKLE_KEY));
     }
     #generateOtkeys(numOtkeys) {
         let acct = this.#getAccount();

@@ -2,8 +2,17 @@
 
 \name{} enables developers to easily build secure applications. It does so by exposing a simple interface that handles interactions with the application data store and with other clients. All application data is stored in on-device local storage, and all cross-client communication is encrypted. Thus, no private information is exposed or persisted on a central server or database, ensuring user privacy. \name{} is aimed to provide a similar, if not easier, application development process to tools such as Firebase \tocite{firebase} or ReactDB \tocite{}, where much of developer onus with regards to implementing common application functionality in the new architecture is alleviated.
 
+Applications best suit this model if they fit the following criteria:
+\begin{enumerate}
+    \item user-generated data
+    \item small enough data
+    \item reasonable sharing circles
+    \item 4th reason I forget and cant find
+\end{enumerate}
+
 The two main components of \name{} are the \textit{client library} and the \textit{\name{} server}. The server facilitates communication across clients while enforcing an order on messages, and is application-agnostic, meaning it does not need to be modified by application developers and can service multiple applications simultaneously. The client library is composed of multiple parts, which may be changed depending on application needs. The \name{} core layer handles all off-device communication, encryption, and malicious reordering detection, and operates the same across all devices that obey the \name{} communication protocol. The core library operates on \textit{payloads} which encapsulate changes to the data store by including additional metadata such as timestamps and lists of affected clients. Payloads can be generated locally or received from another client operating on shared data. Payloads can be validated and modified by different \name{} modules between being processed in the core library and changing the data store.
 
+This design is extensible to a wide set of applications, supporting \todo{list of things that sporc doesn't do :D}.
 \todo{figure describing client-library layers/architecture} 
 
 \subsection{Server}
@@ -23,7 +32,7 @@ A client receives messages through its mailbox on the server. Each message paylo
 
 \subsection{Data Store Interface}
 
-The data store API is directly exposed to a developer, which can interact with it as if they are developing a local-only application on top of a local data store. We designed a \name{} key-value data store, which encapsulates an underlying data store to provide a developer with a key-value store-like API. \todo{talk about specific interface}
+The data store API is directly exposed to a developer, which can interact with it as if they are developing a local-only application on top of a local data store. We designed a \name{} key-value data store, which encapsulates an underlying data store to provide a developer with a key-value-store-like API. Developers interact with the data store using the standard \texttt{get, set, remove} interface. \todo{talk about specific interface}
 
 
 \subsection{Groups Module}
@@ -42,6 +51,8 @@ The group model lends itself well to commonly used sharing schemes. For example,
 The group module is used to ease developer burden when dealing with complex sharing schemes. \todo{figure out exact API for groups and where it's called from. Can be called between storage and core to enumerate list of clients, can be called from validation module to check if client is withina  certain group, etc...}
 
 \subsection{Validation Module}
+The validation module translates between payloads and operations on the data store, and can decide whether data changers are applied or rejected.
+
 \parlabel{Permissions}
 Permissions for data modification are stored locally. Each data object has a list of groups, each with varying permissions. Developers must pass callbacks that define what operations are allowed for different permissions groups. 
 
@@ -51,5 +62,3 @@ Concurrent operations on data are entirely permissible in this model and must be
 
 \parlabel{Invariant Checking}
 The \name{} client-side library facilitates application interactions with a local storage mechanism. Facilitating interactions with the underlying data storage mechanism allows \name{} applications to check data invariants before applying changes. Developers write validation functions for all defined data types, which are dynamically checked when a change is set to be applied locally. After initiating the application, a developer can write and set function per object type. Similarly to permissions, data validation functions are run before any changes to the data store are performed, and if fail do not modify the data.
-
-

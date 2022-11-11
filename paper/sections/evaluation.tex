@@ -17,30 +17,30 @@
 % }
 
 \parlabel{Client}
-\todo{
-    \begin{itemize}
-        \item latency - how long to "prepare" message for sending, with increasing recipient list if measuring encryption, with increased message size, etc... can "profile" how long every part of the message processing takes-- this is in comparison to how much work is usually done locally on an application that still relies on a central server.
-        \item latency - \st{how long to "process" message when received (similar to above)}
-        \item \st{latency - how long to resolve commit in pending list}
-        \item l\st{atency - how long to check against server reordering}
-        \item storage - how much space needed for a data object of x size (worst case with no shared groups), perhaps show with increasing object size, increased group size, increasingly complex permissions or invariants, can also "profile" i.e. for X mb object need x mb for metadata, for group of X clients, need 20mb of data to store group information, for every connection with another client need up to X mb space for mal-server tree. 
-    \end{itemize}
-}
+% \todo{
+%     \begin{itemize}
+%         \item latency - how long to "prepare" message for sending, with increasing recipient list if measuring encryption, with increased message size, etc... can "profile" how long every part of the message processing takes-- this is in comparison to how much work is usually done locally on an application that still relies on a central server.
+%         \item latency - \st{how long to "process" message when received (similar to above)}
+%         \item \st{latency - how long to resolve commit in pending list}
+%         \item l\st{atency - how long to check against server reordering}
+%         \item storage - how much space needed for a data object of x size (worst case with no shared groups), perhaps show with increasing object size, increased group size, increasingly complex permissions or invariants, can also "profile" i.e. for X mb object need x mb for metadata, for group of X clients, need 20mb of data to store group information, for every connection with another client need up to X mb space for mal-server tree. 
+%     \end{itemize}
+% }
 
 We show the resource overheads, in particular overall latencies and storage requirements
 
 \parlabel{Server Throughput}
-\todo{
-    \begin{itemize}
-        \item \st{best latency - how long to instantiate client, should be number- we should account for network latencies}
-        \item \st{best latency - how long to get message back with increasing recipient list size}
-        \item \st{best latency - how long to read messages from own mailbox with increased number of messages in mailbox}
-        \item \st{server throughput/latency- increased number of users sending messages}
-        \item \st{server throughput/latency- increased group sizes}
-        \item server throughput/latency- increased conflict
-        \item \st{server throughput/latency- mixed workloads - requests can potentially block for a long time on specific mailboxes. i.e. if I empty my mailbox when coming back online after a long time, I can prevent another message from returning because I hold the lock on my mailbox.}
-    \end{itemize}
-}
+% \todo{
+%     \begin{itemize}
+%         \item \st{best latency - how long to instantiate client, should be number- we should account for network latencies}
+%         \item \st{best latency - how long to get message back with increasing recipient list size}
+%         \item \st{best latency - how long to read messages from own mailbox with increased number of messages in mailbox}
+%         \item \st{server throughput/latency- increased number of users sending messages}
+%         \item \st{server throughput/latency- increased group sizes}
+%         \item server throughput/latency- increased conflict
+%         \item \st{server throughput/latency- mixed workloads - requests can potentially block for a long time on specific mailboxes. i.e. if I empty my mailbox when coming back online after a long time, I can prevent another message from returning because I hold the lock on my mailbox.}
+%     \end{itemize}
+% }
 % Since the server is designed to scale massively with increasing numbers of applications and users, it must achieve high performance for high throughput workloads. These workloads are complex, since the server must handle multiple types of messages including: requests for instantiating new client which would include allocating a new mailbox for that client, messages that must be routed to mailboxes, and requests to read data from a client's mailbox. We tested server latencies by measuring the same "round trip" response time for a message to be received by the originating client across an increasing number of clients. This evaluation shows the server can handle up to \todo{X} concurrent requests with non-overlapping mailbox groups. In case of high conflict, we tested throughput and latency measurements for potentially overlapping message requests. As conflict increased, and thus the \% of messages being routed with overlapping mailboxes increased, end-to-end latencies for routing messages increase by \todo{a factor of X}.
 
 Since the server is designed to scale massively with increasing numbers of applications and users, it must achieve high performance for high throughput workloads. We first tested an application workload with no shared data across users. Every user has multiple devices, and only writes from one at a time. This allows us to find a true upper limit to the server processing speeds with no synchronization blocking due to groups. We find that server throughput scales up to X groups and concurrent but non-overlapping requests.
@@ -48,18 +48,18 @@ Since the server is designed to scale massively with increasing numbers of appli
 Next, we show how server performance degrades with increased conflict amongst the mailboxes. We assume a total of X users, each with Y devices. We choose X/100 groups, and show how as the number of users in a group increases, and thus conflict on the server increases, throughout remains steady for up to Z something.
 
 \subsection{Expressiveness}
-Four main criteria we need to test for applications:
-\begin{enumerate}
-    \item user-generated data
-    \item small enough data
-    \item reasonable sharing circles
-    \item n
-\end{enumerate}
 
 \parlabel{Health Tracker}
+An ideal example of an application that benefits from the strong privacy guarantees provided by \name{} is a health tracking app, such as fitness tracking, pill tracking, or period tracking. We built a period tracking application that allows users to track period data such as flow and symptoms. Users of the application can share specific collections, all flow data, all symptom data, or all data with any of their friends, which is a list of established contacts. Users can also log data across a number of devices under the same user. 
+
+The app is built such that keys are associated with a single data point containing either a flow descriptor or a collection of symptoms. A key in the store indicates whether a data point is a flow measurement or a symptom data point, includes the data the data is logged, and a unique identifier. App invariants are relatively simple. Data is shared with other users with read-only permissions, since it doesn't make much sense to have other people modify health data. The writers group of each object is automatically assigned as the \textit{self} group such that users can see updates across all devices. Conflict resolution is a simple first-writer-wins approach, as concurrent operations are rare since write permissions are only assigned to the sharing user, and writing from multiple devices at once should be very rare. We assign some simple data invariants- such that the measurements for flow are within the pre-defined scope, and that no more than one flow measurement is allowed per day- forcing users to either modify an old measurement from the same day or delete the old one before logging a new one. 
 
 \parlabel{Social Media}
+Pushes the sharing circles limitations.
 
-\parlabel{IoT}
+\parlabel{IOT light switch}
+Demonstrates usage of the core library as a standalone.
 
 \parlabel{Text Messaging}
+
+\parlabel{Chess}

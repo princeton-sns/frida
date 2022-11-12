@@ -7,8 +7,8 @@
  */
 
 import EventEmitter from "events";
-import { OlmWrapper } from  "./crypto/olmWrapper.js";
-import { ServerComm } from "./serverComm/socketIOWrapper.js";
+import { OlmWrapper } from  "./olmWrapper.js";
+import { ServerComm } from "./serverComm.js";
 import { payloadType } from "../../higher";
 
 export type outboundEncPayloadType = {

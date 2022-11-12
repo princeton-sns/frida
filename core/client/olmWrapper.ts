@@ -5,7 +5,7 @@
  */
 
 import Olm from "./olm.js";
-import { ServerComm } from "../serverComm/socketIOWrapper.js";
+import { ServerComm } from "./serverComm.js";
 
 // TODO can eventually make data abstraction module use these basic methods
 class ThinLSWrapper {

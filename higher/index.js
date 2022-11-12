@@ -18,7 +18,7 @@
 // created (could still be in olmWrapper)
 // TODO need new special name for LINKED group (confusing when linking non-LINKED groups)
 import EventEmitter from "events";
-import { Core } from "../core/client";
+import { Core } from "../core/client/core.js";
 import { LocalStorageWrapper } from "../core/client/db/localStorageWrapper.js";
 /* doubly-linked tree, allows cycles */
 const NAME = "name";

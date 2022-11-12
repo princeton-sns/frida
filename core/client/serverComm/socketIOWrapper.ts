@@ -7,7 +7,7 @@
 import EventEmitter from "events";
 import io from "socket.io-client";
 import { OlmWrapper } from "../crypto/olmWrapper.js";
-import { outboundEncPayloadType, inboundEncPayloadType } from "../index.js";
+import { outboundEncPayloadType, inboundEncPayloadType } from "../core.js";
 
 export class ServerComm {
   #ip:   string;

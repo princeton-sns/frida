@@ -1,7 +1,7 @@
 import * as child_process from 'child_process'
 
 import {LocalStorage} from 'node-localstorage'
-import * as frida from "../../../core/client/index.js";
+import * as frida from "../../../config-core/client/index.js";
 import * as cryp from "crypto";
 
 var config = {

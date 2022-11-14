@@ -1,11 +1,11 @@
 
 import {LocalStorage} from 'node-localstorage'
-import * as frida from "../../../core/client/index.js";
+import * as frida from "../../../config-core/client/index.js";
 import * as cryp from "crypto";
 
 // import {fs} from 'fs';
 import * as child_process from 'child_process'
-import { getIdkey } from '../../../core/client/crypto/olmWrapper.js';
+import { getIdkey } from '../../../config-core/client/crypto/olmWrapper.js';
 
 var localStorage = null;
 var tid = process.argv[2];

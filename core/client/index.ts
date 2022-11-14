@@ -44,8 +44,8 @@ export class Core {
     this.olmWrapper = new OlmWrapper(turnEncryptionOff);
     this.eventEmitter = eventEmitter;
     // register listener for incoming messages
-    this.eventEmitter.on('serverMsg', (msg) => {
-      this.onMessage(msg);
+    this.eventEmitter.on('serverMsg', async (msg) => {
+      await this.onMessage(msg);
     });
     this.#serverComm = new ServerComm(this.eventEmitter, ip, port);
   }
@@ -89,16 +89,17 @@ export class Core {
     });
   }
   
-  onMessage(msg: inboundEncPayloadType) {
+  async onMessage(msg: inboundEncPayloadType) {
     console.log("seqID: " + msg.seqID);
     let payload: payloadType = JSON.parse(this.olmWrapper.decrypt(
         msg.encPayload,
         msg.sender,
     ));
-    this.eventEmitter.emit('coreMsg', {
+    await this.eventEmitter.emit('coreMsg', {
       payload: payload,
       sender: msg.sender,
     });
+    //console.log("finished upcalling to higher");
   }
 
   disconnect() {

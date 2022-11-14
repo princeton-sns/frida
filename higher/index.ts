@@ -259,6 +259,7 @@ export class Higher {
       sender: string
   ) {
     let permissionsOK = this.#checkPermissions(payload, sender);
+    //console.log(this.demuxFunc);
     if (this.demuxFunc === undefined) {
       this.#printBadMessageError(payload.msgType);
       return;
@@ -674,8 +675,10 @@ export class Higher {
       reqContactGroups: groupObjType[]
   }) {
     if (confirm(`Add new contact: ${reqContactName}?`)) {
+      //console.log("PROCESSING CONTACT REQUEST");
       await this.#parseContactInfo(reqContactName, reqContactGroups);
       let linkedName = this.getLinkedName();
+      //console.log("CONFIRMING CONTACT");
       await this.#confirmContact(linkedName, this.#getAllSubgroups([linkedName]), [reqIdkey]);
     }
   }
@@ -695,6 +698,7 @@ export class Higher {
       contactName: string,
       contactGroups: groupObjType[]
   }) {
+    //console.log("PROCESSING CONFIRM CONTACT");
     await this.#parseContactInfo(contactName, contactGroups);
   }
   
@@ -710,6 +714,7 @@ export class Higher {
   async #parseContactInfo(contactName: string, contactGroups: groupObjType[]) {
     let linkedName = this.getLinkedName();
     let linkedIdkeys = this.#resolveIDs([Higher.LINKED]);
+    //console.log("PARSING CONTACT");
   
     // check if "linked" backpointer will be replaced with "contact" backpointer
     let contactLevelIDs = [];

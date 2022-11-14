@@ -59,9 +59,11 @@ export class ServerComm {
 
     this.#socket.on("noiseMessage", async (msgs: inboundEncPayloadType[]) => {
       console.log("Noise message", msgs);
-      msgs.forEach(msg => {
-        this.eventEmitter.emit('serverMsg', msg);
-      });
+      for (let msg of msgs) {
+        await this.eventEmitter.emit('serverMsg', msg);
+        //console.log(msg);
+        //console.log("finished upcalling to core for msg");
+      }
       let maxId: number = Math.max(...msgs.map(msg => msg.seqID));
       let u: URL = new URL("/self/messages", this.#url);
       (await fetch(u, {
@@ -76,7 +78,7 @@ export class ServerComm {
   }
 
   async sendMessage(msg: { batch: outboundEncPayloadType[] }): Promise<{}> {
-    console.log(msg);
+    //console.log(msg);
     let u: URL = new URL("/message", this.#url);
 
     const headers: Headers = new Headers();

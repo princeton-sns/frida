@@ -74,8 +74,8 @@ const store = createStore({
     devices: frida.getLinkedDevices(),
     friends: frida.getContacts(),
     pendingFriends: frida.getPendingContacts(),
-    symptoms: frida.getDataByPrefix(symptomPrefix),
-    period: frida.getDataByPrefix(periodPrefix),
+    existingSymptoms: frida.getDataByPrefix(symptomPrefix),
+    existingPeriods: frida.getDataByPrefix(periodPrefix),
   },
   mutations: {
     /* App-specific mutations */
@@ -88,7 +88,7 @@ const store = createStore({
       if (!remote) {
         frida.setData(symptomPrefix, id, value);
       }
-      //state.symptoms.push(JSON.stringify({
+      //state.existingSymptoms.push(JSON.stringify({
       //  id: id,
       //  data: value,
       //}));

@@ -5,26 +5,39 @@
     <p>devices:</p>
     <p>{{ devices }}</p>
     <div>
-      <button @click="deleteDevice">Delete This Device</button>
+      <button @click="deleteDevice">
+        Delete This Device
+      </button>
     </div>
-    <br />
+    <br>
     <div>
       <div>
-        <input v-model="deleteDeviceIdkey" placeholder="device id key" />
+        <input
+          v-model="deleteDeviceIdkey"
+          placeholder="device id key"
+        >
       </div>
-      <button @click="deleteLinkedDevice">Delete Linked Device</button>
+      <button @click="deleteLinkedDevice">
+        Delete Linked Device
+      </button>
     </div>
-    <br />
+    <br>
     <div>
-      <button @click="deleteAllDevices">Delete All Devices</button>
+      <button @click="deleteAllDevices">
+        Delete All Devices
+      </button>
     </div>
-    <br />
+    <br>
     <div>
-      <button @click="reconnectDevice">Reconnect Device</button>
+      <button @click="reconnectDevice">
+        Reconnect Device
+      </button>
     </div>
-    <br />
+    <br>
     <div>
-      <button @click="disconnectDevice">Disconnect Device</button>
+      <button @click="disconnectDevice">
+        Disconnect Device
+      </button>
     </div>
   </div>
 </template>

@@ -21,15 +21,6 @@ import * as c from  "./crypto/olmWrapper.js";
 import * as db from "./db/localStorageWrapper.js";
 
 export { db };
-// FIXME export sc for crypto only - how to export for just this module?
-// TODO try just importing sc from crypto file
-/* Export for crypto */
-export const getOtkeyFromServer = sc.getOtkeyFromServer;
-export const addDevice = sc.addDevice;
-
-/* Export for serverComm */
-export const setOtkey = c.setOtkey;
-export const generateMoreOtkeys = c.generateMoreOtkeys;
 
 /* Export for Apps */
 export const getIdkey = c.getIdkey;
@@ -192,7 +183,7 @@ function printBadGroupPermissionsError() {
  */
 export async function init(ip, port, config) {
   await c.init();
-  sc.init(ip, port);
+  await sc.init(ip, port);
   onAuth = config.onAuth ?? defaultOnAuth;
   onUnauth = config.onUnauth ?? defaultOnUnauth;
   validateCallback = config.validateCallback ?? defaultValidateCallback;
@@ -202,27 +193,6 @@ export async function init(ip, port, config) {
       storagePrefixes.push(prefix);
     });
   }
-}
-
-/**
- * Connects the device to the server, e.g. when a client adds a new
- * device or when a previously-added device comes back online.
- *
- * @param {?string} idkey public key of current device
- */
-export function connectDevice(idkey = null) {
-  if (idkey !== null) {
-    sc.connect(idkey);
-  } else {
-    sc.connect(getIdkey());
-  }
-}
-
-/**
- * Simulates offline devices
- */
-export function disconnectDevice() {
-  sc.disconnect(getIdkey());
 }
 
 /*
@@ -242,10 +212,7 @@ export function disconnectDevice() {
  */
 async function sendMessage(dstIdkeys, payload) {
   let batch = new Array();
-  let srcIdkey = getIdkey();
 
-  console.log("sending from...");
-  console.log(srcIdkey);
   console.log("sending to...");
   console.log(dstIdkeys);
 
@@ -256,15 +223,14 @@ async function sendMessage(dstIdkeys, payload) {
       turnEncryptionOff
     );
     batch.push({
-      dstIdkey: dstIdkey,
-      encPayload: encPayload,
+      deviceId: dstIdkey,
+      payload: encPayload,
     });
   }
   console.log(batch);
 
   // send message to server
-  sc.sendMessage({
-    srcIdkey: srcIdkey,
+  await sc.sendMessage({
     batch: batch,
   });
 }
@@ -286,14 +252,13 @@ async function sendMessage(dstIdkeys, payload) {
  */
 export async function onMessage(msg) {
   console.log("seqID: " + msg.seqID);
-  console.log(msg);
   let payload = db.fromString(c.decrypt(
       msg.encPayload,
-      msg.srcIdkey,
+      msg.sender,
       turnEncryptionOff
   ));
 
-  let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.srcIdkey);
+  let { permissionsOK, demuxFunc } = checkPermissions(payload, msg.sender);
   if (demuxFunc === undefined) {
     printBadMessageError(payload.msgType);
     return;
@@ -607,7 +572,7 @@ async function updateGroupLocally({ groupID, value }) {
   let contacts = getContacts();
   // if contactLevel = true but not in contacts, add
   if (value.contactLevel && !contacts.includes(groupID)) {
-    await addChild(CONTACTS, groupID, resolveIDs([LINKED]));
+    await addChild(CONTACTS, groupID, [getIdkey()]);
   }
   // if in contacts but contactLevel = false, make contactLevel = true
   if (!value.contactLevel && contacts.includes(groupID)) {
@@ -653,6 +618,7 @@ async function updateGroup(groupID, value, allIdkeys) {
 async function requestContact(reqContactName, reqContactGroups, idkeys) {
   await sendMessage(idkeys, {
     msgType: REQ_CONTACT,
+    reqIdkey: getIdkey(),
     reqContactName: reqContactName,
     reqContactGroups: reqContactGroups,
   });
@@ -693,11 +659,11 @@ async function confirmContact(contactName, contactGroups, idkeys) {
  *
  * @private
  */
-async function processContactRequest({ reqContactName, reqContactGroups }) {
+async function processContactRequest({ reqIdkey, reqContactName, reqContactGroups }) {
   if (confirm(`Add new contact: ${reqContactName}?`)) {
     await parseContactInfo(reqContactName, reqContactGroups);
     let linkedName = getLinkedName();
-    await confirmContact(linkedName, getAllSubgroups([linkedName]), resolveIDs([reqContactName]));
+    await confirmContact(linkedName, getAllSubgroups([linkedName]), [reqIdkey]);
   }
 }
 
@@ -793,7 +759,6 @@ async function deleteDeviceLocally() {
   // notify all direct parents and contacts that this group should be removed
   let idkey = getIdkey();
   await deleteGroup(idkey, resolveIDs(getParents(idkey).concat([CONTACTS])));
-  sc.removeDevice(idkey);
   sc.disconnect(idkey);
   db.clear();
   onUnauth();
@@ -1746,7 +1711,7 @@ export async function grantAdminPrivs(prefix, id, toShareGroupID) {
  *
  * @private
  */
-async function shareData(prefix, id, toShareGroupID) {
+export async function shareData(prefix, id, toShareGroupID) {
   let idkey = getIdkey();
   let key = getDataKey(prefix, id);
   let value = db.get(key);

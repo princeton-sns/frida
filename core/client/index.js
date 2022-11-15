@@ -84,7 +84,10 @@ let defaultOnUnauth = () => {};
 
 // default callback
 let defaultValidateCallback = (payload) => {
-  console.log("validating payload... " + db.toString(payload));
+  // dummy sanity check
+  if ( payload.key === null ){
+      return false;
+  }
   return true;
 }
 
@@ -93,6 +96,7 @@ let storagePrefixes = [GROUP];
 let onAuth;
 let onUnauth;
 let validateCallback;
+let validateCallbackMap = new Map();
 let turnEncryptionOff;
 
 function makeGroup(fieldNames) {
@@ -1508,10 +1512,16 @@ async function setDataHelper(key, data, groupID) {
     printBadDataPermissionsError();
     return;
   }
-  await updateData(key, {
+  let value = {
     groupID: groupID,
     data: data,
-  }, resolveIDs([groupID]));
+  };
+  // check data invariants
+  if (!validate({ key: key, value: value })) {
+      printBadDataError();
+      return
+  }
+  await updateData(key, value, resolveIDs([groupID]));
 }
 
 /**
@@ -1526,6 +1536,7 @@ async function setDataHelper(key, data, groupID) {
  */
 export async function setData(prefix, id, data) {
   await setDataHelper(getDataKey(prefix, id), data, getLinkedName());
+
 }
 
 /**
@@ -2114,6 +2125,10 @@ export function setValidateCallback(callback) {
   validateCallback = callback;
 }
 
+export function setValidateCallbackForPrefix(prefix, callback) {
+    validateCallbackMap.set(prefix, callback);
+}
+
 /**
  * Validates a message via the validateCallback, which can either be:
  * defined by the application (through setValidateCallback()), or
@@ -2124,7 +2139,23 @@ export function setValidateCallback(callback) {
  * @private
  */
 function validate(payload) {
-  return validateCallback(payload);
+  // validateCallback is called on each interaction with data store
+  if (!validateCallback(payload)) {
+    return false
+  }
+ 
+  // validate based on prefixes in payload keys
+  let keys = payload.key.split("/");
+  for (let i=0; i < keys.length; i++) {
+    if (validateCallbackMap.has(keys[i])) {
+      let valFunc = validateCallbackMap.get(keys[i]);
+      if (!valFunc(payload)) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 /*

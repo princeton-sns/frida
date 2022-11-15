@@ -15,9 +15,48 @@ frida.init(serverIP, serverPort, {
   onUnauth: () => {
     router.push("/register");
   },
+  validateCallback: (payload) => validateFunc(payload),
   storagePrefixes: [symptomPrefix, periodPrefix],
   //turnEncryptionOff: true,
 });
+
+// if defined and initiated like above, is  run for every change
+const validateFunc = (payload) => {
+  // not something dev should test for in real life
+  if (payload.key == null) {
+    return false;
+  }
+  return true;
+};
+
+const periodValidate = (payload) => {
+  let keys = payload.key.split("/");
+
+  // invariant = period setting is one of the predefined values
+  let i = payload.value.data.period;
+  if (i != "spotting" && i != "low" && i != "medium" && i != "high") {
+    return false;
+  }
+
+  // invariant = no more than one period per day
+  if (frida.getData(keys[1].concat("/", keys[2])).length > 0) {
+    return false;
+  }
+
+  return true;
+};
+
+const symptomValidate = (payload) => {
+  //invariant = number of symptoms is no longer than 6
+  //TODO: change invariant if we expand app
+  if (payload.value.data.symptoms.length > 6) {
+    return false;
+  }
+  return true;
+};
+
+frida.setValidateCallbackForPrefix(periodPrefix, periodValidate);
+frida.setValidateCallbackForPrefix(symptomPrefix, symptomValidate);
 
 function createAppDBListenerPlugin() {
   return (store) => {
@@ -52,10 +91,11 @@ function createAppDBListenerPlugin() {
             remote: true,
           });
         } else {
+          let newData = frida.db.fromString(e.newValue).data;
           store.commit("ADD_PERIOD", {
-            timestamp: frida.db.fromString(e.newValue).data.timestamp,
-            period: frida.db.fromString(e.newValue).data.period,
-            id: frida.db.fromString(e.newValue).data.id,
+            timestamp: newData.timestamp,
+            period: newData.period,
+            id: newData.id,
             remote: true,
           });
         }
@@ -94,8 +134,14 @@ const store = createStore({
     },
     ADD_PERIOD(state, { timestamp, period, id, remote }) {
       if (!remote) {
-        frida.setData(periodPrefix, id, {
-          id: id,
+        let idWithDate = String(timestamp.getDate()).concat(
+          String(timestamp.getMonth()),
+          String(timestamp.getYear()),
+          "/",
+          id
+        );
+        frida.setData(periodPrefix, idWithDate, {
+          id: idWithDate,
           timestamp: timestamp,
           period: period,
         });

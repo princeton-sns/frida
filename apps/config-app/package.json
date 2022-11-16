@@ -4,7 +4,8 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
+    "share": "node src/index.js",
+    "self": "node src/self_comm_master.js",
     "dstart": "node -r node-localstorage/register dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -24,6 +25,7 @@
     "gulp": "^4.0.2",
     "gulp-babel": "^7.0.0",
     "gulp-include": "^2.4.1",
+    "node-fetch": "^3.3.0",
     "node-localstorage": "^2.2.1",
     "socket.io-client": "^4.5.3",
     "webpack": "^5.74.0"

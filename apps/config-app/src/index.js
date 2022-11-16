@@ -1,18 +1,20 @@
 import * as child_process from 'child_process'
 
 import {LocalStorage} from 'node-localstorage'
-import * as frida from "../../../config-core/client/index.js";
+import * as frida from "../../../core/client/index.js";
 import * as cryp from "crypto";
+import fetch, {Headers} from 'node-fetch'
 
 var config = {
     // serverIP: "sns26.cs.princeton.edu",
     serverIP: "localhost",
     serverPort: "8080",
     dataPrefix: "ConfigAppData",
-    num_clients: 3,
+    client_type : "passive_clients",
+    num_clients: 2,
     data_size: 32,
     duration: 1,
-    rate: 2
+    rate: 1
 }
 
 var wrks = new Array(config.num_clients);
@@ -27,6 +29,11 @@ if (typeof localStorage === "undefined" || localStorage === null) {
 
 if (typeof crypto === "undefined" || crypto === null) {
     global.crypto = cryp;
+}
+
+if (!globalThis.fetch) {
+    globalThis.fetch = fetch
+    globalThis.Headers = Headers
 }
 
 function waitFor(conditionFunction) {
@@ -76,7 +83,7 @@ var idkey_msg_cnt = 0;
 
 for(var i = 1; i < config.num_clients; i++) {
 
-    wrks[i] = child_process.fork("src/clients.js", [i]);	
+    wrks[i] = child_process.fork("src/" + config.client_type + ".js", [i]);	
 
     wrks[i].on('close', function (code) {
         console.log('exited with ' + code);
@@ -111,7 +118,7 @@ async function grantPrivs(){
         await frida.grantWriterPrivs(config.dataPrefix, oid , friend);
 
         // Bug occured here: if no sleep, some devices will panic with "parents are null"
-        await sleep(100);
+        await sleep(300);
     }
 
     const wait_time = 5;

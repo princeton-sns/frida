@@ -1,0 +1,11 @@
+{
+    "serverIP": "localhost",
+    "serverPort": "8080",
+    "dataPrefix": "ConfigAppData",
+    "client_type" : "self_comm_clients",
+    "output_dir" : "measurement_data",
+    "num_clients": 4,
+    "data_size": 32,
+    "duration": 20,
+    "rate": 1
+}

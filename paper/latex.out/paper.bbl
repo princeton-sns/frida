@@ -1,0 +1,77 @@
+\begin{thebibliography}{10}
+
+\bibitem{sporc}
+Ariel~J. Feldman, William~P. Zeller, Michael~J. Freedman, and Edward~W. Felten.
+\newblock {SPORC}: Group collaboration using untrusted cloud resources.
+\newblock In {\em 9th USENIX Symposium on Operating Systems Design and
+  Implementation (OSDI 10)}, Vancouver, BC, October 2010. USENIX Association.
+
+\bibitem{whatsapp_adopts_signal}
+Andy Greenberg.
+\newblock {{Hacker Lexicon: What Is the Signal Encryption Protocol?}}
+\newblock
+  \url{https://www.wired.com/story/signal-encryption-protocol-hacker-lexicon/},
+  2020.
+\newblock [Online; accessed September-2022].
+
+\bibitem{sundr}
+Jinyuan Li, Maxwell Krohn, David Mazi{\`e}res, and Dennis Shasha.
+\newblock Secure untrusted data repository ({{{{{SUNDR}}}}}).
+\newblock In {\em 6th Symposium on Operating Systems Design \& Implementation
+  (OSDI 04)}, San Francisco, CA, December 2004. USENIX Association.
+
+\bibitem{depot}
+Prince Mahajan, Srinath Setty, Sangmin Lee, Allen Clement, Lorenzo Alvisi, Mike
+  Dahlin, and Michael Walfish.
+\newblock Depot: Cloud storage with minimal trust.
+\newblock In {\em 9th USENIX Symposium on Operating Systems Design and
+  Implementation (OSDI 10)}, Vancouver, BC, October 2010. USENIX Association.
+
+\bibitem{cryptdb}
+Raluca~Ada Popa, Catherine M.~S. Redfield, Nickolai Zeldovich, and Hari
+  Balakrishnan.
+\newblock Cryptdb: Protecting confidentiality with encrypted query processing.
+\newblock In {\em Proceedings of the Twenty-Third ACM Symposium on Operating
+  Systems Principles}, SOSP '11, page 85–100, New York, NY, USA, 2011.
+  Association for Computing Machinery.
+
+\bibitem{mylar}
+Raluca~Ada Popa, Emily Stark, Steven Valdez, Jonas Helfer, Nickolai Zeldovich,
+  and Hari Balakrishnan.
+\newblock Building web applications on top of encrypted data using mylar.
+\newblock In {\em 11th USENIX Symposium on Networked Systems Design and
+  Implementation (NSDI 14)}, pages 157--172, Seattle, WA, April 2014. USENIX
+  Association.
+
+\bibitem{firebase}
+Firebase Team.
+\newblock {{Firebase}}.
+\newblock \url{https://firebase.google.com/}, 2022.
+\newblock [Online; accessed September-2022].
+
+\bibitem{matrix}
+Matrix Team.
+\newblock {{Matrix}}.
+\newblock \url{https://matrix.org/}, 2022.
+\newblock [Online; accessed September-2022].
+
+\bibitem{signal}
+Signal Team.
+\newblock {{Signal}}.
+\newblock \url{https://signal.org/}, 2022.
+\newblock [Online; accessed September-2022].
+
+\bibitem{whatsapp}
+WhatsApp Team.
+\newblock {{WhatsApp}}.
+\newblock \url{https://www.whatsapp.com/}, 2022.
+\newblock [Online; accessed September-2022].
+
+\bibitem{stadium}
+Nirvan Tyagi, Yossi Gilad, Derek Leung, Matei Zaharia, and Nickolai Zeldovich.
+\newblock Stadium: A distributed metadata-private messaging system.
+\newblock In {\em Proceedings of the 26th Symposium on Operating Systems
+  Principles}, SOSP '17, page 423–440, New York, NY, USA, 2017. Association
+  for Computing Machinery.
+
+\end{thebibliography}

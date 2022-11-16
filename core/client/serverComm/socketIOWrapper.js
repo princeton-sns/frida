@@ -6,7 +6,7 @@
 
 import io from "socket.io-client";
 import { generateKeys, generateMoreOtkeys } from "../crypto/olmWrapper.js";
-import { onMessage } from "../index.js";
+import { onMessage, onSend, onRecv } from "../index.js";
 
 const HTTP_PREFIX = "http://";
 const COLON = ":";
@@ -42,6 +42,7 @@ export async function init(ip, port) {
   });
 
   socket.on("noiseMessage", async (msgs) => {
+    onRecv(msgs);
     console.log("Noise message", msgs);
     msgs.forEach(msg => {
       onMessage(msg);
@@ -65,6 +66,7 @@ export async function sendMessage(msg) {
 
   const headers = new Headers();
   headers.append('Authorization', 'Bearer ' + idkey)
+  onSend(msg);
   let response = (await fetch(u, {
     method: 'POST',
     headers: {

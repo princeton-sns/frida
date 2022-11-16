@@ -81,6 +81,8 @@ const demuxMap = {
 // default auth/unauth functions do nothing
 let defaultOnAuth   = () => {};
 let defaultOnUnauth = () => {};
+let defaultOnSend = (msgs) => {};
+let defaultOnRecv = (msgs) => {};
 
 // default callback
 let defaultValidateCallback = (payload) => {
@@ -92,8 +94,12 @@ let defaultValidateCallback = (payload) => {
 let storagePrefixes = [GROUP];
 let onAuth;
 let onUnauth;
+export let onSend;
+export let onRecv;
 let validateCallback;
 let turnEncryptionOff;
+
+export let clientSeqID = {id: 0};
 
 function makeGroup(fieldNames) {
   fieldNames = fieldNames.split(' ');
@@ -186,6 +192,8 @@ export async function init(ip, port, config) {
   await sc.init(ip, port);
   onAuth = config.onAuth ?? defaultOnAuth;
   onUnauth = config.onUnauth ?? defaultOnUnauth;
+  onSend = config.onSend ?? defaultOnSend;
+  onRecv = config.onRecv ?? defaultOnRecv;
   validateCallback = config.validateCallback ?? defaultValidateCallback;
   turnEncryptionOff = config.turnEncryptionOff ?? false;
   if (config.storagePrefixes) {
@@ -229,6 +237,7 @@ async function sendMessage(dstIdkeys, payload) {
   }
   console.log(batch);
 
+  
   // send message to server
   await sc.sendMessage({
     batch: batch,
@@ -1482,13 +1491,14 @@ async function updateDataRemotely(key, value, idkeys) {
 
 async function updateData(key, value, allIdkeys) {
   // FIXME send everything
-  let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
+  // let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
   // remotely
-  await updateDataRemotely(key, value, idkeys);
+  // await updateDataRemotely(key, value, idkeys);
+  await updateDataRemotely(key, value, allIdkeys);
   // locally
-  if (execLocal) {
-    updateDataLocally({ key: key, value: value });
-  }
+  // if (execLocal) {
+    // updateDataLocally({ key: key, value: value });
+  // }
 }
 
 /**

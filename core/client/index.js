@@ -66,7 +66,6 @@ export class Core {
             payload: payload,
             sender: msg.sender,
         });
-        //console.log("finished upcalling to higher");
     }
     disconnect() {
         this.#serverComm.disconnect();

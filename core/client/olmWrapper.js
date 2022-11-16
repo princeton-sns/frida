@@ -31,11 +31,9 @@ export class OlmWrapper {
     static ENDPOINT2 = "__endpoint2";
     static INIT_NUM_OTKEYS = 10;
     static MORE_NUM_OTKEYS = 5;
-    // used to emulate two session endpoints within this single device
-    // (when a device sends an encrypted message to itself)
-    #selfSessionUseEndpoint1 = true;
-    #useEndpoint1Queue = [];
-    #selfFirstDecrypt = false;
+    // used when sending message through server (for seqID) to self device 
+    // (to avoid unnecessary encrypting/decrypting)
+    #selfMsgQueue = [];
     #turnEncryptionOff = false;
     #thinLSWrapper;
     constructor(turnEncryptionOff) {
@@ -67,21 +65,15 @@ export class OlmWrapper {
     #setAccount(acct) {
         this.#thinLSWrapper.set(OlmWrapper.ACCT_KEY, acct.pickle(OlmWrapper.PICKLE_KEY));
     }
-    #getSessionKey(idkey, toggle = undefined) {
-        if (toggle !== undefined) {
-            if (toggle) {
-                return OlmWrapper.SESS_KEY + OlmWrapper.SLASH + OlmWrapper.ENDPOINT1 + OlmWrapper.SLASH + idkey + OlmWrapper.SLASH;
-            }
-            return OlmWrapper.SESS_KEY + OlmWrapper.SLASH + OlmWrapper.ENDPOINT2 + OlmWrapper.SLASH + idkey + OlmWrapper.SLASH;
-        }
+    #getSessionKey(idkey) {
         return OlmWrapper.SESS_KEY + OlmWrapper.SLASH + idkey + OlmWrapper.SLASH;
     }
-    #getActiveSession(idkey, toggle = undefined) {
-        let allSess = this.#thinLSWrapper.get(this.#getSessionKey(idkey, toggle));
+    #getActiveSession(idkey) {
+        let allSess = this.#thinLSWrapper.get(this.#getSessionKey(idkey));
         return allSess?.active?.pickled || null;
     }
-    #getAllSessions(idkey, toggle = undefined) {
-        let allSess = this.#thinLSWrapper.get(this.#getSessionKey(idkey, toggle));
+    #getAllSessions(idkey) {
+        let allSess = this.#thinLSWrapper.get(this.#getSessionKey(idkey));
         if (allSess === null)
             return null;
         let sessList = allSess.inactive;
@@ -95,9 +87,9 @@ export class OlmWrapper {
         sess.unpickle(OlmWrapper.PICKLE_KEY, pickled);
         return sess;
     }
-    #setSession(sess, idkey, toggle = undefined) {
+    #setSession(sess, idkey) {
         let sessid = sess.session_id();
-        let key = this.#getSessionKey(idkey, toggle);
+        let key = this.#getSessionKey(idkey);
         let allSess = this.#thinLSWrapper.get(key);
         if (allSess === null) {
             let emptyInactive = [];
@@ -155,7 +147,7 @@ export class OlmWrapper {
             otkeys: otkeys,
         };
     }
-    async #createOutboundSession(serverComm, dstIdkey, acct, toggle = undefined) {
+    async #createOutboundSession(serverComm, dstIdkey, acct) {
         let dstOtkey = await serverComm.getOtkeyFromServer(dstIdkey);
         if (!dstOtkey) {
             console.log("dest device has been deleted - no otkey");
@@ -163,10 +155,10 @@ export class OlmWrapper {
         }
         let sess = new Olm.Session();
         sess.create_outbound(acct, dstIdkey, dstOtkey);
-        this.#setSession(sess, dstIdkey, toggle);
+        this.#setSession(sess, dstIdkey);
         return sess;
     }
-    #createInboundSession(srcIdkey, body, toggle = undefined) {
+    #createInboundSession(srcIdkey, body) {
         let sess = new Olm.Session();
         let acct = this.#getAccount();
         if (acct === null) {
@@ -175,31 +167,30 @@ export class OlmWrapper {
             return null;
         }
         sess.create_inbound(acct, body);
-        this.#setSession(sess, srcIdkey, toggle);
+        this.#setSession(sess, srcIdkey);
         acct.free();
         return sess;
     }
     #useNewInbound(srcIdkey, 
     // i think there's ts typechecker bug that uncommenting this type annotation exercises
-    ciphertext, //: ciphertextType,
-    toggle = undefined) {
-        let sess = this.#createInboundSession(srcIdkey, ciphertext.body, toggle);
+    ciphertext //: ciphertextType,
+    ) {
+        let sess = this.#createInboundSession(srcIdkey, ciphertext.body);
         if (sess === null) {
             return "{}";
         }
         let plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
-        this.#setSession(sess, srcIdkey, toggle);
+        this.#setSession(sess, srcIdkey);
         sess.free();
         return plaintext;
     }
     async #encryptHelper(serverComm, plaintext, dstIdkey) {
         console.log("REAL ENCRYPT -- ");
-        let toggle = undefined;
         if (dstIdkey === this.getIdkey()) {
-            toggle = this.#selfSessionUseEndpoint1;
-            this.#useEndpoint1Queue.push(!toggle);
+            this.#selfMsgQueue.push(plaintext);
+            return "{}";
         }
-        let sess = this.#unpickleSession(this.#getActiveSession(dstIdkey, toggle));
+        let sess = this.#unpickleSession(this.#getActiveSession(dstIdkey));
         // if sess is null (initiating communication with new device) or sess
         // does not have a received message => generate new outbound session
         if (sess === null || !sess.has_received_message()) {
@@ -209,7 +200,7 @@ export class OlmWrapper {
                 sess.free();
                 return "{}";
             }
-            sess = await this.#createOutboundSession(serverComm, dstIdkey, acct, toggle);
+            sess = await this.#createOutboundSession(serverComm, dstIdkey, acct);
             acct.free();
         }
         if (sess === null) {
@@ -220,7 +211,7 @@ export class OlmWrapper {
             return "{}";
         }
         let ciphertext = sess.encrypt(plaintext);
-        this.#setSession(sess, dstIdkey, toggle);
+        this.#setSession(sess, dstIdkey);
         sess.free();
         console.log(JSON.parse(plaintext));
         return ciphertext;
@@ -232,32 +223,18 @@ export class OlmWrapper {
     #decryptHelper(ciphertext, srcIdkey) {
         console.log("REAL DECRYPT -- ");
         if (typeof ciphertext === 'string') {
+            if (srcIdkey === this.getIdkey()) {
+                return this.#selfMsgQueue.shift();
+            }
             console.log("ciphertext is a string when it should be an object");
             return "";
         }
-        let toggle = undefined;
-        if (srcIdkey === this.getIdkey()) {
-            let val = this.#useEndpoint1Queue.shift();
-            if (val === undefined) {
-                toggle = !this.#selfSessionUseEndpoint1;
-            }
-            else {
-                toggle = val;
-            }
-        }
-        let sessList = this.#getAllSessions(srcIdkey, toggle);
+        let sessList = this.#getAllSessions(srcIdkey);
         // if receiving communication from new device or if message was encrypted
         // with a one-time key, generate new inbound session
         if (sessList === null || ciphertext.type === 0) {
-            let plaintext = this.#useNewInbound(srcIdkey, ciphertext, toggle);
+            let plaintext = this.#useNewInbound(srcIdkey, ciphertext);
             console.log(JSON.parse(plaintext));
-            // when queue is empty, all outgoing messages have been received and 
-            // can toggle which session to use (endpoint1 vs endpoint2) when 
-            // encrypting to avoid continuously generating new sessions
-            if (!this.#selfFirstDecrypt && srcIdkey === this.getIdkey()) {
-                this.#selfSessionUseEndpoint1 = !this.#selfSessionUseEndpoint1;
-                this.#selfFirstDecrypt = true;
-            }
             return plaintext;
         }
         // otherwise, scan existing sessions for the right one
@@ -267,14 +244,7 @@ export class OlmWrapper {
             let plaintext;
             try {
                 plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
-                this.#setSession(sess, srcIdkey, toggle);
-                // when queue is empty, all outgoing messages have been received and 
-                // can toggle which session to use (endpoint1 vs endpoint2) when 
-                // encrypting to avoid continuously generating new sessions
-                if (!this.#selfFirstDecrypt && srcIdkey === this.getIdkey()) {
-                    this.#selfSessionUseEndpoint1 = !this.#selfSessionUseEndpoint1;
-                    this.#selfFirstDecrypt = true;
-                }
+                this.#setSession(sess, srcIdkey);
                 console.log(JSON.parse(plaintext));
                 return plaintext;
             }
@@ -285,13 +255,6 @@ export class OlmWrapper {
             finally {
                 sess.free();
             }
-        }
-        // when queue is empty, all outgoing messages have been received and 
-        // can toggle which session to use (endpoint1 vs endpoint2) when 
-        // encrypting to avoid continuously generating new sessions
-        if (!this.#selfFirstDecrypt && srcIdkey === this.getIdkey()) {
-            this.#selfSessionUseEndpoint1 = !this.#selfSessionUseEndpoint1;
-            this.#selfFirstDecrypt = true;
         }
         console.log("NO EXISTING SESSIONS WORKED");
         return "{}";

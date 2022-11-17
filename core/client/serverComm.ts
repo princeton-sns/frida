@@ -20,7 +20,7 @@ export class ServerComm {
 
   eventEmitter: EventEmitter;
 
-  constructor(
+  private constructor(
       eventEmitter: EventEmitter,
       ip?: string,
       port?: string
@@ -31,7 +31,7 @@ export class ServerComm {
     this.eventEmitter = eventEmitter;
   }
 
-  async init(olmWrapper: OlmWrapper) {
+  async #init(olmWrapper: OlmWrapper) {
     this.#olmWrapper = olmWrapper;
     this.#idkey = await this.#olmWrapper.generateInitialKeys();
 
@@ -75,6 +75,17 @@ export class ServerComm {
         body: JSON.stringify({seqID: maxId})
       }));
     });
+  }
+
+  static async create(
+      eventEmitter: EventEmitter,
+      olmWrapper: OlmWrapper,
+      ip?: string,
+      port?: string
+  ): Promise<ServerComm> {
+    let serverComm = new ServerComm(eventEmitter, ip, port);
+    await serverComm.#init(olmWrapper);
+    return serverComm;
   }
 
   async sendMessage(msg: { batch: outboundEncPayloadType[] }): Promise<{}> {

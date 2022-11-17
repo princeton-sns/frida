@@ -19,7 +19,7 @@ export class ServerComm {
         this.#url = "http://" + this.#ip + ":" + this.#port;
         this.eventEmitter = eventEmitter;
     }
-    async init(olmWrapper) {
+    async #init(olmWrapper) {
         this.#olmWrapper = olmWrapper;
         this.#idkey = await this.#olmWrapper.generateInitialKeys();
         this.#socket = io(this.#url, {
@@ -59,6 +59,11 @@ export class ServerComm {
                 body: JSON.stringify({ seqID: maxId })
             }));
         });
+    }
+    static async create(eventEmitter, olmWrapper, ip, port) {
+        let serverComm = new ServerComm(eventEmitter, ip, port);
+        await serverComm.#init(olmWrapper);
+        return serverComm;
     }
     async sendMessage(msg) {
         //console.log(msg);

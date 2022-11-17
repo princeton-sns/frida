@@ -117,13 +117,6 @@ export type payloadType = {
   adminID?: string,
   // when msgType = ADD/REMOVE_WRITER
   writerID?: string,
-  // when msgType = 
-  // when msgType = 
-  // when msgType = 
-  // when msgType = 
-  // when msgType = 
-  // when msgType = 
-  // FIXME many variable fields
 };
 
 type storageObjType = {
@@ -133,12 +126,12 @@ type storageObjType = {
 
 export class Higher {
   // TODO make variables private
-  static SLASH   : string = "/";
-  static DATA    : string = "__data";
-  static GROUP   : string = "__group";
-  static LINKED  : string = "__linked";
-  static CONTACTS: string = "__contacts";
-  static OUTSTANDING_IDKEY: string = "__outstandingIdkey";
+  static #SLASH   : string = "/";
+  static #DATA    : string = "__data";
+  static #GROUP   : string = "__group";
+  static #LINKED  : string = "__linked";
+  static #CONTACTS: string = "__contacts";
+  static #OUTSTANDING_IDKEY: string = "__outstandingIdkey";
 
   // valid message types
   static REQ_UPDATE_LINKED    : string = "requestUpdateLinked";
@@ -168,8 +161,7 @@ export class Higher {
     return true;
   };
 
-
-  storagePrefixes: string[] = [Higher.GROUP];
+  storagePrefixes: string[] = [Higher.#GROUP];
   onAuth  : () => void;
   onUnauth: () => void;
   turnEncryptionOff: boolean;
@@ -179,11 +171,9 @@ export class Higher {
   eventEmitter: EventEmitter;
   demuxFunc;
 
-  constructor(
+  private constructor(
       // TODO type config
-      config,
-      ip?: string,
-      port?: string
+      config
   ) {
     this.onAuth = config.onAuth ?? this.defaultOnAuth;
     this.onUnauth = config.onUnauth ?? this.defaultOnUnauth;
@@ -199,12 +189,22 @@ export class Higher {
     this.eventEmitter.on('coreMsg', async ({ payload, sender }) => {
       await this.#onMessage(payload, sender);
     });
-    this.core = new Core(this.eventEmitter, this.turnEncryptionOff, ip, port);
     this.localStorageWrapper = new LocalStorageWrapper();
   }
 
-  async init() {
-    await this.core.init();
+  async #init(ip?: string, port?: string) {
+    this.core = await Core.create(this.eventEmitter, this.turnEncryptionOff, ip, port);
+  }
+
+  static async create(
+      // TODO type config
+      config,
+      ip?: string,
+      port?: string
+  ): Promise<Higher> {
+    let higher = new Higher(config);
+    await higher.#init(ip, port);
+    return higher;
   }
 
   /* Error messages */
@@ -345,10 +345,10 @@ export class Higher {
       deviceName = null;
     }
 
-    this.#createGroup(Higher.LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
-    this.#createGroup(linkedName, null, false, [Higher.LINKED], [idkey], [linkedName], [linkedName]);
+    this.#createGroup(Higher.#LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
+    this.#createGroup(linkedName, null, false, [Higher.#LINKED], [idkey], [linkedName], [linkedName]);
     this.#createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName]);
-    this.#createGroup(Higher.CONTACTS, null, false, [], [], [linkedName], [linkedName]);
+    this.#createGroup(Higher.#CONTACTS, null, false, [], [], [linkedName], [linkedName]);
   
     return {
       idkey: idkey,
@@ -366,7 +366,7 @@ export class Higher {
    * @private
    */
   #setOutstandingLinkIdkey(idkey: string) {
-    this.localStorageWrapper.set(Higher.OUTSTANDING_IDKEY, idkey);
+    this.localStorageWrapper.set(Higher.#OUTSTANDING_IDKEY, idkey);
   }
   
   /**
@@ -378,7 +378,7 @@ export class Higher {
    * @private
    */
   #getOutstandingLinkIdkey(): string {
-    return this.localStorageWrapper.get(Higher.OUTSTANDING_IDKEY);
+    return this.localStorageWrapper.get(Higher.#OUTSTANDING_IDKEY);
   }
   
   /**
@@ -387,7 +387,7 @@ export class Higher {
    * @private
    */
   #removeOutstandingLinkIdkey() {
-    this.localStorageWrapper.remove(Higher.OUTSTANDING_IDKEY);
+    this.localStorageWrapper.remove(Higher.#OUTSTANDING_IDKEY);
   }
   
   async #requestUpdateLinked(
@@ -426,7 +426,7 @@ export class Higher {
   }) {
     if (confirm(`Authenticate new LINKED group member?\n\tName: ${tempName}`)) {
       // get linked idkeys to update
-      let linkedIdkeys: string[] = this.#resolveIDs([Higher.LINKED]);
+      let linkedIdkeys: string[] = this.#resolveIDs([Higher.#LINKED]);
       let linkedName: string = this.getLinkedName();
   
       /* UPDATE OLD SELF */
@@ -440,9 +440,9 @@ export class Higher {
       for (let newGroup of updatedNewLinkedMembers) {
         // FIXME assuming this group ID == linkedName (originally tempName)
         // when would this be false??
-        if (newGroup.value.parents.includes(Higher.LINKED)) {
+        if (newGroup.value.parents.includes(Higher.#LINKED)) {
           // merge with existing linkedName group
-          let nonLinkedParents: string[] = newGroup.value.parents.filter((x) => x != Higher.LINKED);
+          let nonLinkedParents: string[] = newGroup.value.parents.filter((x) => x != Higher.#LINKED);
           for (let nonLinkedParent of nonLinkedParents) {
             await this.#addParent(linkedName, nonLinkedParent, linkedIdkeys);
           }
@@ -464,8 +464,8 @@ export class Higher {
       /* UPDATE OTHER */
   
       // notify contacts
-      let allContactIdkeys: string[] = this.#resolveIDs([Higher.CONTACTS]);
-      let contactNames: string[] = this.#getChildren(Higher.CONTACTS);
+      let allContactIdkeys: string[] = this.#resolveIDs([Higher.#CONTACTS]);
+      let contactNames: string[] = this.#getChildren(Higher.#CONTACTS);
       for (let newGroup of updatedNewLinkedMembers) {
         if (newGroup.id === linkedName) {
           for (const child of newGroup.value.children) {
@@ -526,7 +526,7 @@ export class Higher {
    * @returns {string}
    */
   getLinkedName(): string {
-    return this.#getGroup(Higher.LINKED)?.name ?? null;
+    return this.#getGroup(Higher.#LINKED)?.name ?? null;
   }
 
   /**
@@ -574,7 +574,7 @@ export class Higher {
   async #deleteDeviceLocally() {
     // notify all direct parents and contacts that this group should be removed
     let idkey = this.core.olmWrapper.getIdkey();
-    await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.CONTACTS])));
+    await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.#CONTACTS])));
     this.core.disconnect();
     this.localStorageWrapper.clear();
     this.onUnauth();
@@ -612,7 +612,7 @@ export class Higher {
    * Deletes all devices that are children of this device's linked group.
    */
   async deleteAllLinkedDevices() {
-    await this.#deleteDevice(this.#resolveIDs([Higher.LINKED]));
+    await this.#deleteDevice(this.#resolveIDs([Higher.#LINKED]));
   }
 
   /**
@@ -621,7 +621,7 @@ export class Higher {
    * @returns {string[]}
    */
   getLinkedDevices(): string[] {
-    return this.#resolveIDs([Higher.LINKED]);
+    return this.#resolveIDs([Higher.#LINKED]);
   }
 
   /*
@@ -713,20 +713,20 @@ export class Higher {
    */
   async #parseContactInfo(contactName: string, contactGroups: groupObjType[]) {
     let linkedName = this.getLinkedName();
-    let linkedIdkeys = this.#resolveIDs([Higher.LINKED]);
+    let linkedIdkeys = this.#resolveIDs([Higher.#LINKED]);
     //console.log("PARSING CONTACT");
   
     // check if "linked" backpointer will be replaced with "contact" backpointer
     let contactLevelIDs = [];
     for (let contactGroup of contactGroups) {
       let deepCopy = JSON.parse(JSON.stringify(contactGroup));
-      if (this.#groupContains(deepCopy, Higher.LINKED)) {
+      if (this.#groupContains(deepCopy, Higher.#LINKED)) {
         contactLevelIDs.push(deepCopy.id);
       }
     }
   
     for (let contactGroup of contactGroups) {
-      let updatedContactGroup = this.#groupReplace(contactGroup, Higher.LINKED, Higher.CONTACTS);
+      let updatedContactGroup = this.#groupReplace(contactGroup, Higher.#LINKED, Higher.#CONTACTS);
       // "linked" backpointer was replaced with "contact" backpointer
       // set contactLevel field = true
       if (contactLevelIDs.includes(updatedContactGroup.id)) {
@@ -737,7 +737,7 @@ export class Higher {
       await this.#updateGroup(updatedContactGroup.id, updatedContactGroup.value, linkedIdkeys);
     }
   
-    await this.#linkGroups(Higher.CONTACTS, contactName, linkedIdkeys);
+    await this.#linkGroups(Higher.#CONTACTS, contactName, linkedIdkeys);
   }
   
   /**
@@ -763,7 +763,7 @@ export class Higher {
    * @param {string} name contact name
    */
   async removeContact(name: string) {
-    await this.#deleteGroup(name, this.#resolveIDs([Higher.LINKED]));
+    await this.#deleteGroup(name, this.#resolveIDs([Higher.#LINKED]));
   }
   
   /**
@@ -772,7 +772,7 @@ export class Higher {
    * @returns {string[]}
    */
   getContacts(): string[] {
-    return this.#getChildren(Higher.CONTACTS);
+    return this.#getChildren(Higher.#CONTACTS);
   }
   
   /**
@@ -801,7 +801,7 @@ export class Higher {
    * @private
    */
   #getDataKey(prefix: string, id: string): string {
-    return Higher.DATA + Higher.SLASH + prefix + Higher.SLASH + id + Higher.SLASH;
+    return Higher.#DATA + Higher.#SLASH + prefix + Higher.#SLASH + id + Higher.#SLASH;
   }
   
   /**
@@ -813,7 +813,7 @@ export class Higher {
    * @private
    */
   #getDataPrefix(prefix: string): string {
-    return Higher.DATA + Higher.SLASH + prefix + Higher.SLASH;
+    return Higher.#DATA + Higher.#SLASH + prefix + Higher.#SLASH;
   }
   
   /**
@@ -981,7 +981,7 @@ export class Higher {
   getDataByPrefix(prefix: string): any[] {
     // get all data within prefix
     let results = [];
-    let topLevelNames = this.#getChildren(Higher.CONTACTS).concat([this.getLinkedName()]);
+    let topLevelNames = this.#getChildren(Higher.#CONTACTS).concat([this.getLinkedName()]);
     let intermediate = this.localStorageWrapper.getMany(this.#getDataPrefix(prefix));
     intermediate.forEach(({ key, value }) => {
       // deduplicates admins/writers/readers lists
@@ -989,7 +989,7 @@ export class Higher {
       let writers = this.#listIntersect(topLevelNames, this.#getWriters(value.groupID).filter((x) => !admins.includes(x)));
       let readers = this.#listIntersect(topLevelNames, this.#getChildren(value.groupID).filter((x) => !admins.includes(x) && !writers.includes(x)));
       results.push({
-        id: key.split(Higher.SLASH)[2],
+        id: key.split(Higher.#SLASH)[2],
         data: value.data,
         admins: admins,
         writers: writers,
@@ -1001,7 +1001,7 @@ export class Higher {
 
   getAllData(): { key: string, value: any }[] {
     let results = [];
-    let appPrefixes = this.storagePrefixes.filter((x) => x != Higher.GROUP);
+    let appPrefixes = this.storagePrefixes.filter((x) => x != Higher.#GROUP);
     appPrefixes.forEach((appPrefix) => {
       this.localStorageWrapper.getMany(this.#getDataPrefix(appPrefix)).forEach((dataObj) => {
         results.push({
@@ -1082,7 +1082,7 @@ export class Higher {
    * @private
    */
   #getGroup(groupID: string): groupValType {
-    return this.localStorageWrapper.get(this.#getDataKey(Higher.GROUP, groupID));
+    return this.localStorageWrapper.get(this.#getDataKey(Higher.#GROUP, groupID));
   }
 
   /**
@@ -1095,7 +1095,7 @@ export class Higher {
   // FIXME getMany should maybe use "id" as the first field instead of "key"
   // (so it can return groupObjType[]) unless the key really is the full LS key
   #getAllGroups(): { key: string, value: groupValType }[] {
-    return this.localStorageWrapper.getMany(this.#getDataPrefix(Higher.GROUP));
+    return this.localStorageWrapper.getMany(this.#getDataPrefix(Higher.#GROUP));
   }
   
   /**
@@ -1131,7 +1131,7 @@ export class Higher {
    * @private
    */
   #setGroup(groupID: string, groupValue: groupValType) {
-    this.localStorageWrapper.set(this.#getDataKey(Higher.GROUP, groupID), groupValue);
+    this.localStorageWrapper.set(this.#getDataKey(Higher.#GROUP, groupID), groupValue);
   }
   
   /**
@@ -1142,7 +1142,7 @@ export class Higher {
    * @private
    */
   #removeGroup(groupID: string) {
-    this.localStorageWrapper.remove(this.#getDataKey(Higher.GROUP, groupID));
+    this.localStorageWrapper.remove(this.#getDataKey(Higher.#GROUP, groupID));
   }
 
 
@@ -1166,7 +1166,7 @@ export class Higher {
     let contacts = this.getContacts();
     // if contactLevel = true but not in contacts, add
     if (groupValue.contactLevel && !contacts.includes(groupID)) {
-      await this.#addChild(Higher.CONTACTS, groupID, [this.core.olmWrapper.getIdkey()]);
+      await this.#addChild(Higher.#CONTACTS, groupID, [this.core.olmWrapper.getIdkey()]);
     }
     // if in contacts but contactLevel = false, make contactLevel = true
     if (!groupValue.contactLevel && contacts.includes(groupID)) {
@@ -1914,7 +1914,7 @@ export class Higher {
         let newMemberIdkeys = this.#resolveIDs([toShareGroupID]);
         // FIXME send bulk updateGroup message
         for (let sharingGroupSubgroup of sharingGroupSubgroups) {
-          let newGroup = this.#groupReplace(sharingGroupSubgroup, Higher.LINKED, Higher.CONTACTS);
+          let newGroup = this.#groupReplace(sharingGroupSubgroup, Higher.#LINKED, Higher.#CONTACTS);
           await this.#updateGroup(newGroup.id, newGroup.value, newMemberIdkeys);
         }
   
@@ -1923,7 +1923,7 @@ export class Higher {
         let existingMemberIdkeys = this.#resolveIDs([curGroupID]);
         // FIXME send bulk updateGroup message
         for (let toShareSubgroup of toShareSubgroups) {
-          let newGroup = this.#groupReplace(toShareSubgroup, Higher.LINKED, Higher.CONTACTS);
+          let newGroup = this.#groupReplace(toShareSubgroup, Higher.#LINKED, Higher.#CONTACTS);
           await this.#updateGroup(newGroup.id, newGroup.value, existingMemberIdkeys);
         }
   

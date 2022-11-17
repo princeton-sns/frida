@@ -20,18 +20,21 @@ export class Core {
      *           onUnauth: callback,
      *           validateCallback: callback}} config client configuration options
      */
-    constructor(eventEmitter, turnEncryptionOff, ip, port) {
-        this.olmWrapper = new OlmWrapper(turnEncryptionOff);
+    constructor(eventEmitter) {
         this.eventEmitter = eventEmitter;
         // register listener for incoming messages
         this.eventEmitter.on('serverMsg', async (msg) => {
             await this.onMessage(msg);
         });
-        this.#serverComm = new ServerComm(this.eventEmitter, ip, port);
     }
-    async init() {
-        await this.olmWrapper.init();
-        await this.#serverComm.init(this.olmWrapper);
+    async #init(turnEncryptionOff, ip, port) {
+        this.olmWrapper = await OlmWrapper.create(turnEncryptionOff);
+        this.#serverComm = await ServerComm.create(this.eventEmitter, this.olmWrapper, ip, port);
+    }
+    static async create(eventEmitter, turnEncryptionOff, ip, port) {
+        let core = new Core(eventEmitter);
+        await core.#init(turnEncryptionOff, ip, port);
+        return core;
     }
     /**
      * Called like: sendMessage(resolveIDs(id), payload) (see example in

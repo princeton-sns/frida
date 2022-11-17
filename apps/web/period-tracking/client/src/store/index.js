@@ -2,13 +2,18 @@ import { createStore } from "vuex";
 import router from "../router";
 import { Higher } from "../../../../../../higher";
 
+let store;
+export let frida;
+
 let serverIP = "localhost";
 let serverPort = "8080";
 
 const symptomPrefix = "symptom";
 const periodPrefix = "period";
 
-export let frida = new Higher(
+(async () => {
+
+frida = await Higher.create(
   {
     onAuth: () => {
       router.push("/settings");
@@ -22,9 +27,6 @@ export let frida = new Higher(
   serverIP,
   serverPort
 );
-
-// FIXME should be awaited on but need to restructure this file
-frida.init();
 
 function createAppDBListenerPlugin() {
   return (store) => {
@@ -65,7 +67,7 @@ function createAppDBListenerPlugin() {
   };
 }
 
-const store = createStore({
+store = createStore({
   state: {
     name: frida.getLinkedName(),
     // TODO make these lists reactive
@@ -185,5 +187,7 @@ const store = createStore({
   },
   plugins: [createAppDBListenerPlugin()],
 });
+
+})();
 
 export default store;

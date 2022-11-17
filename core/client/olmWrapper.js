@@ -40,10 +40,15 @@ export class OlmWrapper {
         this.#turnEncryptionOff = turnEncryptionOff;
         this.#thinLSWrapper = new ThinLSWrapper();
     }
-    async init() {
+    async #init() {
         await Olm.init({
             locateFile: () => "/olm.wasm",
         });
+    }
+    static async create(turnEncryptionOff) {
+        let olmWrapper = new OlmWrapper(turnEncryptionOff);
+        await olmWrapper.#init();
+        return olmWrapper;
     }
     getIdkey() {
         return this.#thinLSWrapper.get(OlmWrapper.IDKEY);

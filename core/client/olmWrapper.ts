@@ -64,15 +64,21 @@ export class OlmWrapper {
   #turnEncryptionOff: boolean = false;
   #thinLSWrapper: ThinLSWrapper;
 
-  constructor(turnEncryptionOff: boolean) {
+  private constructor(turnEncryptionOff: boolean) {
     this.#turnEncryptionOff = turnEncryptionOff;
     this.#thinLSWrapper = new ThinLSWrapper();
   }
 
-  async init() {
+  async #init() {
     await Olm.init({
       locateFile: () => "/olm.wasm",
     });
+  }
+
+  static async create(turnEncryptionOff: boolean): Promise<OlmWrapper> {
+    let olmWrapper = new OlmWrapper(turnEncryptionOff);
+    await olmWrapper.#init();
+    return olmWrapper;
   }
 
   getIdkey(): string {

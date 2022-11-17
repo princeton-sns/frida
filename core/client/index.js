@@ -1482,8 +1482,11 @@ async function updateDataRemotely(key, value, idkeys) {
 
 async function updateData(key, value, allIdkeys) {
   // FIXME send everything
+  console.log("All ID Keys: " +  allIdkeys);
   let { idkeys, execLocal } = adaptor(allIdkeys, getIdkey());
   // remotely
+  //console.log("Here: " + idkeys);
+  //console.log("There: " + allIdkeys);
   await updateDataRemotely(key, value, idkeys);
   // locally
   if (execLocal) {

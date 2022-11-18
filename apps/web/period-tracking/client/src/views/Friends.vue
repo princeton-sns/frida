@@ -2,26 +2,46 @@
   <div class="friends">
     <div class="add-friend">
       <div>
-        <input v-model="deviceIdkey" placeholder="device id key" />
+        <input
+          v-model="deviceIdkey"
+          placeholder="device id key"
+        >
       </div>
-      <button @click="addFriend">Add Friend</button>
+      <button @click="addFriend">
+        Add Friend
+      </button>
     </div>
-    <br />
+    <br>
     <div class="remove-friend">
       <div>
-        <input v-model="friendName" placeholder="friend name" />
+        <input
+          v-model="friendName"
+          placeholder="friend name"
+        >
       </div>
-      <button @click="removeFriend">Remove Friend</button>
+      <button @click="removeFriend">
+        Remove Friend
+      </button>
     </div>
-    <br />
+    <br>
     <div class="list-friends">
       <h3>Friends:</h3>
-      <div v-for="friend in friends" :key="friend">{{ friend }}</div>
+      <div
+        v-for="friend in friends"
+        :key="friend"
+      >
+        {{ friend }}
+      </div>
     </div>
-    <br />
+    <br>
     <div class="pending-friends">
       <h3>Pending:</h3>
-      <div v-for="pending in pendingFriends" :key="pending">{{ pending }}</div>
+      <div
+        v-for="pending in pendingFriends"
+        :key="pending"
+      >
+        {{ pending }}
+      </div>
     </div>
   </div>
 </template>
@@ -30,17 +50,17 @@
 import { mapState } from "vuex";
 
 export default {
-  computed: {
-    ...mapState({
-      friends: "friends",
-      pendingFriends: "pendingFriends",
-    }),
-  },
   data() {
     return {
       deviceIdkey: null,
       friendName: null,
     };
+  },
+  computed: {
+    ...mapState({
+      friends: "friends",
+      pendingFriends: "pendingFriends",
+    }),
   },
   methods: {
     addFriend(event) {

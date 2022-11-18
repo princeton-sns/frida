@@ -2,9 +2,25 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import store from "./store";
 import router from "./router";
+import { Higher } from "../../../../../higher";
+
+//let serverIP = "sns26.princeton.edu";
+//let serverPort = "8000";
 
 /* eslint-disable */
-const app = createApp(App);
-app.use(store);
-app.use(router);
-app.mount("#app");
+(async () => {
+  const app = createApp(App);
+  let frida = await Higher.create(
+    {
+      onAuth: () => { router.push("/settings") },
+      onUnauth: () => { router.push("/register") },
+      storagePrefixes: ["symptom", "period"],
+      //turnEncryptionOff: true,
+    }//,
+    //serverIP,
+    //serverPort
+  );
+  app.use(store(frida));
+  app.use(router(frida));
+  app.mount("#app");
+})();

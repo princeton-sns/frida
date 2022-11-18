@@ -2,22 +2,38 @@
   <div class="register">
     <div>
       <div>
-        <input v-model="topName" placeholder="top-level name" />
+        <input
+          v-model="topName"
+          placeholder="top-level name"
+        >
       </div>
       <div>
-        <input v-model="firstDeviceName" placeholder="device name (optional)" />
+        <input
+          v-model="firstDeviceName"
+          placeholder="device name (optional)"
+        >
       </div>
-      <button @click="newDevice">New Device</button>
+      <button @click="newDevice">
+        New Device
+      </button>
     </div>
-    <br />
+    <br>
     <div>
       <div>
-        <input v-model="idkey" placeholder="id key to link with" />
+        <input
+          v-model="idkey"
+          placeholder="id key to link with"
+        >
       </div>
       <div>
-        <input v-model="nextDeviceName" placeholder="device name (optional)" />
+        <input
+          v-model="nextDeviceName"
+          placeholder="device name (optional)"
+        >
       </div>
-      <button @click="newLinkedDevice">New Linked Device</button>
+      <button @click="newLinkedDevice">
+        New Linked Device
+      </button>
     </div>
   </div>
 </template>
@@ -35,6 +51,7 @@ export default {
   methods: {
     newDevice(event) {
       console.log(event);
+      console.log(this);
       this.$store.commit("NEW_DEVICE", {
         topName: this.topName,
         deviceName: this.firstDeviceName,

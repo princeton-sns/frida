@@ -4,8 +4,8 @@
  *************************
  */
 
-import EventEmitter from "events";
 import io from "socket.io-client";
+import { EventEmitter } from "events";
 import { OlmWrapper } from "./olmWrapper.js";
 import { outboundEncPayloadType, inboundEncPayloadType } from "./index.js";
 

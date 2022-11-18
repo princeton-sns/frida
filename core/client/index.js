@@ -64,7 +64,7 @@ export class Core {
     }
     async onMessage(msg) {
         console.log("seqID: " + msg.seqID);
-        let payload = JSON.parse(this.olmWrapper.decrypt(msg.encPayload, msg.sender));
+        let payload = this.olmWrapper.decrypt(msg.encPayload, msg.sender);
         await this.eventEmitter.emit('coreMsg', {
             payload: payload,
             sender: msg.sender,

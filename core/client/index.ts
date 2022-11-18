@@ -6,10 +6,9 @@
  ************
  */
 
-import EventEmitter from "events";
+import { EventEmitter } from "events";
 import { OlmWrapper } from  "./olmWrapper.js";
 import { ServerComm } from "./serverComm.js";
-import { payloadType } from "../../higher";
 
 export type outboundEncPayloadType = {
   deviceId: string,
@@ -41,7 +40,7 @@ export class Core {
   ) {
     this.eventEmitter = eventEmitter;
     // register listener for incoming messages
-    this.eventEmitter.on('serverMsg', async (msg) => {
+    this.eventEmitter.on('serverMsg', async (msg: inboundEncPayloadType) => {
       await this.onMessage(msg);
     });
   }
@@ -75,7 +74,7 @@ export class Core {
    *
    * @private
    */
-  async sendMessage(dstIdkeys: string[], payload: payloadType) {
+  async sendMessage(dstIdkeys: string[], payload: string) {
     let batch: outboundEncPayloadType[] = new Array();
   
     console.log("sending to...");
@@ -102,10 +101,10 @@ export class Core {
   
   async onMessage(msg: inboundEncPayloadType) {
     console.log("seqID: " + msg.seqID);
-    let payload: payloadType = JSON.parse(this.olmWrapper.decrypt(
+    let payload: string = this.olmWrapper.decrypt(
         msg.encPayload,
         msg.sender,
-    ));
+    );
     await this.eventEmitter.emit('coreMsg', {
       payload: payload,
       sender: msg.sender,

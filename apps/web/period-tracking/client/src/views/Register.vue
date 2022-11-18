@@ -51,6 +51,7 @@ export default {
   methods: {
     newDevice(event) {
       console.log(event);
+      console.log(this);
       this.$store.commit("NEW_DEVICE", {
         topName: this.topName,
         deviceName: this.firstDeviceName,

@@ -16,13 +16,13 @@
 
 // TODO add permission checks for setting cryptographic keys?
 
-// TODO instead of using this.core.olmWrapper.getIdkey() everywhere, idkey is not 
+// TODO instead of using this.#core.olmWrapper.getIdkey() everywhere, idkey is not 
 // expected to change so just set some object state once a device is
 // created (could still be in olmWrapper)
 
 // TODO need new special name for LINKED group (confusing when linking non-LINKED groups)
 
-import EventEmitter from "events";
+import { EventEmitter } from "events";
 import { Core } from "../core/client";
 import { LocalStorageWrapper } from "./db/localStorageWrapper.js";
 
@@ -153,47 +153,49 @@ export class Higher {
   static DELETE_DATA          : string = "deleteData";
 
   // default auth/unauth functions do nothing
-  defaultOnAuth  : () => void = () => {};
-  defaultOnUnauth: () => void = () => {};
+  #defaultOnAuth  : () => void = () => {};
+  #defaultOnUnauth: () => void = () => {};
   // default callback
-  defaultValidateCallback = (payload) => {
+  #defaultValidateCallback = (payload) => {
     console.log("validating payload... " + JSON.stringify(payload));
     return true;
   };
 
-  storagePrefixes: string[] = [Higher.#GROUP];
-  onAuth  : () => void;
-  onUnauth: () => void;
-  turnEncryptionOff: boolean;
-  validateCallback: (payloadType) => boolean;
-  core: Core;
-  localStorageWrapper: LocalStorageWrapper;
-  eventEmitter: EventEmitter;
-  demuxFunc;
+  #storagePrefixes: string[] = [Higher.#GROUP];
+  #onAuth  : () => void;
+  #onUnauth: () => void;
+  #turnEncryptionOff: boolean;
+  #validateCallback: (payloadType) => boolean;
+  #core: Core;
+  #localStorageWrapper: LocalStorageWrapper;
+  #eventEmitter: EventEmitter;
+  #demuxFunc;
 
   private constructor(
       // TODO type config
       config
   ) {
-    this.onAuth = config.onAuth ?? this.defaultOnAuth;
-    this.onUnauth = config.onUnauth ?? this.defaultOnUnauth;
-    this.turnEncryptionOff = config.turnEncryptionOff ?? false;
-    this.validateCallback = config.validateCallback ?? this.defaultValidateCallback;
+    this.#onAuth = config.onAuth ?? this.#defaultOnAuth;
+    this.#onUnauth = config.onUnauth ?? this.#defaultOnUnauth;
+    this.#turnEncryptionOff = config.turnEncryptionOff ?? false;
+    this.#validateCallback = config.validateCallback ?? this.#defaultValidateCallback;
     if (config.storagePrefixes) {
       config.storagePrefixes.forEach((prefix) => {
-        this.storagePrefixes.push(prefix);
+        this.#storagePrefixes.push(prefix);
       });
     }
-    this.eventEmitter = new EventEmitter();
+    this.#eventEmitter = new EventEmitter();
     // register listener for incoming messages
-    this.eventEmitter.on('coreMsg', async ({ payload, sender }) => {
-      await this.#onMessage(payload, sender);
+    this.#eventEmitter.on('coreMsg', async (
+        { payload, sender }: { payload: string, sender: string }
+    ) => {
+      await this.#onMessage(JSON.parse(payload), sender);
     });
-    this.localStorageWrapper = new LocalStorageWrapper();
+    this.#localStorageWrapper = new LocalStorageWrapper();
   }
 
   async #init(ip?: string, port?: string) {
-    this.core = await Core.create(this.eventEmitter, this.turnEncryptionOff, ip, port);
+    this.#core = await Core.create(this.#eventEmitter, this.#turnEncryptionOff, ip, port);
   }
 
   static async create(
@@ -238,6 +240,10 @@ export class Higher {
    * Core interaction *
    ********************
    */
+  
+  async #sendMessage(dstIdkeys: string[], payload: payloadType) {
+    await this.#core.sendMessage(dstIdkeys, JSON.stringify(payload));
+  }
 
   /**
    * Decrypts, validates, and demultiplexes the received message to
@@ -259,8 +265,7 @@ export class Higher {
       sender: string
   ) {
     let permissionsOK = this.#checkPermissions(payload, sender);
-    //console.log(this.demuxFunc);
-    if (this.demuxFunc === undefined) {
+    if (this.#demuxFunc === undefined) {
       this.#printBadMessageError(payload.msgType);
       return;
     }
@@ -273,7 +278,7 @@ export class Higher {
       return;
     }
     console.log("SUCCESS");
-    await this.demuxFunc(payload);
+    await this.#demuxFunc(payload);
   }
 
   /**
@@ -334,7 +339,7 @@ export class Higher {
       linkedName?: string,
       deviceName?: string
   ): Promise<{ idkey: string, linkedName: string }> {
-    let idkey: string = await this.core.olmWrapper.generateInitialKeys();
+    let idkey: string = await this.#core.olmWrapper.generateInitialKeys();
     console.log(idkey);
   
     // enforce that linkedName exists; deviceName is not necessary
@@ -366,7 +371,7 @@ export class Higher {
    * @private
    */
   #setOutstandingLinkIdkey(idkey: string) {
-    this.localStorageWrapper.set(Higher.#OUTSTANDING_IDKEY, idkey);
+    this.#localStorageWrapper.set(Higher.#OUTSTANDING_IDKEY, idkey);
   }
   
   /**
@@ -378,7 +383,7 @@ export class Higher {
    * @private
    */
   #getOutstandingLinkIdkey(): string {
-    return this.localStorageWrapper.get(Higher.#OUTSTANDING_IDKEY);
+    return this.#localStorageWrapper.get(Higher.#OUTSTANDING_IDKEY);
   }
   
   /**
@@ -387,7 +392,7 @@ export class Higher {
    * @private
    */
   #removeOutstandingLinkIdkey() {
-    this.localStorageWrapper.remove(Higher.#OUTSTANDING_IDKEY);
+    this.#localStorageWrapper.remove(Higher.#OUTSTANDING_IDKEY);
   }
   
   async #requestUpdateLinked(
@@ -396,7 +401,7 @@ export class Higher {
       tempName: string,
       newLinkedMembers: groupObjType[]
   ) {
-    await this.core.sendMessage([dstIdkey], {
+    await this.#sendMessage([dstIdkey], {
       msgType: Higher.REQ_UPDATE_LINKED,
       tempName: tempName,
       srcIdkey: srcIdkey,
@@ -487,7 +492,7 @@ export class Higher {
       existingData: storageObjType[],
       idkeys: string[]
   ) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.CONFIRM_UPDATE_LINKED,
       existingGroups: existingGroups,
       existingData: existingData,
@@ -511,13 +516,13 @@ export class Higher {
       existingData: storageObjType[]
   }) {
     existingGroups.forEach(({ key, value }) => {
-      this.localStorageWrapper.set(key, value);
+      this.#localStorageWrapper.set(key, value);
     });
     existingData.forEach(({ key, value }) => {
-      this.localStorageWrapper.set(key, value);
+      this.#localStorageWrapper.set(key, value);
     });
     this.#removeOutstandingLinkIdkey();
-    this.onAuth();
+    this.#onAuth();
   }
   
   /**
@@ -541,7 +546,7 @@ export class Higher {
       deviceName: string = null
   ): Promise<string> {
     let { idkey } = await this.#initDevice(linkedName, deviceName);
-    this.onAuth();
+    this.#onAuth();
     return idkey;
   }
 
@@ -573,15 +578,15 @@ export class Higher {
    */
   async #deleteDeviceLocally() {
     // notify all direct parents and contacts that this group should be removed
-    let idkey = this.core.olmWrapper.getIdkey();
+    let idkey = this.#core.olmWrapper.getIdkey();
     await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.#CONTACTS])));
-    this.core.disconnect();
-    this.localStorageWrapper.clear();
-    this.onUnauth();
+    this.#core.disconnect();
+    this.#localStorageWrapper.clear();
+    this.#onUnauth();
   }
   
   async #deleteDeviceRemotely(idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.DELETE_DEVICE,
     });
   }
@@ -596,7 +601,7 @@ export class Higher {
    * the server.
    */
   async deleteThisDevice() {
-    await this.#deleteDevice([this.core.olmWrapper.getIdkey()]);
+    await this.#deleteDevice([this.#core.olmWrapper.getIdkey()]);
   }
   
   /**
@@ -635,9 +640,9 @@ export class Higher {
       reqContactGroups: groupObjType[],
       idkeys: string[]
   ) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.REQ_CONTACT,
-      reqIdkey: this.core.olmWrapper.getIdkey(),
+      reqIdkey: this.#core.olmWrapper.getIdkey(),
       reqContactName: reqContactName,
       reqContactGroups: reqContactGroups,
     });
@@ -648,7 +653,7 @@ export class Higher {
       contactGroups: groupObjType[],
       idkeys: string[]
   ) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.CONFIRM_CONTACT,
       contactName: contactName,
       contactGroups: contactGroups,
@@ -827,11 +832,11 @@ export class Higher {
   #updateDataLocally(
       { key, dataValue }: { key: string, dataValue: any }
   ) {
-    this.localStorageWrapper.set(key, dataValue);
+    this.#localStorageWrapper.set(key, dataValue);
   }
   
   async #updateDataRemotely(key: string, value: any, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.UPDATE_DATA,
       key: key,
       dataValue: value,
@@ -855,7 +860,7 @@ export class Higher {
    */
   async #setDataHelper(key: string, data: any, groupID: string) {
     // check permissions
-    let idkey = this.core.olmWrapper.getIdkey();
+    let idkey = this.#core.olmWrapper.getIdkey();
     if (!this.#hasWriterPriv(idkey, groupID)) {
       this.#printBadDataPermissionsError();
       return;
@@ -874,11 +879,11 @@ export class Higher {
    * @private
    */
   #deleteDataLocally({ key }: { key: string }) {
-    this.localStorageWrapper.remove(key);
+    this.#localStorageWrapper.remove(key);
   }
   
   async #deleteDataRemotely(key: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.DELETE_DATA,
       key: key,
     });
@@ -904,10 +909,10 @@ export class Higher {
       toUnshareGroupID: string = null
   ) {
     if (curGroupID === null) {
-      curGroupID = this.localStorageWrapper.get(key)?.groupID;
+      curGroupID = this.#localStorageWrapper.get(key)?.groupID;
     }
     if (curGroupID !== null) {
-      let idkey = this.core.olmWrapper.getIdkey();
+      let idkey = this.#core.olmWrapper.getIdkey();
       if (!this.#hasWriterPriv(idkey, curGroupID)) {
         this.#printBadDataPermissionsError();
         return;
@@ -934,7 +939,7 @@ export class Higher {
    * @private
    */
   #validate(payload: payloadType): boolean {
-    return this.validateCallback(payload);
+    return this.#validateCallback(payload);
   }
 
   /**
@@ -947,7 +952,7 @@ export class Higher {
    * @param {callback} newValidateCallback new validation callback
    */
   setValidateCallback(callback: (payloadType) => boolean) {
-    this.validateCallback = callback;
+    this.#validateCallback = callback;
   }
 
   /**
@@ -961,7 +966,12 @@ export class Higher {
    * @param {string} id app-specific object id
    */
   async setData(prefix: string, id: string, data: any) {
-    await this.#setDataHelper(this.#getDataKey(prefix, id), data, this.getLinkedName());
+    let existingData = this.#getSingleData(prefix, id);
+    if (existingData !== null) {
+      await this.#setDataHelper(this.#getDataKey(prefix, id), data, existingData.groupID);
+    } else {
+      await this.#setDataHelper(this.#getDataKey(prefix, id), data, this.getLinkedName());
+    }
   }
   
   /**
@@ -975,14 +985,14 @@ export class Higher {
    * @returns {Object|Object[]|null}
    */
   getSingleData(prefix: string, id: string): any {
-    return this.localStorageWrapper.get(this.#getDataKey(prefix, id))?.data ?? null;
+    return this.#localStorageWrapper.get(this.#getDataKey(prefix, id))?.data ?? null;
   }
 
   getDataByPrefix(prefix: string): any[] {
     // get all data within prefix
     let results = [];
     let topLevelNames = this.#getChildren(Higher.#CONTACTS).concat([this.getLinkedName()]);
-    let intermediate = this.localStorageWrapper.getMany(this.#getDataPrefix(prefix));
+    let intermediate = this.#localStorageWrapper.getMany(this.#getDataPrefix(prefix));
     intermediate.forEach(({ key, value }) => {
       // deduplicates admins/writers/readers lists
       let admins = this.#listIntersect(topLevelNames, this.#getAdmins(value.groupID));
@@ -1001,9 +1011,9 @@ export class Higher {
 
   getAllData(): { key: string, value: any }[] {
     let results = [];
-    let appPrefixes = this.storagePrefixes.filter((x) => x != Higher.#GROUP);
+    let appPrefixes = this.#storagePrefixes.filter((x) => x != Higher.#GROUP);
     appPrefixes.forEach((appPrefix) => {
-      this.localStorageWrapper.getMany(this.#getDataPrefix(appPrefix)).forEach((dataObj) => {
+      this.#localStorageWrapper.getMany(this.#getDataPrefix(appPrefix)).forEach((dataObj) => {
         results.push({
           key: dataObj.key,
           value: dataObj.value,
@@ -1082,7 +1092,7 @@ export class Higher {
    * @private
    */
   #getGroup(groupID: string): groupValType {
-    return this.localStorageWrapper.get(this.#getDataKey(Higher.#GROUP, groupID));
+    return this.#localStorageWrapper.get(this.#getDataKey(Higher.#GROUP, groupID));
   }
 
   /**
@@ -1095,7 +1105,7 @@ export class Higher {
   // FIXME getMany should maybe use "id" as the first field instead of "key"
   // (so it can return groupObjType[]) unless the key really is the full LS key
   #getAllGroups(): { key: string, value: groupValType }[] {
-    return this.localStorageWrapper.getMany(this.#getDataPrefix(Higher.#GROUP));
+    return this.#localStorageWrapper.getMany(this.#getDataPrefix(Higher.#GROUP));
   }
   
   /**
@@ -1131,7 +1141,7 @@ export class Higher {
    * @private
    */
   #setGroup(groupID: string, groupValue: groupValType) {
-    this.localStorageWrapper.set(this.#getDataKey(Higher.#GROUP, groupID), groupValue);
+    this.#localStorageWrapper.set(this.#getDataKey(Higher.#GROUP, groupID), groupValue);
   }
   
   /**
@@ -1142,7 +1152,7 @@ export class Higher {
    * @private
    */
   #removeGroup(groupID: string) {
-    this.localStorageWrapper.remove(this.#getDataKey(Higher.#GROUP, groupID));
+    this.#localStorageWrapper.remove(this.#getDataKey(Higher.#GROUP, groupID));
   }
 
 
@@ -1166,7 +1176,7 @@ export class Higher {
     let contacts = this.getContacts();
     // if contactLevel = true but not in contacts, add
     if (groupValue.contactLevel && !contacts.includes(groupID)) {
-      await this.#addChild(Higher.#CONTACTS, groupID, [this.core.olmWrapper.getIdkey()]);
+      await this.#addChild(Higher.#CONTACTS, groupID, [this.#core.olmWrapper.getIdkey()]);
     }
     // if in contacts but contactLevel = false, make contactLevel = true
     if (!groupValue.contactLevel && contacts.includes(groupID)) {
@@ -1176,7 +1186,7 @@ export class Higher {
   }
   
   async #updateGroupRemotely(groupID: string, value: groupValType, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.UPDATE_GROUP,
       groupID: groupID,
       groupValue: value,
@@ -1212,7 +1222,7 @@ export class Higher {
   }
   
   async #linkGroupsRemotely(parentID: string, childID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.LINK_GROUPS,
       parentID: parentID,
       childID: childID,
@@ -1252,7 +1262,7 @@ export class Higher {
   }
   
   async #deleteGroupRemotely(groupID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.DELETE_GROUP,
       groupID: groupID,
     });
@@ -1406,7 +1416,7 @@ export class Higher {
   }
   
   async #addChildRemotely(groupID: string, childID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.ADD_CHILD,
       groupID: groupID,
       childID: childID,
@@ -1462,7 +1472,7 @@ export class Higher {
   }
   
   async #addParentRemotely(groupID: string, parentID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.ADD_PARENT,
       groupID: groupID,
       parentID: parentID,
@@ -1505,7 +1515,7 @@ export class Higher {
   }
   
   async #removeParentRemotely(groupID: string, parentID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.REMOVE_PARENT,
       groupID: groupID,
       parentID: parentID,
@@ -1556,7 +1566,7 @@ export class Higher {
   }
   
   async #addAdminRemotely(groupID: string, adminID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.ADD_ADMIN,
       groupID: groupID,
       adminID: adminID,
@@ -1599,7 +1609,7 @@ export class Higher {
   }
   
   async #removeAdminRemotely(groupID: string, adminID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.REMOVE_ADMIN,
       groupID: groupID,
       adminID: adminID,
@@ -1643,7 +1653,7 @@ export class Higher {
   }
   
   async #addWriterRemotely(groupID: string, writerID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.ADD_WRITER,
       groupID: groupID,
       writerID: writerID,
@@ -1686,7 +1696,7 @@ export class Higher {
   }
   
   async #removeWriterRemotely(groupID: string, writerID: string, idkeys: string[]) {
-    await this.core.sendMessage(idkeys, {
+    await this.#sendMessage(idkeys, {
       msgType: Higher.REMOVE_WRITER,
       groupID: groupID,
       writerID: writerID,
@@ -1860,9 +1870,9 @@ export class Higher {
    * @private
    */
   async #shareData(prefix: string, id: string, toShareGroupID: string) {
-    let idkey = this.core.olmWrapper.getIdkey();
+    let idkey = this.#core.olmWrapper.getIdkey();
     let key = this.#getDataKey(prefix, id);
-    let value = this.localStorageWrapper.get(key);
+    let value = this.#localStorageWrapper.get(key);
     let curGroupID = value?.groupID ?? null;
   
     let retval = {
@@ -1953,9 +1963,9 @@ export class Higher {
    * @private
    */
   #unshareChecks(prefix: string, id: string, toUnshareGroupID: string) {
-    let idkey = this.core.olmWrapper.getIdkey();
+    let idkey = this.#core.olmWrapper.getIdkey();
     let key = this.#getDataKey(prefix, id);
-    let value = this.localStorageWrapper.get(key);
+    let value = this.#localStorageWrapper.get(key);
     let curGroupID = value?.groupID ?? null;
   
     let retval = {
@@ -2060,7 +2070,7 @@ export class Higher {
   }
   
   // demultiplexing map from message types to functions
-  demuxMap = {
+  #demuxMap = {
     [Higher.REQ_UPDATE_LINKED]:     this.#processUpdateLinkedRequest,
     [Higher.CONFIRM_UPDATE_LINKED]: this.#processConfirmUpdateLinked,
     [Higher.REQ_CONTACT]:           this.#processContactRequest,
@@ -2112,7 +2122,7 @@ export class Higher {
         }
         break;
       } case Higher.DELETE_DEVICE: {
-        if (this.#hasAdminPriv(srcIdkey, this.core.olmWrapper.getIdkey())) {
+        if (this.#hasAdminPriv(srcIdkey, this.#core.olmWrapper.getIdkey())) {
           permissionsOK = true;
         }
         break;
@@ -2160,7 +2170,7 @@ export class Higher {
         }
         break;
       } case Higher.DELETE_DATA: {
-        if (this.#hasWriterPriv(srcIdkey, this.localStorageWrapper.get(payload.key)?.groupID)) {
+        if (this.#hasWriterPriv(srcIdkey, this.#localStorageWrapper.get(payload.key)?.groupID)) {
           permissionsOK = true;
         }
         break;
@@ -2173,7 +2183,7 @@ export class Higher {
       default:
     }
 
-    this.demuxFunc = this.demuxMap[payload.msgType];
+    this.#demuxFunc = this.#demuxMap[payload.msgType];
   
     return permissionsOK;
   }

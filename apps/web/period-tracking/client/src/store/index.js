@@ -3,6 +3,44 @@ import { createStore } from "vuex";
 export const symptomPrefix = "symptom";
 export const periodPrefix = "period";
 
+// if defined and initiated like above, is  run for every change
+const validateFunc = (payload) => {
+  // not something dev should test for in real life
+  if (payload.key == null) {
+    return false;
+  }
+  return true;
+};
+
+const periodValidate = (payload) => {
+  let keys = payload.key.split("/");
+
+  // invariant = period setting is one of the predefined values
+  let i = payload.value.data.period;
+  if (i != "spotting" && i != "low" && i != "medium" && i != "high") {
+    return false;
+  }
+
+  // invariant = no more than one period per day
+  if (frida.getData(keys[1].concat("/", keys[2])).length > 0) {
+    return false;
+  }
+
+  return true;
+};
+
+const symptomValidate = (payload) => {
+  //invariant = number of symptoms is no longer than 6
+  //TODO: change invariant if we expand app
+  if (payload.value.data.symptoms.length > 6) {
+    return false;
+  }
+  return true;
+};
+
+frida.setValidateCallbackForPrefix(periodPrefix, periodValidate);
+frida.setValidateCallbackForPrefix(symptomPrefix, symptomValidate);
+
 function createAppDBListenerPlugin() {
   return (store) => {
     // only fired for non-local events that share the same storage object
@@ -16,10 +54,11 @@ function createAppDBListenerPlugin() {
             remote: true,
           });
         } else {
+          let newData = JSON.parse(e.newValue).data;
           store.commit("ADD_SYMPTOM", {
-            timestamp: JSON.parse(e.newValue).data.timestamp,
-            symptoms: JSON.parse(e.newValue).data.symptoms,
-            id: JSON.parse(e.newValue).data.id,
+            timestamp: newData.timestamp,
+            symptoms: newData.symptoms,
+            id: newData.id,
             remote: true,
           });
         }
@@ -30,10 +69,11 @@ function createAppDBListenerPlugin() {
             remote: true,
           });
         } else {
+          let newData = JSON.parse(e.newValue).data;
           store.commit("ADD_PERIOD", {
-            timestamp: JSON.parse(e.newValue).data.timestamp,
-            period: JSON.parse(e.newValue).data.period,
-            id: JSON.parse(e.newValue).data.id,
+            timestamp: newData.timestamp,
+            period: newData.period,
+            id: newData.id,
             remote: true,
           });
         }
@@ -66,15 +106,21 @@ const store = (frida) => {
         if (!remote) {
           frida.setData(symptomPrefix, id, value);
         }
-        //state.existingSymptoms.push(JSON.stringify({
+        //state.symptoms.push(frida.db.toString({
         //  id: id,
         //  data: value,
         //}));
       },
       ADD_PERIOD(state, { timestamp, period, id, remote }) {
         if (!remote) {
-          frida.setData(periodPrefix, id, {
-            id: id,
+          let idWithDate = String(timestamp.getDate()).concat(
+            String(timestamp.getMonth()),
+            String(timestamp.getYear()),
+            "/",
+            id
+          );
+          frida.setData(periodPrefix, idWithDate, {
+            id: idWithDate,
             timestamp: timestamp,
             period: period,
           });

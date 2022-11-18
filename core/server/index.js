@@ -82,7 +82,7 @@ app.post('/message', (req, res) => {
 app.get('/self/messages', (req, res) => {
   const deviceId = req.headers.authorization.split(' ')[1];
   let device = devices[deviceId] ||= { otkeys: {}, mailbox: [] };
-  res.send(device.messages);
+  res.send(device.mailbox);
 });
 
 app.delete('/self/messages', (req, res) => {

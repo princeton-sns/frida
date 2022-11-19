@@ -9,8 +9,8 @@ import { Higher } from "../../../../../higher";
   const app = createApp(App);
   let frida = await Higher.create(
     {
-      onAuth: () => { router.push("/settings") },
-      onUnauth: () => { router.push("/register") },
+      onAuth: () => { }, //router.push("/settings") },
+      onUnauth: () => { }, //router.push("/register") },
       //turnEncryptionOff: true,
     }//,
     //"sns26.princeton.edu",

@@ -93,7 +93,8 @@ export class Higher {
     #defaultOnUnauth = () => { };
     // default callback
     #defaultValidateCallback = (payload) => {
-        console.log("validating payload... " + JSON.stringify(payload));
+        if (payload.key === null)
+            return false;
         return true;
     };
     #storagePrefixes = [Higher.#GROUP];
@@ -101,6 +102,7 @@ export class Higher {
     #onUnauth;
     #turnEncryptionOff;
     #validateCallback;
+    #validateCallbackMap = new Map();
     #core;
     #localStorageWrapper;
     #eventEmitter;
@@ -675,10 +677,15 @@ export class Higher {
             this.#printBadDataPermissionsError();
             return;
         }
-        await this.#updateData(key, {
+        let value = {
             groupID: groupID,
             data: data,
-        }, this.#resolveIDs([groupID]));
+        };
+        if (!this.#validate({ key: key, value: value })) {
+            this.#printBadDataError();
+            return;
+        }
+        await this.#updateData(key, value, this.#resolveIDs([groupID]));
     }
     /**
      * Deletes data key (and associated value).
@@ -737,8 +744,23 @@ export class Higher {
      *
      * @private
      */
+    // FIXME currently works on both payloadType and others; need to clean this up
     #validate(payload) {
-        return this.#validateCallback(payload);
+        // called on each interaction with the data store
+        if (!this.#validateCallback(payload)) {
+            return false;
+        }
+        // validate based on prefixes in payload keys
+        let keys = payload.key.split("/");
+        for (let i = 0; i < keys.length; i++) {
+            if (this.#validateCallbackMap.has(keys[i])) {
+                let valFunc = this.#validateCallbackMap.get(keys[i]);
+                if (!valFunc(payload)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
     /**
      * Sets the callback function with which to perform message validation
@@ -752,6 +774,9 @@ export class Higher {
     setValidateCallback(callback) {
         this.#validateCallback = callback;
     }
+    setValidateCallbackForPrefix(prefix, callback) {
+        this.#validateCallbackMap.set(prefix, callback);
+    }
     /**
      * Generates ID for data value, resolves the full key given the prefix,
      * adds group information, stores value and sends to other devices
@@ -763,7 +788,13 @@ export class Higher {
      * @param {string} id app-specific object id
      */
     async setData(prefix, id, data) {
-        await this.#setDataHelper(this.#getDataKey(prefix, id), data, this.getLinkedName());
+        let existingData = this.getSingleData(prefix, id);
+        if (existingData !== null) {
+            await this.#setDataHelper(this.#getDataKey(prefix, id), data, existingData.groupID);
+        }
+        else {
+            await this.#setDataHelper(this.#getDataKey(prefix, id), data, this.getLinkedName());
+        }
     }
     /**
      * If only prefix is specified, gets a list of data objects whose keys begin

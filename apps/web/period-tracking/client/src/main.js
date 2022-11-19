@@ -12,8 +12,8 @@ import { Higher } from "../../../../../higher";
   const app = createApp(App);
   let frida = await Higher.create(
     {
-      onAuth: () => { router.push("/settings") },
-      onUnauth: () => { router.push("/register") },
+      onAuth: () => { console.log("auth") }, //router.push("/settings") },
+      onUnauth: () => { console.log("unauth") }, //router.push("/register") },
       storagePrefixes: ["symptom", "period"],
       //turnEncryptionOff: true,
     }//,

@@ -174,13 +174,13 @@ export class Higher {
 
   private constructor(
       // TODO type config
-      config
+      config?
   ) {
-    this.#onAuth = config.onAuth ?? this.#defaultOnAuth;
-    this.#onUnauth = config.onUnauth ?? this.#defaultOnUnauth;
-    this.#turnEncryptionOff = config.turnEncryptionOff ?? false;
-    this.#validateCallback = config.validateCallback ?? this.#defaultValidateCallback;
-    if (config.storagePrefixes) {
+    this.#onAuth = config?.onAuth ?? this.#defaultOnAuth;
+    this.#onUnauth = config?.onUnauth ?? this.#defaultOnUnauth;
+    this.#turnEncryptionOff = config?.turnEncryptionOff ?? false;
+    this.#validateCallback = config?.validateCallback ?? this.#defaultValidateCallback;
+    if (config?.storagePrefixes) {
       config.storagePrefixes.forEach((prefix) => {
         this.#storagePrefixes.push(prefix);
       });
@@ -201,7 +201,7 @@ export class Higher {
 
   static async create(
       // TODO type config
-      config,
+      config?,
       ip?: string,
       port?: string
   ): Promise<Higher> {
@@ -214,6 +214,14 @@ export class Higher {
     storagePrefixes.forEach((prefix) => {
       this.#storagePrefixes.push(prefix);
     });
+  }
+
+  setOnAuth(onAuth: () => void) {
+    this.#onAuth = onAuth;
+  }
+
+  setOnUnauth(onUnauth: () => void) {
+    this.#onUnauth = onUnauth;
   }
 
   /* Error messages */

@@ -110,11 +110,11 @@ export class Higher {
     constructor(
     // TODO type config
     config) {
-        this.#onAuth = config.onAuth ?? this.#defaultOnAuth;
-        this.#onUnauth = config.onUnauth ?? this.#defaultOnUnauth;
-        this.#turnEncryptionOff = config.turnEncryptionOff ?? false;
-        this.#validateCallback = config.validateCallback ?? this.#defaultValidateCallback;
-        if (config.storagePrefixes) {
+        this.#onAuth = config?.onAuth ?? this.#defaultOnAuth;
+        this.#onUnauth = config?.onUnauth ?? this.#defaultOnUnauth;
+        this.#turnEncryptionOff = config?.turnEncryptionOff ?? false;
+        this.#validateCallback = config?.validateCallback ?? this.#defaultValidateCallback;
+        if (config?.storagePrefixes) {
             config.storagePrefixes.forEach((prefix) => {
                 this.#storagePrefixes.push(prefix);
             });
@@ -140,6 +140,12 @@ export class Higher {
         storagePrefixes.forEach((prefix) => {
             this.#storagePrefixes.push(prefix);
         });
+    }
+    setOnAuth(onAuth) {
+        this.#onAuth = onAuth;
+    }
+    setOnUnauth(onUnauth) {
+        this.#onUnauth = onUnauth;
     }
     /* Error messages */
     #printBadMessageError(msgType) {

@@ -6,6 +6,37 @@ import Settings from "../views/Settings.vue";
 //import Shared from "../views/Shared.vue";
 
 const router = (frida) => {
+  const routes = [
+    {
+      path: "/",
+      component: Home,
+      beforeEnter: existsCurrentDevice,
+    },
+    {
+      path: "/register",
+      component: Register,
+    },
+    {
+      path: "/friends",
+      component: Friends,
+      beforeEnter: existsCurrentDevice,
+    },
+    {
+      path: "/settings",
+      component: Settings,
+      beforeEnter: existsCurrentDevice,
+    },
+    //{
+    //  path: "/shared",
+    //  component: Shared,
+    //  beforeEnter: existsCurrentDevice,
+    //},
+    {
+      path: "/:pathMatch(.*)*",
+      redirect: "/",
+    },
+  ];
+
   function existsCurrentDevice(to, from, next) {
     if (!frida.getLinkedName()) {
       next("/register");
@@ -14,39 +45,15 @@ const router = (frida) => {
     }
   }
 
-  return createRouter({
+  let router = createRouter({
     history: createWebHistory(process.env.BASE_URL),
-    routes: [
-      {
-        path: "/",
-        component: Home,
-        beforeEnter: existsCurrentDevice,
-      },
-      {
-        path: "/register",
-        component: Register,
-      },
-      {
-        path: "/friends",
-        component: Friends,
-        beforeEnter: existsCurrentDevice,
-      },
-      {
-        path: "/settings",
-        component: Settings,
-        beforeEnter: existsCurrentDevice,
-      },
-      //{
-      //  path: "/shared",
-      //  component: Shared,
-      //  beforeEnter: existsCurrentDevice,
-      //},
-      {
-        path: "/:pathMatch(.*)*",
-        redirect: "/",
-      },
-    ],
+    routes,
   });
+
+  frida.setOnAuth(() => router.push("/settings"));
+  frida.setOnUnauth(() => router.push("/register"));
+
+  return router;
 }
 
 export default router;

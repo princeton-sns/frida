@@ -45,6 +45,8 @@ function createAppDBListenerPlugin() {
 }
 
 const store = (frida) => {
+  frida.setStoragePrefixes([symptomPrefix, periodPrefix]);
+
   const periodValidate = (payload) => {
     let keys = payload.key.split("/");
   

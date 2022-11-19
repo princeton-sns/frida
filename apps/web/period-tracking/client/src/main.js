@@ -4,21 +4,17 @@ import store from "./store";
 import router from "./router";
 import { Higher } from "../../../../../higher";
 
-//let serverIP = "sns26.princeton.edu";
-//let serverPort = "8000";
-
 /* eslint-disable */
 (async () => {
   const app = createApp(App);
   let frida = await Higher.create(
     {
-      onAuth: () => { console.log("auth") }, //router.push("/settings") },
-      onUnauth: () => { console.log("unauth") }, //router.push("/register") },
-      storagePrefixes: ["symptom", "period"],
+      onAuth: () => { router.push("/settings") },
+      onUnauth: () => { router.push("/register") },
       //turnEncryptionOff: true,
     }//,
-    //serverIP,
-    //serverPort
+    //"sns26.princeton.edu",
+    //"8000"
   );
   app.use(store(frida));
   app.use(router(frida));

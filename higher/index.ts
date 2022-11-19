@@ -210,6 +210,12 @@ export class Higher {
     return higher;
   }
 
+  setStoragePrefixes(storagePrefixes: string[]) {
+    storagePrefixes.forEach((prefix) => {
+      this.#storagePrefixes.push(prefix);
+    });
+  }
+
   /* Error messages */
   
   #printBadMessageError(msgType: string) {

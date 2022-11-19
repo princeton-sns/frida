@@ -136,6 +136,11 @@ export class Higher {
         await higher.#init(ip, port);
         return higher;
     }
+    setStoragePrefixes(storagePrefixes) {
+        storagePrefixes.forEach((prefix) => {
+            this.#storagePrefixes.push(prefix);
+        });
+    }
     /* Error messages */
     #printBadMessageError(msgType) {
         console.log("----------ERROR unknown msgType: " + msgType);

@@ -51,7 +51,7 @@ const store = (frida) => {
     let keys = payload.key.split("/");
   
     // invariant = period setting is one of the predefined values
-    let i = payload.value.data.period;
+    let i = payload.value?.data.period;
     if (i != "spotting" && i != "low" && i != "medium" && i != "high") {
       return false;
     }
@@ -67,7 +67,7 @@ const store = (frida) => {
   const symptomValidate = (payload) => {
     //invariant = number of symptoms is no longer than 6
     //TODO: change invariant if we expand app
-    if (payload.value.data.symptoms.length > 6) {
+    if (payload.value?.data.symptoms.length > 6) {
       return false;
     }
     return true;

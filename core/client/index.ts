@@ -83,7 +83,7 @@ export class Core {
     for (let dstIdkey of dstIdkeys) {
       let encPayload: string = await this.olmWrapper.encrypt(
         this.#serverComm,
-        JSON.stringify(payload),
+        payload,
         dstIdkey,
       );
       batch.push({

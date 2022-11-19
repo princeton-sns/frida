@@ -50,7 +50,7 @@ export class Core {
         console.log("sending to...");
         console.log(dstIdkeys);
         for (let dstIdkey of dstIdkeys) {
-            let encPayload = await this.olmWrapper.encrypt(this.#serverComm, JSON.stringify(payload), dstIdkey);
+            let encPayload = await this.olmWrapper.encrypt(this.#serverComm, payload, dstIdkey);
             batch.push({
                 deviceId: dstIdkey,
                 payload: encPayload,

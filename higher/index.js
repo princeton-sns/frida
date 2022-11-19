@@ -526,10 +526,8 @@ export class Higher {
      */
     async #processContactRequest({ reqIdkey, reqContactName, reqContactGroups }) {
         if (confirm(`Add new contact: ${reqContactName}?`)) {
-            //console.log("PROCESSING CONTACT REQUEST");
             await this.#parseContactInfo(reqContactName, reqContactGroups);
             let linkedName = this.getLinkedName();
-            //console.log("CONFIRMING CONTACT");
             await this.#confirmContact(linkedName, this.#getAllSubgroups([linkedName]), [reqIdkey]);
         }
     }
@@ -542,7 +540,6 @@ export class Higher {
      * @private
      */
     async #processConfirmContact({ contactName, contactGroups }) {
-        //console.log("PROCESSING CONFIRM CONTACT");
         await this.#parseContactInfo(contactName, contactGroups);
     }
     /**
@@ -557,7 +554,6 @@ export class Higher {
     async #parseContactInfo(contactName, contactGroups) {
         let linkedName = this.getLinkedName();
         let linkedIdkeys = this.#resolveIDs([Higher.#LINKED]);
-        //console.log("PARSING CONTACT");
         // check if "linked" backpointer will be replaced with "contact" backpointer
         let contactLevelIDs = [];
         for (let contactGroup of contactGroups) {
@@ -762,7 +758,11 @@ export class Higher {
             return false;
         }
         // validate based on prefixes in payload keys
-        let keys = payload.key.split("/");
+        let keys = payload.key?.split("/");
+        if (keys === undefined) {
+            // nothing else to check FIXME mismatch in expected types
+            return true;
+        }
         for (let i = 0; i < keys.length; i++) {
             if (this.#validateCallbackMap.has(keys[i])) {
                 let valFunc = this.#validateCallbackMap.get(keys[i]);

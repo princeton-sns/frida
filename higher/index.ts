@@ -105,7 +105,7 @@ export type payloadType = {
   contactGroups?: groupObjType[],
   // when msgType = UPDATE_DATA
   key?: string,
-  dataValue?: any,
+  value?: any,
   // when msgType = UPDATE_GROUP, ADD_ADMIN, etc
   groupID?: string,
   // when msgType = UPDATE_GROUP
@@ -841,16 +841,16 @@ export class Higher {
    * @private
    */
   #updateDataLocally(
-      { key, dataValue }: { key: string, dataValue: any }
+      { key, value }: { key: string, value: any }
   ) {
-    this.#localStorageWrapper.set(key, dataValue);
+    this.#localStorageWrapper.set(key, value);
   }
   
   async #updateDataRemotely(key: string, value: any, idkeys: string[]) {
     await this.#sendMessage(idkeys, {
       msgType: Higher.UPDATE_DATA,
       key: key,
-      dataValue: value,
+      value: value,
     });
   }
   
@@ -2206,7 +2206,7 @@ export class Higher {
         break;
       /* writer checks */
       } case Higher.UPDATE_DATA: {
-        if (this.#hasWriterPriv(srcIdkey, payload.dataValue.groupID)) {
+        if (this.#hasWriterPriv(srcIdkey, payload.value.groupID)) {
           permissionsOK = true;
         }
         break;

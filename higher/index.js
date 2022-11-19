@@ -653,14 +653,14 @@ export class Higher {
      *
      * @private
      */
-    #updateDataLocally({ key, dataValue }) {
-        this.#localStorageWrapper.set(key, dataValue);
+    #updateDataLocally({ key, value }) {
+        this.#localStorageWrapper.set(key, value);
     }
     async #updateDataRemotely(key, value, idkeys) {
         await this.#sendMessage(idkeys, {
             msgType: Higher.UPDATE_DATA,
             key: key,
-            dataValue: value,
+            value: value,
         });
     }
     async #updateData(key, value, idkeys) {
@@ -1825,7 +1825,7 @@ export class Higher {
                 /* writer checks */
             }
             case Higher.UPDATE_DATA: {
-                if (this.#hasWriterPriv(srcIdkey, payload.dataValue.groupID)) {
+                if (this.#hasWriterPriv(srcIdkey, payload.value.groupID)) {
                     permissionsOK = true;
                 }
                 break;

@@ -458,7 +458,6 @@ export class Higher {
         // notify all direct parents and contacts that this group should be removed
         let idkey = this.#core.olmWrapper.getIdkey();
         await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.#CONTACTS])));
-        this.#core.disconnect();
         this.#localStorageWrapper.clear();
         this.#onUnauth();
     }

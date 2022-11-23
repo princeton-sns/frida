@@ -4,7 +4,7 @@
  *************************
  */
 
-import io from "socket.io-client";
+import EventSourcePolyfill from "eventsource";
 import { EventEmitter } from "events";
 import { OlmWrapper } from "./olmWrapper.js";
 import { outboundEncPayloadType, inboundEncPayloadType } from "./index.js";
@@ -35,13 +35,14 @@ export class ServerComm {
     this.#olmWrapper = olmWrapper;
     this.#idkey = await this.#olmWrapper.generateInitialKeys();
 
-    this.#socket = io(this.#url, {
-      auth: {
-        deviceId: this.#idkey
+    this.#socket = new EventSourcePolyfill(this.#url + "/events", {
+      headers: {
+        'Authorization': 'Bearer ' + this.#idkey
       }
     });
 
-    this.#socket.on("addOtkeys", async ({ needs }): Promise<string> => {
+    this.#socket.addEventListener("otkey", async (e): Promise<string> => {
+      console.log(e);
       let u: URL = new URL("/self/otkeys", this.#url);
 
       let response: Response = (await fetch(u, {
@@ -50,21 +51,18 @@ export class ServerComm {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + this.#idkey
         },
-        body: JSON.stringify(this.#olmWrapper.generateMoreOtkeys(needs).otkeys)
+        body: JSON.stringify(this.#olmWrapper.generateMoreOtkeys(JSON.parse(e.data).needs).otkeys)
       }));
       if (response.ok) {
         return (await response.json())['otkey']
       }
     });
 
-    this.#socket.on("noiseMessage", async (msgs: inboundEncPayloadType[]) => {
-      console.log("Noise message", msgs);
-      for (let msg of msgs) {
-        await this.eventEmitter.emit('serverMsg', msg);
-        //console.log(msg);
-        //console.log("finished upcalling to core for msg");
-      }
-      let maxId: number = Math.max(...msgs.map(msg => msg.seqID));
+    this.#socket.addEventListener("msg", async (e) => {
+      console.log(e);
+      let msg = JSON.parse(e.data);
+      console.log("Noise message", msg);
+      await this.eventEmitter.emit('serverMsg', msg);
       let u: URL = new URL("/self/messages", this.#url);
       (await fetch(u, {
         method: 'DELETE',
@@ -72,7 +70,7 @@ export class ServerComm {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + this.#idkey
         },
-        body: JSON.stringify({seqID: maxId})
+        body: JSON.stringify({seqID: msg.seqID})
       }));
     });
   }
@@ -89,9 +87,7 @@ export class ServerComm {
   }
 
   async sendMessage(msg: { batch: outboundEncPayloadType[] }): Promise<{}> {
-    //console.log(msg);
     let u: URL = new URL("/message", this.#url);
-
     const headers: Headers = new Headers();
     headers.append('Authorization', 'Bearer ' + this.#idkey)
     let response: Response = (await fetch(u, {
@@ -119,12 +115,6 @@ export class ServerComm {
     }));
     if (response.ok) {
       return (await response.json())['otkey']
-    }
-  }
-
-  disconnect() {
-    if (this.#socket) {
-      this.#socket.disconnect();
     }
   }
 }

@@ -110,9 +110,5 @@ export class Core {
       sender: msg.sender,
     });
   }
-
-  disconnect() {
-    this.#serverComm.disconnect();
-  }
 }
 

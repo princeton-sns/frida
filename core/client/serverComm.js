@@ -3,7 +3,6 @@
  * Server Communications *
  *************************
  */
-import io from "socket.io-client";
 import EventSourcePolyfill from "eventsource";
 export class ServerComm {
     #ip;
@@ -44,10 +43,10 @@ export class ServerComm {
             }
         });
         this.#socket.addEventListener("msg", async (e) => {
+            console.log(e);
             let msg = JSON.parse(e.data);
             console.log("Noise message", msg);
             await this.eventEmitter.emit('serverMsg', msg);
-
             let u = new URL("/self/messages", this.#url);
             (await fetch(u, {
                 method: 'DELETE',
@@ -65,7 +64,6 @@ export class ServerComm {
         return serverComm;
     }
     async sendMessage(msg) {
-        //console.log(msg);
         let u = new URL("/message", this.#url);
         const headers = new Headers();
         headers.append('Authorization', 'Bearer ' + this.#idkey);
@@ -92,11 +90,6 @@ export class ServerComm {
         }));
         if (response.ok) {
             return (await response.json())['otkey'];
-        }
-    }
-    disconnect() {
-        if (this.#socket) {
-            this.#socket.disconnect();
         }
     }
 }

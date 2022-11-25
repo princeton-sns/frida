@@ -22,7 +22,7 @@ type IncomingMessage struct {
 
 // Single message format for receiver
 type OutgoingMessage struct {
-	Sender string `json:"sender"`
+	Sender   string `json:"sender"`
 	Payload  interface{} `json:"encPayload"`
 	SeqID    uint64 `json:"seqID"`
 }
@@ -43,7 +43,7 @@ type MessageEvent struct {
 
 type NeedsOneTimeKeyEvent struct {
 	DeviceId string `json:"deviceId"`
-	Needs uint `json:"needs"`
+	Needs    uint `json:"needs"`
 }
 
 type ClientChan struct {
@@ -53,7 +53,7 @@ type ClientChan struct {
 
 type MessageStorage struct {
 	lock  sync.Mutex
-	db *pebble.DB
+	db    *pebble.DB
 }
 
 type Server struct {
@@ -434,7 +434,7 @@ func (server *Server) serveEvents(rw http.ResponseWriter, req *http.Request) {
 			fmt.Fprintf(rw, "event: otkey\ndata: %v\n\n", buf.String())
 			fmt.Printf("event: otkey\ndata: %v\n", buf.String())
 		}
-		// Flush khe data immediatly instead of buffering it for later.
+		// Flush the data immediatly instead of buffering it for later.
 		flusher.Flush()
 	}
 

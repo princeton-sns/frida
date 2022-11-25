@@ -3,4 +3,5 @@
 members = [
     "core/eventgraph",
     "core/eventgraph-web-demo",
+    "core/messagechains",
 ]

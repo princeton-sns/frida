@@ -3,7 +3,7 @@
  * Server Communications *
  *************************
  */
-import io from "socket.io-client";
+import EventSourcePolyfill from "eventsource";
 export class ServerComm {
     #ip;
     #port;
@@ -22,12 +22,13 @@ export class ServerComm {
     async #init(olmWrapper) {
         this.#olmWrapper = olmWrapper;
         this.#idkey = await this.#olmWrapper.generateInitialKeys();
-        this.#socket = io(this.#url, {
-            auth: {
-                deviceId: this.#idkey
+        this.#socket = new EventSourcePolyfill(this.#url + "/events", {
+            headers: {
+                'Authorization': 'Bearer ' + this.#idkey
             }
         });
-        this.#socket.on("addOtkeys", async ({ needs }) => {
+        this.#socket.addEventListener("otkey", async (e) => {
+            console.log(e);
             let u = new URL("/self/otkeys", this.#url);
             let response = (await fetch(u, {
                 method: 'POST',
@@ -35,20 +36,17 @@ export class ServerComm {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + this.#idkey
                 },
-                body: JSON.stringify(this.#olmWrapper.generateMoreOtkeys(needs).otkeys)
+                body: JSON.stringify(this.#olmWrapper.generateMoreOtkeys(JSON.parse(e.data).needs).otkeys)
             }));
             if (response.ok) {
                 return (await response.json())['otkey'];
             }
         });
-        this.#socket.on("noiseMessage", async (msgs) => {
-            console.log("Noise message", msgs);
-            for (let msg of msgs) {
-                await this.eventEmitter.emit('serverMsg', msg);
-                //console.log(msg);
-                //console.log("finished upcalling to core for msg");
-            }
-            let maxId = Math.max(...msgs.map(msg => msg.seqID));
+        this.#socket.addEventListener("msg", async (e) => {
+            console.log(e);
+            let msg = JSON.parse(e.data);
+            console.log("Noise message", msg);
+            await this.eventEmitter.emit('serverMsg', msg);
             let u = new URL("/self/messages", this.#url);
             (await fetch(u, {
                 method: 'DELETE',
@@ -56,7 +54,7 @@ export class ServerComm {
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer ' + this.#idkey
                 },
-                body: JSON.stringify({ seqID: maxId })
+                body: JSON.stringify({ seqID: msg.seqID })
             }));
         });
     }
@@ -66,7 +64,6 @@ export class ServerComm {
         return serverComm;
     }
     async sendMessage(msg) {
-        //console.log(msg);
         let u = new URL("/message", this.#url);
         const headers = new Headers();
         headers.append('Authorization', 'Bearer ' + this.#idkey);
@@ -93,11 +90,6 @@ export class ServerComm {
         }));
         if (response.ok) {
             return (await response.json())['otkey'];
-        }
-    }
-    disconnect() {
-        if (this.#socket) {
-            this.#socket.disconnect();
         }
     }
 }

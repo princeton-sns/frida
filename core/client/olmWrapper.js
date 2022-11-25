@@ -229,10 +229,11 @@ export class OlmWrapper {
         console.log("REAL DECRYPT -- ");
         if (typeof ciphertext === 'string') {
             if (srcIdkey === this.getIdkey()) {
+                console.log("getting msg from queue");
                 return this.#selfMsgQueue.shift();
             }
             console.log("ciphertext is a string when it should be an object");
-            return "";
+            return "{}";
         }
         let sessList = this.#getAllSessions(srcIdkey);
         // if receiving communication from new device or if message was encrypted

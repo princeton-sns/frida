@@ -5,11 +5,20 @@ use std::hash::Hash;
 
 use log;
 
+pub mod sha256;
+pub mod wasm_wrapper;
+
 /// Generic device ID
 pub trait DeviceId: Sized + Hash + Eq + Ord + Clone + Debug + AsRef<[u8]> {}
 
+/// Blanket implementation of the [`DeviceId`] type for [`String`]
+impl DeviceId for String {}
+
 /// Generic wrapper over a cryptographic message digest
 pub trait MessageDigest: Sized + Hash + Eq + Ord + Clone + Debug {}
+
+/// Blanket implementation of the [`MessageDigest`] type for [`String`]
+impl MessageDigest for String {}
 
 pub trait MessageHasher<D: DeviceId> {
     type Output: MessageDigest;
@@ -47,45 +56,56 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         }
     }
 
-    fn insert_message(
+    pub fn insert_message<BD: std::borrow::Borrow<D>>(
         &mut self,
         message: &[u8],
-        recipients: &[impl std::borrow::Borrow<D>],
+        mut recipients: impl Iterator<Item = BD>,
     ) -> Result<(), Error> {
         use std::borrow::Borrow;
-
-        // The message must go to at least two recipients (ourselves
-        // and some other device, where it either originates from us
-        // or that other device):
-        if recipients.len() < 2 {
-            return Err(Error::TooFewRecipients);
-        }
 
         // Validate that the recipients list is sorted as defined by
         // the [`Ord`] trait, as well as that we've seen our own
         // device as part of the recipients.
-        let (_, seen_self) = recipients
-            .iter()
-            .try_fold(None, |acc: Option<(D, bool)>, r| {
-                if let Some((prev_recipient, seen_self)) = acc {
+        //
+        // Because we need the iterator below as well, we collect into
+        // an intermediate vector. This could potentially be
+        // optimized.
+        let mut recipients_vec: Vec<BD> = Vec::new();
+        let (recipients_count, acc) =
+            recipients.try_fold((0, None), |(count, acc): (usize, Option<(D, bool)>), r| {
+                let new_acc = if let Some((prev_recipient, seen_self)) = acc {
                     if *prev_recipient.borrow() >= *r.borrow() {
                         println!(
                             "Invalid recipients order: {:?} >= {:?}",
                             *prev_recipient.borrow(),
                             *r.borrow()
                         );
-                        Err(Error::InvalidRecipientsOrder)
+                        Err(Error::InvalidRecipientsOrder)?
                     } else {
-                        Ok(Some((
+                        Some((
                             r.borrow().clone(),
                             seen_self || *r.borrow() == self.own_device,
-                        )))
+                        ))
                     }
                 } else {
-                    Ok(Some((r.borrow().clone(), *r.borrow() == self.own_device)))
-                }
-            })?
-            .unwrap();
+                    Some((r.borrow().clone(), *r.borrow() == self.own_device))
+                };
+
+                recipients_vec.push(r);
+
+                Ok((count + 1, new_acc))
+            })?;
+
+        // The message must go to at least two recipients (ourselves
+        // and some other device, where it either originates from us
+        // or that other device):
+        if recipients_count < 2 {
+            return Err(Error::TooFewRecipients);
+        }
+
+        // Now that we are sure to have executed the fold lambda
+        // twice, the accumulator must have a non-None value:
+        let (_, seen_self) = acc.unwrap();
 
         // Our own device ID was not found in the recipient list, this
         // is invalid:
@@ -95,18 +115,18 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
         // Hash the message in the context of all its recipient's
         // pairwise hash-chains:
-        for r in recipients
+        for r in recipients_vec
             .iter()
             .filter(|r| *Borrow::<D>::borrow(*r) != self.own_device)
         {
-            let (ref recipient_chain_offset, ref mut recipient_chain) = self
+            let (_, ref mut recipient_chain) = self
                 .chains
                 .entry(r.borrow().clone())
                 .or_insert_with(|| (0, VecDeque::new()));
 
             let message_hash_entry = self.hasher.hash_message(
                 recipient_chain.back(),
-                &mut recipients.iter().map(|r| r.borrow()),
+                &mut recipients_vec.iter().map(|r| r.borrow()),
                 message,
             );
 
@@ -116,7 +136,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         Ok(())
     }
 
-    fn validate_chain(
+    pub fn validate_chain(
         &self,
         validation_sender: &D,
         seq: usize,
@@ -184,7 +204,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         Ok(())
     }
 
-    fn validate_trim_chain(
+    pub fn validate_trim_chain(
         &mut self,
         validation_sender: &D,
         seq: usize,
@@ -212,7 +232,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         Ok(trimmed)
     }
 
-    fn validation_payload(&self, recipient: &D) -> Option<(usize, H::Output)> {
+    pub fn validation_payload(&self, recipient: &D) -> Option<(usize, H::Output)> {
         self.chains
             .get(recipient)
             .and_then(|(recipient_chain_offset, recipient_chain)| {
@@ -228,16 +248,14 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
 #[cfg(test)]
 mod test {
+    use crate::sha256::Sha256MessageHasher;
+
     #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
     struct U64DeviceId([u8; 8]);
 
     impl U64DeviceId {
         pub fn new(id: u64) -> Self {
             U64DeviceId(u64::to_be_bytes(id))
-        }
-
-        pub fn get(&self) -> u64 {
-            u64::from_be_bytes(self.0)
         }
     }
 
@@ -248,56 +266,6 @@ mod test {
     }
 
     impl super::DeviceId for U64DeviceId {}
-
-    #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-    struct Sha256MessageDigest(pub [u8; 32]);
-
-    impl super::MessageDigest for Sha256MessageDigest {}
-
-    struct Sha256MessageHasher<D: super::DeviceId>(sha2::Sha256, std::marker::PhantomData<D>);
-
-    impl<D: super::DeviceId> Sha256MessageHasher<D> {
-        pub fn new() -> Self {
-            use sha2::Digest;
-
-            Sha256MessageHasher(sha2::Sha256::new(), std::marker::PhantomData)
-        }
-    }
-
-    impl<D: super::DeviceId> super::MessageHasher<D> for Sha256MessageHasher<D> {
-        type Output = Sha256MessageDigest;
-
-        fn hash_message<'a, BD: std::borrow::Borrow<D>>(
-            &'a mut self,
-            prev_digest: Option<&Self::Output>,
-            recipients: &mut impl Iterator<Item = BD>,
-            message: &[u8],
-        ) -> Self::Output
-        where
-            D: 'a,
-        {
-            use sha2::Digest;
-
-            if let Some(digest) = prev_digest {
-                self.0.update(&[b'p', b'r', b'e', b'v']);
-                self.0.update(&digest.0);
-            } else {
-                self.0.update(&[b'n', b'o', b'_', b'p', b'r', b'e', b'v']);
-            }
-
-            for (i, r) in recipients.enumerate() {
-                self.0.update(&u64::to_be_bytes(i as u64));
-                self.0.update(<D as AsRef<[u8]>>::as_ref(r.borrow()));
-            }
-
-            self.0.update(&[b'm', b'e', b's', b's', b'a', b'g', b'e']);
-            self.0.update(message);
-
-            let mut digest: [u8; 32] = [0; 32];
-            self.0.finalize_into_reset((&mut digest).into());
-            Sha256MessageDigest(digest)
-        }
-    }
 
     struct TestDeviceState {
         pub id: U64DeviceId,
@@ -315,8 +283,6 @@ mod test {
     }
 
     fn two_devices_base() -> (TestDeviceState, TestDeviceState) {
-        use super::MessageChains;
-
         let mut dev_a = TestDeviceState::new(0);
         let mut dev_b = TestDeviceState::new(1);
 
@@ -335,7 +301,7 @@ mod test {
         // exchanged between him and Alice.
         dev_b
             .chains
-            .insert_message(message_a_b_0, &recipients_a_b)
+            .insert_message(message_a_b_0, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Alice also needs to receive her own message:
@@ -344,7 +310,7 @@ mod test {
         // order!
         dev_a
             .chains
-            .insert_message(message_a_b_0, &recipients_a_b)
+            .insert_message(message_a_b_0, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Let's have Bob reply to Alice's message. He should have a validation
@@ -357,7 +323,7 @@ mod test {
         // order.
         dev_b
             .chains
-            .insert_message(message_b_a_0, &recipients_a_b)
+            .insert_message(message_b_a_0, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Alice receives Bob's reply, along with the validation
@@ -370,7 +336,7 @@ mod test {
         assert!(trimmed == 0);
         dev_a
             .chains
-            .insert_message(message_b_a_0, &recipients_a_b)
+            .insert_message(message_b_a_0, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Alice answers Bob's message:
@@ -381,7 +347,7 @@ mod test {
         // Alice receives her own message:
         dev_a
             .chains
-            .insert_message(message_a_b_1, &recipients_a_b)
+            .insert_message(message_a_b_1, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Bob validates and receives Alice's message (this should trim the
@@ -393,7 +359,7 @@ mod test {
         assert!(trimmed == 1);
         dev_b
             .chains
-            .insert_message(message_a_b_1, &recipients_a_b)
+            .insert_message(message_a_b_1, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         (dev_a, dev_b)
@@ -427,11 +393,11 @@ mod test {
         // Alice receives both messages in order:
         dev_a
             .chains
-            .insert_message(message_1, &recipients_a_b)
+            .insert_message(message_1, recipients_a_b.iter().map(|r| *r))
             .unwrap();
         dev_a
             .chains
-            .insert_message(message_2, &recipients_a_b)
+            .insert_message(message_2, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Bob recieves only the second message. He can't yet detect that
@@ -447,7 +413,7 @@ mod test {
         );
         dev_b
             .chains
-            .insert_message(message_2, &recipients_a_b)
+            .insert_message(message_2, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Now, Bob send's Alice a message (message 4 for Bob, 5 for Alice)
@@ -458,7 +424,7 @@ mod test {
         // Bob recieves his own message back:
         dev_b
             .chains
-            .insert_message(message_3, &recipients_a_b)
+            .insert_message(message_3, recipients_a_b.iter().map(|r| *r))
             .unwrap();
 
         // Alice recieves Bob's message and should be able to realize that

@@ -10,6 +10,7 @@ pub fn error_to_string(error: crate::Error) -> &'static str {
         crate::Error::InvalidRecipientsOrder => "invalid_recipients_order",
         crate::Error::InvariantViolated => "invariant_violated",
         crate::Error::OwnMessageInvalidReordered => "own_message_invalid_reordered",
+        crate::Error::UnknownDevice => "unknown_device",
     }
 }
 
@@ -34,7 +35,7 @@ impl Sha256StringMessageChains {
         sender: String,
         message: String,
         recipients: Vec<js_sys::JsString>,
-    ) -> Result<(), String> {
+    ) -> Result<usize, String> {
         self.0
             .insert_message(
                 &sender,
@@ -46,7 +47,7 @@ impl Sha256StringMessageChains {
     }
 
     pub fn validate_chain(
-        &self,
+        &mut self,
         validation_sender: String,
         seq: Option<usize>,
         digest: Option<String>,

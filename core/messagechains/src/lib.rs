@@ -36,8 +36,9 @@ pub trait MessageHasher<D: DeviceId> {
 pub struct MessageChains<D: DeviceId, H: MessageHasher<D>> {
     own_device: D,
     pending_messages: VecDeque<H::Output>,
-    chains: HashMap<D, (usize, VecDeque<H::Output>)>,
+    chains: HashMap<D, (usize, usize, VecDeque<(usize, H::Output)>)>,
     hasher: H,
+    local_seq: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +48,7 @@ pub enum Error {
     InvalidRecipientsOrder,
     InvariantViolated,
     OwnMessageInvalidReordered,
+    UnknownDevice,
 }
 
 // TODO: Implement quorum for message.
@@ -60,6 +62,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
             pending_messages,
             chains: HashMap::new(),
             hasher,
+            local_seq: 0,
         }
     }
 
@@ -82,7 +85,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         sender: &D,
         message: &[u8],
         mut recipients: impl Iterator<Item = BD>,
-    ) -> Result<(), Error> {
+    ) -> Result<usize, Error> {
         use std::borrow::Borrow;
 
         // Validate that the recipients list is sorted as defined by
@@ -159,31 +162,47 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
             self.pending_messages.pop_front();
         }
 
+        // Assign this message a sequence number in the device-global
+        // sequence space:
+        let local_seq = self.local_seq;
+        self.local_seq += 1;
+
         // Hash the message in the context of all its recipient's
         // pairwise hash-chains:
         for r in recipients_vec
             .iter()
             .filter(|r| *Borrow::<D>::borrow(*r) != self.own_device)
         {
-            let (_, ref mut recipient_chain) = self
+            let (_, _, ref mut recipient_chain) = self
                 .chains
                 .entry(r.borrow().clone())
-                .or_insert_with(|| (0, VecDeque::new()));
+                .or_insert_with(|| (0, 0, VecDeque::new()));
 
             let message_hash_entry = self.hasher.hash_message(
-                recipient_chain.back(),
+                recipient_chain.back().map(|(_, hash)| hash),
                 &mut recipients_vec.iter().map(|r| r.borrow()),
                 message,
             );
 
-            recipient_chain.push_back(message_hash_entry);
+            recipient_chain.push_back((local_seq, message_hash_entry));
         }
 
-        Ok(())
+        Ok(local_seq)
+    }
+
+    pub fn device_validated_event(
+        &self,
+        device: &D,
+        event_local_seq: usize,
+    ) -> Result<bool, Error> {
+        self.chains
+            .get(device)
+            .map(|(_, validated_local_seq, _)| event_local_seq < *validated_local_seq)
+            .ok_or(Error::UnknownDevice)
     }
 
     pub fn validate_chain(
-        &self,
+        &mut self,
         validation_sender: impl std::borrow::Borrow<D>,
         validation_payload: Option<(usize, impl std::borrow::Borrow<H::Output>)>,
     ) -> Result<(), Error> {
@@ -214,8 +233,10 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
         // If this validation payload comes from a sender we haven't interacted
         // with, an invariant has been violated:
-        let (ref pairwise_chain_offset, ref pairwise_chain) =
-            self.chains.get(validation_sender.borrow()).ok_or_else(|| {
+        let (ref pairwise_chain_offset, ref mut validated_local_seq, ref pairwise_chain) = self
+            .chains
+            .get_mut(validation_sender.borrow())
+            .ok_or_else(|| {
                 log::debug!(
                     "validate_chain: invariant violated - validation payload \
                      from unknown sender ({:?})",
@@ -249,7 +270,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
             &pairwise_chain[seq - pairwise_chain_offset],
             hash.borrow(),
         );
-        if pairwise_chain[seq - pairwise_chain_offset] != *hash.borrow() {
+        if pairwise_chain[seq - pairwise_chain_offset].1 != *hash.borrow() {
             log::debug!(
                 "validate_chain: invariant violated - validation payload \
                  sent by {:?} features incorrect hash for sequence number {}: \
@@ -261,6 +282,14 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
             );
             return Err(Error::InvariantViolated);
         }
+
+        // The hashes match. Hence update the validated local sequence
+        // number (points to the first non-validated local sequence
+        // number).
+        *validated_local_seq = std::cmp::max(
+            *validated_local_seq,
+            pairwise_chain[seq - pairwise_chain_offset].0,
+        ) + 1;
 
         // All checks passed, this validation payload is valid in the context of
         // the local chain:
@@ -285,7 +314,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
         // Trim the hash-chains:
         if let Some((seq, _hash)) = validation_payload {
-            let (ref mut pairwise_chain_offset, ref mut pairwise_chain) =
+            let (ref mut pairwise_chain_offset, _, ref mut pairwise_chain) =
                 self.chains.get_mut(validation_sender.borrow()).unwrap();
 
             // All checks passed, we can trim the chain up to (but excluding) the
@@ -306,8 +335,8 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
     pub fn validation_payload(&self, recipient: &D) -> Option<(usize, H::Output)> {
         self.chains
             .get(recipient)
-            .and_then(|(recipient_chain_offset, recipient_chain)| {
-                recipient_chain.back().map(|hash| {
+            .and_then(|(recipient_chain_offset, _, recipient_chain)| {
+                recipient_chain.back().map(|(_, hash)| {
                     (
                         recipient_chain_offset + recipient_chain.len() - 1,
                         hash.clone(),

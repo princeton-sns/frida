@@ -144,9 +144,9 @@ export class Core {
                     seq: validationSeq,
                     digest: validationDigest,
                 };
-                consistencyLoopback = payload["consistencyLoopback"];
                 // TODO: typecheck!
             }
+            consistencyLoopback = payload["consistencyLoopback"];
         }
         catch (e) {
             console.log("Error decoding received message:", decPayload, e);

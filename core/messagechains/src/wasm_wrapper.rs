@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
 
-use crate::sha256::{Sha256MessageDigest, Sha256MessageHasher};
 use crate::MessageChains;
 
 pub fn error_to_string(error: crate::Error) -> &'static str {
@@ -15,12 +14,12 @@ pub fn error_to_string(error: crate::Error) -> &'static str {
 }
 
 #[wasm_bindgen]
-pub struct Sha256StringMessageChains(MessageChains<String, Sha256MessageHasher<String>>);
+pub struct Sha256StringMessageChains(MessageChains);
 
 #[wasm_bindgen]
 impl Sha256StringMessageChains {
     pub fn new(own_device: String) -> Self {
-        Sha256StringMessageChains(MessageChains::new(own_device, Sha256MessageHasher::new()))
+        Sha256StringMessageChains(MessageChains::new(own_device))
     }
 
     pub fn send_message(&mut self, message: String, recipients: Vec<js_sys::JsString>) {
@@ -57,7 +56,7 @@ impl Sha256StringMessageChains {
                 let mut digest_bytes = [0_u8; 32];
                 hex::decode_to_slice(&digest, &mut digest_bytes)
                     .map_err(|_| "invalid_hash_format".to_string())?;
-                Some((seq, Sha256MessageDigest(digest_bytes)))
+                Some((seq, digest_bytes))
             }
             (None, None) => None,
             (_, _) => panic!("Invalid arguments to validate_chain!"),
@@ -80,7 +79,7 @@ impl Sha256StringMessageChains {
                 let mut digest_bytes = [0_u8; 32];
                 hex::decode_to_slice(&digest, &mut digest_bytes)
                     .map_err(|_| "invalid_hash_format".to_string())?;
-                Some((seq, Sha256MessageDigest(digest_bytes)))
+                Some((seq, digest_bytes))
             }
             (None, None) => None,
             (_, _) => panic!("Invalid arguments to validate_chain!"),
@@ -95,7 +94,7 @@ impl Sha256StringMessageChains {
 
     pub fn validation_payload(&self, recipient: String) -> Option<js_sys::Array> {
         self.0.validation_payload(&recipient).map(|(seq, digest)| {
-            let hex_digest = hex::encode(&digest.0);
+            let hex_digest = hex::encode(digest);
             // TODO: what if the sequence number reaches u32::MAX?
             js_sys::Array::of2(
                 &js_sys::Number::from(seq as u32),

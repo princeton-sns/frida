@@ -1,50 +1,24 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::hash::Hash;
-
 use log;
 
-pub mod sha256;
 pub mod wasm_wrapper;
 
-/// Generic device ID
-pub trait DeviceId: Sized + Hash + Eq + Ord + Clone + Debug + AsRef<[u8]> {}
-
-/// Blanket implementation of the [`DeviceId`] type for [`String`]
-impl DeviceId for String {}
-
-/// Generic wrapper over a cryptographic message digest
-pub trait MessageDigest: Sized + Hash + Eq + Ord + Clone + Debug + Default {}
-
-/// Blanket implementation of the [`MessageDigest`] type for [`String`]
-impl MessageDigest for String {}
-
-pub trait MessageHasher<D: DeviceId> {
-    type Output: MessageDigest;
-
-    fn hash_message<'a, BD: std::borrow::Borrow<D>>(
-        &'a mut self,
-        prev_digest: Option<&Self::Output>,
-        recipients: &mut impl Iterator<Item = BD>,
-        message: &[u8],
-    ) -> Self::Output
-    where
-        D: 'a;
-}
+pub type DeviceId = String;
+pub type Hash = [u8; 32];
 
 #[derive(Default)]
-struct ChainEntry<D: DeviceId, H: MessageHasher<D>> {
+struct ChainEntry {
     offset: usize,
     validated_local_seq: usize,
-    chain: VecDeque<(usize, H::Output)>
+    chain: VecDeque<(usize, Hash)>
 }
 
-pub struct MessageChains<D: DeviceId, H: MessageHasher<D>> {
-    own_device: D,
-    pending_messages: VecDeque<H::Output>,
-    chains: HashMap<D, ChainEntry<D, H>>,
-    hasher: H,
+pub struct MessageChains {
+    own_device: DeviceId,
+    pending_messages: VecDeque<Hash>,
+    chains: HashMap<DeviceId, ChainEntry>,
     local_seq: usize,
 }
 
@@ -58,27 +32,55 @@ pub enum Error {
     UnknownDevice,
 }
 
+fn hash_message<'a, BD: std::borrow::Borrow<DeviceId>>(
+    prev_digest: Option<&Hash>,
+    recipients: &mut impl Iterator<Item = BD>,
+    message: &[u8],
+) -> Hash {
+    use sha2::Digest;
+
+    let mut hasher = sha2::Sha256::new();
+
+    if let Some(digest) = prev_digest {
+        hasher.update(b"prev");
+        hasher.update(digest);
+    } else {
+        hasher.update(b"no_prev");
+    }
+
+    for (i, r) in recipients.enumerate() {
+        hasher.update(&u64::to_be_bytes(i as u64));
+        hasher.update(r.borrow().as_bytes());
+    }
+
+    hasher.update(b"message");
+    hasher.update(message);
+
+    let mut digest: [u8; 32] = [0; 32];
+    hasher.finalize_into_reset((&mut digest).into());
+    digest
+}
+
 // TODO: Implement quorum for message.
-impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
-    pub fn new(own_device: D, hasher: H) -> Self {
+impl MessageChains {
+    pub fn new(own_device: DeviceId) -> Self {
         let mut pending_messages = VecDeque::new();
-        pending_messages.push_back(H::Output::default());
+        pending_messages.push_back(Hash::default());
 
         MessageChains {
             own_device,
             pending_messages,
             chains: HashMap::new(),
-            hasher,
             local_seq: 0,
         }
     }
 
-    pub fn send_message<BD: std::borrow::Borrow<D>>(
+    pub fn send_message<BD: std::borrow::Borrow<DeviceId>>(
         &mut self,
         message: &[u8],
         mut recipients: impl Iterator<Item = BD>,
     ) {
-        let message_hash_entry = self.hasher.hash_message(
+        let message_hash_entry = hash_message(
             Some(self.pending_messages.back().unwrap()),
             &mut recipients,
             message,
@@ -87,9 +89,9 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         self.pending_messages.push_back(message_hash_entry);
     }
 
-    pub fn insert_message<BD: std::borrow::Borrow<D>>(
+    pub fn insert_message<BD: std::borrow::Borrow<DeviceId>>(
         &mut self,
-        sender: &D,
+        sender: &DeviceId,
         message: &[u8],
         mut recipients: impl Iterator<Item = BD>,
     ) -> Result<usize, Error> {
@@ -104,12 +106,12 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         // optimized.
         let mut recipients_vec: Vec<BD> = Vec::new();
         let (recipients_count, acc) =
-            recipients.try_fold((0, None), |(count, acc): (usize, Option<(D, bool)>), r| {
+            recipients.try_fold((0, None), |(count, acc): (usize, Option<(DeviceId, bool)>), r| {
                 let new_acc = if let Some((prev_recipient, seen_self)) = acc {
-                    if *prev_recipient.borrow() >= *r.borrow() {
+                    if prev_recipient >= *r.borrow() {
                         println!(
                             "Invalid recipients order: {:?} >= {:?}",
-                            *prev_recipient.borrow(),
+                            prev_recipient,
                             *r.borrow()
                         );
                         Err(Error::InvalidRecipientsOrder)?
@@ -156,7 +158,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
                 .next()
                 .ok_or(Error::OwnMessageInvalidReordered)?;
 
-            let calculated_hash = self.hasher.hash_message(
+            let calculated_hash = hash_message(
                 Some(base_hash),
                 &mut recipients_vec.iter().map(|r| r.borrow()),
                 message,
@@ -178,14 +180,14 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         // pairwise hash-chains:
         for r in recipients_vec
             .iter()
-            .filter(|r| *Borrow::<D>::borrow(*r) != self.own_device)
+            .filter(|r| *Borrow::<DeviceId>::borrow(*r) != self.own_device)
         {
             let chain = self
                 .chains
                 .entry(r.borrow().clone())
                 .or_insert_with(|| ChainEntry { offset: 0, validated_local_seq: 0, chain: VecDeque::new() });
 
-            let message_hash_entry = self.hasher.hash_message(
+            let message_hash_entry = hash_message(
                 chain.chain.back().map(|(_, hash)| hash),
                 &mut recipients_vec.iter().map(|r| r.borrow()),
                 message,
@@ -199,7 +201,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
     pub fn device_validated_event(
         &self,
-        device: &D,
+        device: &DeviceId,
         event_local_seq: usize,
     ) -> Result<bool, Error> {
         let chain = self.chains.get(device).ok_or(Error::UnknownDevice)?;
@@ -208,8 +210,8 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
     pub fn validate_chain(
         &mut self,
-        validation_sender: impl std::borrow::Borrow<D>,
-        validation_payload: Option<(usize, impl std::borrow::Borrow<H::Output>)>,
+        validation_sender: impl std::borrow::Borrow<DeviceId>,
+        validation_payload: Option<(usize, impl std::borrow::Borrow<Hash>)>,
     ) -> Result<(), Error> {
         log::trace!(
             "validate_chain(validation_sender: {:?}, validation_payload: {:?})",
@@ -304,8 +306,8 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
     pub fn validate_trim_chain(
         &mut self,
-        validation_sender: impl std::borrow::Borrow<D>,
-        validation_payload: Option<(usize, impl std::borrow::Borrow<H::Output>)>,
+        validation_sender: impl std::borrow::Borrow<DeviceId>,
+        validation_payload: Option<(usize, impl std::borrow::Borrow<Hash>)>,
     ) -> Result<usize, Error> {
         // First, validate whether this validation payload should be
         // accepted. This also validates that, if this is a
@@ -337,7 +339,7 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
         }
     }
 
-    pub fn validation_payload(&self, recipient: &D) -> Option<(usize, H::Output)> {
+    pub fn validation_payload(&self, recipient: &DeviceId) -> Option<(usize, Hash)> {
         let recipient_chain = self.chains.get(recipient)?;
         let hash = &recipient_chain.chain.back()?.1;
         Some((recipient_chain.offset + recipient_chain.chain.len() - 1, hash.clone()))
@@ -346,43 +348,25 @@ impl<D: DeviceId, H: MessageHasher<D>> MessageChains<D, H> {
 
 #[cfg(test)]
 mod test {
-    use crate::sha256::{Sha256MessageDigest, Sha256MessageHasher};
-
-    #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-    struct U64DeviceId([u8; 8]);
-
-    impl U64DeviceId {
-        pub fn new(id: u64) -> Self {
-            U64DeviceId(u64::to_be_bytes(id))
-        }
-    }
-
-    impl AsRef<[u8]> for U64DeviceId {
-        fn as_ref(&self) -> &[u8] {
-            &self.0
-        }
-    }
-
-    impl super::DeviceId for U64DeviceId {}
+    use super::{DeviceId,Hash};
 
     struct TestDeviceState {
-        pub id: U64DeviceId,
-        pub chains: super::MessageChains<U64DeviceId, Sha256MessageHasher<U64DeviceId>>,
+        pub id: DeviceId,
+        pub chains: super::MessageChains,
     }
 
     impl TestDeviceState {
-        pub fn new(device_id: u64) -> TestDeviceState {
-            let device_id = U64DeviceId::new(device_id);
+        pub fn new(device_id: DeviceId) -> TestDeviceState {
             TestDeviceState {
                 id: device_id.clone(),
-                chains: super::MessageChains::new(device_id.clone(), Sha256MessageHasher::new()),
+                chains: super::MessageChains::new(device_id.clone()),
             }
         }
     }
 
     fn two_devices_base() -> (TestDeviceState, TestDeviceState) {
-        let mut dev_a = TestDeviceState::new(0);
-        let mut dev_b = TestDeviceState::new(1);
+        let mut dev_a = TestDeviceState::new("0".into());
+        let mut dev_b = TestDeviceState::new("1".into());
 
         // For most exchanged messages, we can use the same recipients list:
         let mut recipients_a_b = [&dev_a.id, &dev_b.id];
@@ -399,7 +383,7 @@ mod test {
         // Bob receives the message.
         dev_b
             .chains
-            .validate_trim_chain(&dev_b.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_b.id, None::<(usize, &Hash)>)
             .unwrap();
         dev_b
             .chains
@@ -409,7 +393,7 @@ mod test {
         // Alice also needs to receive her own message:
         dev_b
             .chains
-            .validate_trim_chain(&dev_a.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_a.id, None::<(usize, &Hash)>)
             .unwrap();
         dev_a
             .chains
@@ -428,7 +412,7 @@ mod test {
         // Bob receives his own message.
         let trimmed = dev_b
             .chains
-            .validate_trim_chain(&dev_b.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_b.id, None::<(usize, &Hash)>)
             .unwrap();
         assert!(trimmed == 0);
         dev_b
@@ -460,7 +444,7 @@ mod test {
         // Alice receives her own message:
         let trimmed = dev_a
             .chains
-            .validate_trim_chain(&dev_a.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_a.id, None::<(usize, &Hash)>)
             .unwrap();
         assert!(trimmed == 0);
         dev_a
@@ -517,7 +501,7 @@ mod test {
         // Alice receives both messages in order:
         let trimmed = dev_a
             .chains
-            .validate_trim_chain(&dev_a.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_a.id, None::<(usize, &Hash)>)
             .unwrap();
         assert!(trimmed == 0);
         dev_a
@@ -526,7 +510,7 @@ mod test {
             .unwrap();
         let trimmed = dev_a
             .chains
-            .validate_trim_chain(&dev_a.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_a.id, None::<(usize, &Hash)>)
             .unwrap();
         assert!(trimmed == 0);
         dev_a
@@ -560,7 +544,7 @@ mod test {
         // Bob recieves his own message back:
         let trimmed = dev_b
             .chains
-            .validate_trim_chain(&dev_b.id, None::<(usize, &Sha256MessageDigest)>)
+            .validate_trim_chain(&dev_b.id, None::<(usize, &Hash)>)
             .unwrap();
         assert!(trimmed == 0);
         dev_b

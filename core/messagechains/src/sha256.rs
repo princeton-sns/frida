@@ -1,3 +1,5 @@
+use crate::DeviceId;
+
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct Sha256MessageDigest(pub [u8; 32]);
 
@@ -9,28 +11,25 @@ impl Default for Sha256MessageDigest {
     }
 }
 
-pub struct Sha256MessageHasher<D: crate::DeviceId>(sha2::Sha256, std::marker::PhantomData<D>);
+pub struct Sha256MessageHasher(sha2::Sha256);
 
-impl<D: crate::DeviceId> Sha256MessageHasher<D> {
+impl Sha256MessageHasher {
     pub fn new() -> Self {
         use sha2::Digest;
 
-        Sha256MessageHasher(sha2::Sha256::new(), std::marker::PhantomData)
+        Sha256MessageHasher(sha2::Sha256::new())
     }
 }
 
-impl<D: crate::DeviceId> crate::MessageHasher<D> for Sha256MessageHasher<D> {
+impl crate::MessageHasher for Sha256MessageHasher {
     type Output = Sha256MessageDigest;
 
-    fn hash_message<'a, BD: std::borrow::Borrow<D>>(
+    fn hash_message<'a, BD: std::borrow::Borrow<DeviceId>>(
         &'a mut self,
         prev_digest: Option<&Self::Output>,
         recipients: &mut impl Iterator<Item = BD>,
         message: &[u8],
-    ) -> Self::Output
-    where
-        D: 'a,
-    {
+    ) -> Self::Output {
         use sha2::Digest;
 
         if let Some(digest) = prev_digest {
@@ -42,7 +41,7 @@ impl<D: crate::DeviceId> crate::MessageHasher<D> for Sha256MessageHasher<D> {
 
         for (i, r) in recipients.enumerate() {
             self.0.update(&u64::to_be_bytes(i as u64));
-            self.0.update(<D as AsRef<[u8]>>::as_ref(r.borrow()));
+            self.0.update(r.borrow().as_bytes());
         }
 
         self.0.update(b"message");

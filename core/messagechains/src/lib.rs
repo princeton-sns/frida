@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 use log;
 
+#[cfg(target_arch="wasm32")]
 pub mod wasm_wrapper;
 
 pub type DeviceId = String;

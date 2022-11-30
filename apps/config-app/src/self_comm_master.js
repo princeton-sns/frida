@@ -76,7 +76,7 @@ function save_data(data){
 
 frida = await Higher.create(
     {   storagePrefixes: [config.dataPrefix], 
-        turnEncryptionOff: !config.encryption
+        // turnEncryptionOff: !config.encryption
     },
     config.serverIP,
     config.serverPort,

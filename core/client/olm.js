@@ -6,7 +6,6 @@ var Olm = (function() {
 var olm_exports = {};
 var onInitSuccess;
 var onInitFail;
-var OLM_OPTIONS;
 
 var Module = (() => {
   var _scriptDir = typeof document !== 'undefined' && document.currentScript ? document.currentScript.src : undefined;
@@ -22,7 +21,6 @@ var Module=typeof Module!="undefined"?Module:{};var readyPromiseResolve,readyPro
 }
 );
 })();
-
 if (typeof exports === 'object' && typeof module === 'object')
   module.exports = Module;
 else if (typeof define === 'function' && define['amd'])
@@ -35,7 +33,7 @@ olm_exports['init'] = function(opts) {
     if (olmInitPromise) return olmInitPromise;
 
     if (opts) OLM_OPTIONS = opts;
-    
+
     olmInitPromise = new Promise(function(resolve, reject) {
         onInitSuccess = function() {
             resolve();
@@ -66,5 +64,4 @@ if (typeof module === 'object') {
     module.exports = Olm;
 }
 
-// module.exports = Olm;
 // @license-end

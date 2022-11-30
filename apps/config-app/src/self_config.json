@@ -4,8 +4,9 @@
     "dataPrefix": "ConfigAppData",
     "client_type" : "self_comm_clients",
     "output_dir" : "measurement_data",
-    "num_clients": 4,
+    "encryption" : false,
+    "num_clients": 1,
     "data_size": 32,
-    "duration": 20,
+    "duration": 5,
     "rate": 1
 }

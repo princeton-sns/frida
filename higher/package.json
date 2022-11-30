@@ -1,0 +1,19 @@
+{
+  "name": "frida-higher",
+  "version": "1.0.0",
+  "description": "Goals:",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Natalie Popescu",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/eslint-parser": "^7.19.1",
+    "events": "^3.3.0"
+  },
+  "devDependencies": {
+    "ts-loader": "^9.4.1",
+    "typescript": "^4.8.4"
+  }
+}

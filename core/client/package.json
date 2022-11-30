@@ -1,9 +1,8 @@
 {
-  "name": "libfrida-client",
+  "name": "frida-core-client",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,7 +15,11 @@
   "author": "Natalie Popescu",
   "license": "ISC",
   "dependencies": {
-    "libsodium-wrappers": "^0.7.9"
+    "@babel/eslint-parser": "^7.19.1",
+    "events": "^3.3.0",
+    "libsodium-wrappers": "^0.7.9",
+    "socket.io-client": "^4.5.3",
+    "typescript": "^4.8.4"
   },
   "devDependencies": {
     "eslint": "^8.6.0",

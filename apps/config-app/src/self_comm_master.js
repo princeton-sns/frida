@@ -1,15 +1,12 @@
 import * as child_process from 'child_process'
-
 import {LocalStorage} from 'node-localstorage'
-// import { createRequire } from "module";
-// const require = createRequire(import.meta.url);
-import * as frida from "../../../core/client/index.js";
-// const frida = require("../../../core/client/index.js");
-// let frida = await import("../../../core/client/index.js");
 import * as cryp from "crypto";
 import fetch, {Headers} from 'node-fetch'
 import * as fs from 'fs';
+import {Higher} from "../../../higher/index.js";
 
+var frida;
+    
 var config = JSON.parse(fs.readFileSync('./src/self_config.json', { encoding: 'utf8' }));
 
 
@@ -74,31 +71,43 @@ function save_data(data){
     });
 }
 
-await frida.init(
+(async () =>{
+
+
+frida = await Higher.create(
+    {   storagePrefixes: [config.dataPrefix], 
+        turnEncryptionOff: !config.encryption
+    },
     config.serverIP,
     config.serverPort,
-    {   storagePrefixes: [config.dataPrefix], 
-        turnEncryptionOff: true,
-        onSend: (msg) =>{
-            msg.clientSeqID = frida.clientSeqID.id;
-            latencies[frida.clientSeqID.id++] = performance.now();
-        },
-        onRecv: (msgs) => {
-            msgs.forEach(msg => {
-                if(msg.sender == frida.getIdkey()){
-                    latencies[msg.clientSeqID] = performance.now() - latencies[msg.clientSeqID];
-                }
-            });
-        }
-    }
 );
+
+
+// await frida.init(
+//     config.serverIP,
+//     config.serverPort,
+//     {   storagePrefixes: [config.dataPrefix], 
+//         turnEncryptionOff: true,
+//         onSend: (msg) =>{
+//             msg.clientSeqID = frida.clientSeqID.id;
+//             latencies[frida.clientSeqID.id++] = performance.now();
+//         },
+//         onRecv: (msgs) => {
+//             msgs.forEach(msg => {
+//                 if(msg.sender == myIdkey){
+//                     latencies[msg.clientSeqID] = performance.now() - latencies[msg.clientSeqID];
+//                 }
+//             });
+//         }
+//     }
+// );
 
 // Potential bug: await init() does not guarantee that server will setup mailbox, so message might be lost if sent immediately
 await sleep(1000);
 
-await frida.createDevice("LinkedDevice_" + tid, "device_" + tid);
+let myIdkey = await frida.createDevice("LinkedDevice_" + tid, "device_" + tid);
 
-console.log("device_0: " + frida.getIdkey());
+console.log("device_0: " + myIdkey);
 
 
 
@@ -160,3 +169,5 @@ async function simulate_send(){
 }
 
 
+}
+)();

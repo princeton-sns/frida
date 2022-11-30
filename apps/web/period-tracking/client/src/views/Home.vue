@@ -19,11 +19,15 @@
         :preselect-first="false"
         :showOptions="true"
       -->
-      <div class="output">Selected: {{ symptoms }}</div>
-      <br />
-      <button @click="addSymptoms">Add Symptoms</button>
+      <div class="output">
+        Selected: {{ symptoms }}
+      </div>
+      <br>
+      <button @click="addSymptoms">
+        Add Symptoms
+      </button>
     </div>
-    <br />
+    <br>
     <div>
       <multiselect
         v-model="period"
@@ -31,52 +35,92 @@
         :close-on-select="false"
         placeholder="Select flow"
       />
-      <div class="output">Selected: {{ period }}</div>
-      <br />
-      <button @click="addPeriod">Add Period</button>
+      <div class="output">
+        Selected: {{ period }}
+      </div>
+      <br>
+      <button @click="addPeriod">
+        Add Period
+      </button>
     </div>
-    <br />
-    <br />
+    <br>
+    <br>
     <h3>Symptom history</h3>
     <div>
-      <div v-for="symptom in oldSymptoms" :key="symptom">
-        <p class="remove" @click="removeSymptomDatum(symptom.id)">&#9746;</p>
-        <p>Timestamp: {{ symptom.data.timestamp }}</p>
-        <p>Symptoms: {{ symptom.data.symptoms }}</p>
-        <p>Admins: {{ symptom.admins }}</p>
-        <p>Writers: {{ symptom.writers }}</p>
-        <p>Readers: {{ symptom.readers }}</p>
+      <div
+        v-for="existingSymptom in existingSymptoms"
+        :key="existingSymptom"
+      >
+        <p
+          class="remove"
+          @click="removeSymptomDatum(existingSymptom.id)"
+        >
+          &#9746;
+        </p>
+        <p>Timestamp: {{ existingSymptom.data.timestamp }}</p>
+        <p>Symptoms: {{ existingSymptom.data.symptoms }}</p>
+        <p>Admins: {{ existingSymptom.admins }}</p>
+        <p>Writers: {{ existingSymptom.writers }}</p>
+        <p>Readers: {{ existingSymptom.readers }}</p>
         <div>
-          <input v-model="shareSymptomFriendName" placeholder="friend name" />
+          <input
+            v-model="shareSymptomFriendName"
+            placeholder="friend name"
+          >
         </div>
-        <button @click="shareSymptoms(symptom.id)">Share Symptoms</button>
+        <button @click="shareSymptoms(existingSymptom.id)">
+          Share Symptoms
+        </button>
         <div>
-          <input v-model="unshareSymptomFriendName" placeholder="friend name" />
+          <input
+            v-model="unshareSymptomFriendName"
+            placeholder="friend name"
+          >
         </div>
-        <button @click="unshareSymptoms(symptom.id)">Unshare Symptoms</button>
-        <br />
+        <button @click="unshareSymptoms(existingSymptom.id)">
+          Unshare Symptoms
+        </button>
+        <br>
       </div>
     </div>
-    <br />
-    <br />
+    <br>
+    <br>
     <h3>Period history</h3>
     <div>
-      <div v-for="period in oldPeriod" :key="period">
-        <p class="remove" @click="removePeriodDatum(period.id)">&#9746;</p>
-        <p>Timestamp: {{ period.data.timestamp }}</p>
-        <p>Period: {{ period.data.period }}</p>
-        <p>Admins: {{ period.admins }}</p>
-        <p>Writers: {{ period.writers }}</p>
-        <p>Readers: {{ period.readers }}</p>
+      <div
+        v-for="existingPeriod in existingPeriods"
+        :key="existingPeriod"
+      >
+        <p
+          class="remove"
+          @click="removePeriodDatum(existingPeriod.id)"
+        >
+          &#9746;
+        </p>
+        <p>Timestamp: {{ existingPeriod.data.timestamp }}</p>
+        <p>Period: {{ existingPeriod.data.period }}</p>
+        <p>Admins: {{ existingPeriod.admins }}</p>
+        <p>Writers: {{ existingPeriod.writers }}</p>
+        <p>Readers: {{ existingPeriod.readers }}</p>
         <div>
-          <input v-model="sharePeriodFriendName" placeholder="friend name" />
+          <input
+            v-model="sharePeriodFriendName"
+            placeholder="friend name"
+          >
         </div>
-        <button @click="sharePeriod(period.id)">Share Period</button>
+        <button @click="sharePeriod(existingPeriod.id)">
+          Share Period
+        </button>
         <div>
-          <input v-model="unsharePeriodFriendName" placeholder="friend name" />
+          <input
+            v-model="unsharePeriodFriendName"
+            placeholder="friend name"
+          >
         </div>
-        <button @click="unsharePeriod(period.id)">Unshare Period</button>
-        <br />
+        <button @click="unsharePeriod(existingPeriod.id)">
+          Unshare Period
+        </button>
+        <br>
       </div>
     </div>
   </div>
@@ -89,12 +133,6 @@ import { mapState } from "vuex";
 export default {
   components: {
     Multiselect,
-  },
-  computed: {
-    ...mapState({
-      oldSymptoms: "symptoms",
-      oldPeriod: "period",
-    }),
   },
   data() {
     return {
@@ -119,6 +157,12 @@ export default {
       sharePeriodFriendName: "",
       unsharePeriodFriendName: "",
     };
+  },
+  computed: {
+    ...mapState({
+      existingSymptoms: "existingSymptoms",
+      existingPeriods: "existingPeriods",
+    }),
   },
   methods: {
     addSymptoms(event) {

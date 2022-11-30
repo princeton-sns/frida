@@ -1,9 +1,10 @@
 import * as child_process from 'child_process'
 
 import {LocalStorage} from 'node-localstorage'
-import * as frida from "../../../core/client/index.js";
+// import * as frida from "../../../core/client/index.js";
 import * as cryp from "crypto";
 import fetch, {Headers} from 'node-fetch'
+import { Higher } from "../../../higher";
 
 var config = {
     // serverIP: "sns26.cs.princeton.edu",
@@ -66,11 +67,12 @@ async function update_data(oid){
     frida.setData(config.dataPrefix, oid, generate_obj(oid));
 }
 
-await frida.init(config.serverIP,
-    config.serverPort,
+let frida = await Higher.create(
     {   storagePrefixes: [config.dataPrefix], 
         turnEncryptionOff: true
-    }
+    },
+    config.serverIP,
+    config.serverPort,
 );
 
 await frida.createDevice("LinkedDevice_" + tid, "device_" + tid);

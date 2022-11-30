@@ -26,66 +26,6 @@ import { EventEmitter } from "events";
 import { Core } from "../core/client";
 import { LocalStorageWrapper } from "./db/localStorageWrapper.js";
 
-/* doubly-linked tree, allows cycles */
-const NAME         : string = "name";
-const CONTACT_LEVEL: string = "contactLevel";
-const PARENTS      : string = "parents";
-const CHILDREN     : string = "children";
-const ADMINS       : string = "admins";
-const WRITERS      : string = "writers";
-
-type groupObjType = {
-  id: string,
-  value: groupValType,
-};
-
-type groupValType = {
-  name: string,
-  contactLevel: boolean,
-  parents: string[],
-  children?: string[],
-  admins: string[],
-  writers: string[],
-};
-
-// readers list isn't necessary, any member that isn't an admin
-// or writer can be assumed to be a reader
-// TODO also deduplicate admins and writers (any writer who is also an
-// admin can _just_ exist in the admin group, since admin abilities are a
-// superset of writer abilities)
-class Key {
-  name: string;
-  contactLevel: boolean;
-  parents: string[];
-  admins: string[];
-  writers: string[];
-
-  constructor(name, contactLevel, parents, admins, writers) {
-    this.name = name;
-    this.contactLevel = contactLevel;
-    this.parents = parents;
-    this.admins = admins;
-    this.writers = writers;
-  }
-}
-
-class Group {
-  name: string;
-  contactLevel: boolean;
-  parents: string[];
-  children: string[];
-  admins: string[];
-  writers: string[];
-
-  constructor(name, contactLevel, parents, children, admins, writers) {
-    this.name = name;
-    this.contactLevel = contactLevel;
-    this.parents = parents;
-    this.children = children;
-    this.admins = admins;
-    this.writers = writers;
-  }
-}
 
 export type payloadType = {
   msgType: string,
@@ -113,22 +53,16 @@ export type payloadType = {
   // when msgType = LINK_GROUPS, ADD/REMOVE_PARENT/CHILD
   parentID?: string,
   childID?: string,
-  // when msgType = ADD/REMOVE_ADMIN
-  adminID?: string,
-  // when msgType = ADD/REMOVE_WRITER
-  writerID?: string,
-};
-
-type storageObjType = {
-  key: string,
-  value: any // FIXME groupObjType | dataObjType
+  // // when msgType = ADD/REMOVE_ADMIN
+  // adminID?: string,
+  // // when msgType = ADD/REMOVE_WRITER
+  // writerID?: string,
 };
 
 export class Higher {
   // TODO make variables private
   static #SLASH   : string = "/";
   static #DATA    : string = "__data";
-  static #GROUP   : string = "__group";
   static #LINKED  : string = "__linked";
   static #CONTACTS: string = "__contacts";
   static #OUTSTANDING_IDKEY: string = "__outstandingIdkey";
@@ -141,11 +75,11 @@ export class Higher {
   static LINK_GROUPS          : string = "linkGroups";
   static ADD_PARENT           : string = "addParent";
   static ADD_CHILD            : string = "addChild";
-  static ADD_WRITER           : string = "addWriter";
-  static ADD_ADMIN            : string = "addAdmin";
+  // static ADD_WRITER           : string = "addWriter";
+  // static ADD_ADMIN            : string = "addAdmin";
   static REMOVE_PARENT        : string = "removeParent";
-  static REMOVE_WRITER        : string = "removeWriter";
-  static REMOVE_ADMIN         : string = "removeAdmin";
+  // static REMOVE_WRITER        : string = "removeWriter";
+  // static REMOVE_ADMIN         : string = "removeAdmin";
   static UPDATE_GROUP         : string = "updateGroup";
   static UPDATE_DATA          : string = "updateData";
   static DELETE_DEVICE        : string = "deleteDevice";
@@ -294,44 +228,6 @@ export class Higher {
     }
     console.log("SUCCESS");
     await this.#demuxFunc(payload);
-  }
-
-  /**
-   * Resolves a list of one or more group IDs to a list of public keys.
-   *
-   * @param {string[]} ids group IDs to resolve
-   * @return {string[]}
-   *
-   * @private
-   */
-  #resolveIDs(ids: string[]): string[] {
-    let idkeys = [];
-    ids.forEach((id) => {
-      let group = this.#getGroup(id);
-      if (group !== null) {
-        if (this.#isKey(group)) {
-          idkeys.push(id);
-        } else {
-          idkeys = idkeys.concat(this.#resolveIDs(group.children));
-        }
-      }
-    });
-    return idkeys;
-  }
-  
-  /**
-   * Helper function for determining if resolveIDs has hit it's base case or not.
-   *
-   * @param {Object} group a group
-   * @returns {boolean}
-   *
-   * @private
-   */
-  #isKey(group: groupValType): boolean {
-    if (group.children) {
-      return false;
-    }
-    return true;
   }
 
   /*
@@ -1078,29 +974,6 @@ export class Higher {
    * Group methods *
    *****************
    */
-
-  /**
-   * Wrapper function for assigning a group ID to a group object consisting
-   * of a name and children list.
-   *
-   * @param {string} ID group ID
-   * @param {string} name human-readable name
-   * @param {string[]} parents groups that point to this group
-   * @param {string[]} children groups that this group points to
-   *
-   * @private
-   */
-  #createGroup(
-      ID: string,
-      name: string,
-      contactLevel: boolean,
-      parents: string[],
-      children: string[],
-      admins: string[],
-      writers: string[]
-  ) {
-    this.#setGroup(ID, new Group(name, contactLevel, parents, children, admins, writers));
-  }
   
   /**
    * Wrapper function for assigning a key ID to a key object consisting
@@ -1121,18 +994,6 @@ export class Higher {
       writers: string[]
   ) {
     this.#setGroup(ID, new Key(name, contactLevel, parents, admins, writers));
-  }
-
-  /**
-   * Group getter.
-   *
-   * @param {string} groupID ID of group to get
-   * @returns {Object}
-   *
-   * @private
-   */
-  #getGroup(groupID: string): groupValType {
-    return this.#localStorageWrapper.get(this.#getDataKey(Higher.#GROUP, groupID));
   }
 
   /**
@@ -1172,29 +1033,6 @@ export class Higher {
     });
     return groups;
   }
-  /**
-   * Group setter.
-   *
-   * @param {string} groupID ID of group to set
-   * @param {Object} groupValue value to set group to
-   *
-   * @private
-   */
-  #setGroup(groupID: string, groupValue: groupValType) {
-    this.#localStorageWrapper.set(this.#getDataKey(Higher.#GROUP, groupID), groupValue);
-  }
-  
-  /**
-   * Group remover.
-   *
-   * @param {string} groupID ID of group to remove
-   *
-   * @private
-   */
-  #removeGroup(groupID: string) {
-    this.#localStorageWrapper.remove(this.#getDataKey(Higher.#GROUP, groupID));
-  }
-
 
   /**
    * Updates group with new value.
@@ -1885,17 +1723,6 @@ export class Higher {
    * Sharing and unsharing *
    *************************
    */
-
-  /**
-   * Randomly generates a new group ID.
-   *
-   * @returns {string}
-   *
-   * @private
-   */
-  #getNewGroupID(): string {
-    return crypto.randomUUID();
-  }
 
   /**
    * Shares data item by creating new group that subsumes both it's 

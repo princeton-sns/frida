@@ -34,10 +34,10 @@ impl<D: crate::DeviceId> crate::MessageHasher<D> for Sha256MessageHasher<D> {
         use sha2::Digest;
 
         if let Some(digest) = prev_digest {
-            self.0.update(&[b'p', b'r', b'e', b'v']);
+            self.0.update(b"prev");
             self.0.update(&digest.0);
         } else {
-            self.0.update(&[b'n', b'o', b'_', b'p', b'r', b'e', b'v']);
+            self.0.update(b"no_prev");
         }
 
         for (i, r) in recipients.enumerate() {
@@ -45,7 +45,7 @@ impl<D: crate::DeviceId> crate::MessageHasher<D> for Sha256MessageHasher<D> {
             self.0.update(<D as AsRef<[u8]>>::as_ref(r.borrow()));
         }
 
-        self.0.update(&[b'm', b'e', b's', b's', b'a', b'g', b'e']);
+        self.0.update(b"message");
         self.0.update(message);
 
         let mut digest: [u8; 32] = [0; 32];

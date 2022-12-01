@@ -22,6 +22,17 @@ impl Sha256StringMessageChains {
         Sha256StringMessageChains(MessageChains::new(own_device))
     }
 
+    pub fn from_dump(serialized: String) -> Result<Sha256StringMessageChains, String> {
+        serde_json::from_str(&serialized)
+            .map(Sha256StringMessageChains)
+            .map_err(|e| format!("Error while deserializing MessageChains struct: {:?}", e))
+    }
+
+    pub fn dump(&self) -> Result<String, String> {
+        serde_json::to_string(&self.0)
+            .map_err(|e| format!("Error while serializing MessageChains struct: {:?}", e))
+    }
+
     pub fn send_message(&mut self, message: String, recipients: Vec<js_sys::JsString>) {
         self.0.send_message(
             message.as_bytes(),

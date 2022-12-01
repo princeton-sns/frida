@@ -3,19 +3,21 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
+
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_wrapper;
 
 pub type DeviceId = String;
 pub type Hash = [u8; 32];
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ChainEntry {
     local_seq: usize,
     digest: Hash,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct DeviceState {
     offset: usize,
     validated_local_seq: usize,
@@ -34,7 +36,7 @@ impl Default for DeviceState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MessageChains {
     own_device: DeviceId,
     pending_messages: VecDeque<Hash>,

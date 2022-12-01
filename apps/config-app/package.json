@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "share": "node src/index.js",
-    "self": "node -r esm-wallaby src/self_comm_master.js",
-    "dstart": "node -r node-localstorage/register dist/index.js",
+    "share": "node -r esm_wallaby src/index.js",
+    "self": "node -r esm-wallaby src/self_comm_bench.js 0 ./src/self_config.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -28,6 +27,9 @@
     "node-fetch": "^2.6.1",
     "node-localstorage": "^2.2.1",
     "socket.io-client": "^4.5.3",
-    "webpack": "^5.74.0"
+    "webpack": "^5.74.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.2",
+    "socket.io": "^4.4.1"
   }
 }

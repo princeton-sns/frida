@@ -1,26 +1,19 @@
-import * as child_process from 'child_process'
 import {LocalStorage} from 'node-localstorage'
 import * as cryp from "crypto";
 import fetch, {Headers} from 'node-fetch'
 import * as fs from 'fs';
 import {Higher} from "../../../higher/index.js";
+import io from "socket.io-client";
 
 var frida;
-    
-var config = JSON.parse(fs.readFileSync('./src/self_config.json', { encoding: 'utf8' }));
-
-
-var wrks = new Array(config.num_clients);
-var ready_wrks = 1;
+var benchID = parseInt(process.argv[2]);
+var config_path = process.argv[3];
+var config = JSON.parse(fs.readFileSync(config_path, { encoding: 'utf8' }));
 
 var localStorage = null;
-var tid = 0;
-
-
-var latencies = new Array(config.duration * config.rate + 1);
 
 if (typeof localStorage === "undefined" || localStorage === null) {
-    global.localStorage = new LocalStorage('device_' + tid);
+    global.localStorage = new LocalStorage('device_' + benchID);
 }
 
 if (typeof crypto === "undefined" || crypto === null) {
@@ -38,6 +31,16 @@ function waitFor(conditionFunction, poll_time = 0) {
       else setTimeout(_ => poll(resolve), poll_time);
     }
     return new Promise(poll);
+}
+
+function wait_barrier(barrier, message){
+    const waitfor = resolve => {
+        barrier.on("release", (msg) => {
+            resolve(msg)
+        });
+        barrier.emit("barrier", message);
+    }
+    return new Promise(waitfor);
 }
 
 function sync(cond, after){
@@ -62,16 +65,19 @@ async function update_data(oid){
     // frida.setData(config.dataPrefix, oid, generate_obj(oid));
 }
 
-function save_data(data){
+function save_data(data, id, suffix){
     fs.mkdir('./'+config.output_dir, { recursive: true}, function (err) {
         if (err) console.log(err);
-        fs.writeFile('./' + config.output_dir + '/device_' + tid, data, (err) =>{
+        fs.writeFile('./' + config.output_dir + '/device_' + id + '_' + suffix, data, (err) =>{
             if(err) console.log(err);
         });
     });
 }
 
+
 (async () =>{
+
+let remote_barrier = await io("http://"+ config.barrierIP +":" + config.barrierPort);
 
 global.benchConfig = {
     "benchOpts" : "00011000",
@@ -89,9 +95,9 @@ frida = await Higher.create(
 // Potential bug: await init() does not guarantee that server will setup mailbox, so message might be lost if sent immediately
 await sleep(1000);
 
-let myIdkey = await frida.createDevice("LinkedDevice_" + tid, "device_" + tid);
+let myIdkey = await frida.createDevice("LinkedDevice_" + benchID, "device_" + benchID);
 
-console.log("device_0: " + myIdkey);
+console.log("device_" + benchID + ": " + myIdkey);
 
 global.myIdkeyForBench = myIdkey;
 global.clientSeq = 0;
@@ -117,6 +123,10 @@ global.recordRecvTime = (msg) => {
     }
 }
 
+global.resetLog = () => {
+    global.benchConfig.timeStampsLog.length = 0;
+}
+
 global.beforeHigherSetData = benchConfig?.benchOpts[0] == "1" ? recordTime : noop;
 global.beforeCoreEncrypt = benchConfig?.benchOpts[1] == "1" ? recordTime : noop;
 global.afterCoreEncrypt = benchConfig?.benchOpts[2] == "1" ? recordTime : noop;
@@ -126,45 +136,22 @@ global.beforeCoreDecrypt = benchConfig?.benchOpts[5] == "1" ? recordTime : noop;
 global.afterCoreDecrypt = benchConfig?.benchOpts[6] == "1" ? recordTime : noop;
 global.afterHigherOnMessage = benchConfig?.benchOpts[7] == "1" ? recordTime : noop;
 
-
-for(var i = 1; i < config.num_clients; i++) {
-
-    wrks[i] = child_process.fork("src/" + config.client_type + ".js", [i]);	
-
-    wrks[i].on('close', function (code) {
-        console.log('exited with ' + code);
-    });
-
-    wrks[i].on('message', (msg) => {
-        if(msg.type == "ready"){
-            ready_wrks++;
-        }
-    });
-}
-
-
-
-
 var data_obj = generate_obj();
 var oid = data_obj.id;
 
 await frida.setData(config.dataPrefix, oid, data_obj);
 
-
-
 var period = 1000/config.rate; 
 
-await waitFor(() => ready_wrks == config.num_clients, 300);
 
-for(var i = 1; i < config.num_clients; i++) {
-    wrks[i].send({type: "start"});
-}
+await wait_barrier(remote_barrier, myIdkey);
+
 
 simulate_send();
 
 async function simulate_send(){
     await sleep(1000);
-    global.benchConfig.timeStampsLog.length = 0;
+    resetLog();
     var start_time = performance.now();
 
     for(var cnt = 0; cnt < config.duration * config.rate; cnt++){
@@ -173,12 +160,22 @@ async function simulate_send(){
         update_data(oid);
     }
     
-    await sleep(1000);
+    await sleep(3000);
     
     console.log("-------------------------------");
-    console.log(global.benchConfig.timeStampsLog);
-    console.log(global.cseqSendLogs);
-    console.log(global.cseqRecvLogs);
+    // console.log(global.benchConfig.timeStampsLog);
+    // console.log(global.cseqSendLogs);
+    // console.log(global.cseqRecvLogs);
+
+    let combined_timestamps = await wait_barrier(remote_barrier, global.benchConfig.timeStampsLog);
+    let combined_cseqSend = await wait_barrier(remote_barrier, global.cseqSendLogs);
+    let combined_cseqRecv = await wait_barrier(remote_barrier, global.cseqRecvLogs);
+
+    for(var i = 0; i < combined_timestamps.length; i++){
+        save_data(combined_timestamps[i].join("\n"), i, "timestamps");
+        save_data(combined_cseqSend[i].join("\n"), i, "cseqSend");
+        save_data(combined_cseqRecv[i].join("\n"), i, "cseqRecv");
+    }
 
     // The first sendMessage is not recorded --- it's used for setup data object
     // for(var cnt = 1; cnt < frida.clientSeqID.id; cnt++){

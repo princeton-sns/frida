@@ -7,10 +7,13 @@ import io from "socket.io-client";
 
 var frida;
 var benchID = parseInt(process.argv[2]);
-var config_path = process.argv[3];
-var config = JSON.parse(fs.readFileSync(config_path, { encoding: 'utf8' }));
-
+// var config_path = process.argv[3];
+// var config = JSON.parse(fs.readFileSync(config_path, { encoding: 'utf8' }));
+var config;
 var localStorage = null;
+
+let coordIP = "localhost";
+let coordPort = "8085";
 
 if (typeof localStorage === "undefined" || localStorage === null) {
     global.localStorage = new LocalStorage('device_' + benchID);
@@ -33,12 +36,22 @@ function waitFor(conditionFunction, poll_time = 0) {
     return new Promise(poll);
 }
 
-function wait_barrier(barrier, message){
+function wait_barrier(coord, message){
     const waitfor = resolve => {
-        barrier.on("release", (msg) => {
+        coord.on("release", (msg) => {
             resolve(msg)
         });
-        barrier.emit("barrier", message);
+        coord.emit("barrier", message);
+    }
+    return new Promise(waitfor);
+}
+
+function wait_config(coord){
+    const waitfor = resolve => {
+        coord.on("config", (msg) => {
+            resolve(msg)
+        });
+        coord.emit("config", {});
     }
     return new Promise(waitfor);
 }
@@ -77,7 +90,9 @@ function save_data(data, id, suffix){
 
 (async () =>{
 
-let remote_barrier = await io("http://"+ config.barrierIP +":" + config.barrierPort);
+let remote_coord = await io("http://"+ coordIP +":" + coordPort);
+
+config = await wait_config(remote_coord);
 
 global.benchConfig = {
     "benchOpts" : "00011000",
@@ -144,7 +159,7 @@ await frida.setData(config.dataPrefix, oid, data_obj);
 var period = 1000/config.rate; 
 
 
-await wait_barrier(remote_barrier, myIdkey);
+await wait_barrier(remote_coord, myIdkey);
 
 
 simulate_send();
@@ -167,9 +182,9 @@ async function simulate_send(){
     // console.log(global.cseqSendLogs);
     // console.log(global.cseqRecvLogs);
 
-    let combined_timestamps = await wait_barrier(remote_barrier, global.benchConfig.timeStampsLog);
-    let combined_cseqSend = await wait_barrier(remote_barrier, global.cseqSendLogs);
-    let combined_cseqRecv = await wait_barrier(remote_barrier, global.cseqRecvLogs);
+    let combined_timestamps = await wait_barrier(remote_coord, global.benchConfig.timeStampsLog);
+    let combined_cseqSend = await wait_barrier(remote_coord, global.cseqSendLogs);
+    let combined_cseqRecv = await wait_barrier(remote_coord, global.cseqRecvLogs);
 
     for(var i = 0; i < combined_timestamps.length; i++){
         save_data(combined_timestamps[i].join("\n"), i, "timestamps");

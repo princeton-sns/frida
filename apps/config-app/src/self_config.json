@@ -1,13 +1,13 @@
 {
     "serverIP": "localhost",
     "serverPort": "8080",
-    "barrierIP" : "localhost",
-    "barrierPort" : "8085",
+    "coordIP" : "localhost",
+    "coordPort" : "8085",
     "dataPrefix": "ConfigAppData",
     "client_type" : "self_comm_clients",
     "output_dir" : "measurement_data",
     "encryption" : false,
-    "num_clients": 1,
+    "num_clients": 3,
     "data_size": 32,
     "duration": 3,
     "rate": 1

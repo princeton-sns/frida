@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "share": "node -r esm_wallaby src/index.js",
-    "self": "node -r esm-wallaby src/self_comm_bench.js 0 ./src/self_config.json",
+    "self": "node -r esm-wallaby src/self_comm_bench.js 0",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

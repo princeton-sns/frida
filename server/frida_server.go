@@ -18,6 +18,7 @@ import (
 type IncomingMessage struct {
 	DeviceId string `json:"deviceId"`
 	Payload  interface{} `json:"payload"`
+	ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
 
 // Single message format for receiver
@@ -25,6 +26,7 @@ type OutgoingMessage struct {
 	Sender   string `json:"sender"`
 	Payload  interface{} `json:"encPayload"`
 	SeqID    uint64 `json:"seqID"`
+	ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
 
 // Internal message format for moving between sender and notification handler
@@ -358,6 +360,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg.Outgoing.Payload = msg.Payload
 		tmsg.Outgoing.Sender = senderDeviceId
 		tmsg.Outgoing.SeqID = seqID
+		tmsg.Outgoing.ClientSeq = msg.ClientSeq			// For testing FOFI only!
 
 		tmsgs = append(tmsgs, &tmsg)
 

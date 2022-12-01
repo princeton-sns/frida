@@ -73,14 +73,19 @@ function save_data(data){
 
 (async () =>{
 
+global.benchConfig = {
+    "benchOpts" : "00011000",
+    "timeStampsLog" : []
+}
 
 frida = await Higher.create(
     {   storagePrefixes: [config.dataPrefix], 
-        // turnEncryptionOff: !config.encryption
+        turnEncryptionOff: !config.encryption
     },
     config.serverIP,
     config.serverPort,
 );
+
 
 
 // await frida.init(
@@ -109,6 +114,38 @@ let myIdkey = await frida.createDevice("LinkedDevice_" + tid, "device_" + tid);
 
 console.log("device_0: " + myIdkey);
 
+global.myIdkeyForBench = myIdkey;
+global.clientSeq = 0;
+global.cseqSendLogs = [];
+global.cseqRecvLogs = []
+
+global.recordTime = () => {
+    global.benchConfig?.timeStampsLog?.push(performance.now());
+}
+
+global.noop = () => {}
+
+global.recordSendTime = () => {
+    global.benchConfig?.timeStampsLog?.push(performance.now());
+    global.cseqSendLogs?.push(global.clientSeq);
+    global.clientSeq++;
+}
+
+global.recordRecvTime = (msg) => {
+    if(msg.sender == global.myIdkeyForBench){
+        global.benchConfig?.timeStampsLog?.push(performance.now());
+        global.cseqRecvLogs?.push(msg.clientSeq);
+    }
+}
+
+global.beforeHigherSetData = benchConfig?.benchOpts[0] == "1" ? recordTime : noop;
+global.beforeCoreEncrypt = benchConfig?.benchOpts[1] == "1" ? recordTime : noop;
+global.afterCoreEncrypt = benchConfig?.benchOpts[2] == "1" ? recordTime : noop;
+global.beforeCommSend = benchConfig?.benchOpts[3] == "1" ? global.recordSendTime : noop;
+global.afterCommRecv = benchConfig?.benchOpts[4] == "1" ? global.recordRecvTime : (msg) => {};
+global.beforeCoreDecrypt = benchConfig?.benchOpts[5] == "1" ? recordTime : noop;
+global.afterCoreDecrypt = benchConfig?.benchOpts[6] == "1" ? recordTime : noop;
+global.afterHigherOnMessage = benchConfig?.benchOpts[7] == "1" ? recordTime : noop;
 
 
 for(var i = 1; i < config.num_clients; i++) {
@@ -147,6 +184,8 @@ for(var i = 1; i < config.num_clients; i++) {
 simulate_send();
 
 async function simulate_send(){
+    await sleep(1000);
+    global.benchConfig.timeStampsLog.length = 0;
     var start_time = performance.now();
 
     for(var cnt = 0; cnt < config.duration * config.rate; cnt++){
@@ -157,14 +196,20 @@ async function simulate_send(){
     
     await sleep(1000);
     
+    console.log("-------------------------------");
+    console.log(global.benchConfig.timeStampsLog);
+    console.log(global.cseqSendLogs);
+    console.log(global.cseqRecvLogs);
+
     // The first sendMessage is not recorded --- it's used for setup data object
     // for(var cnt = 1; cnt < frida.clientSeqID.id; cnt++){
     //     console.log("client[%s],req[%s]: %s ms",tid, cnt, latencies[cnt]);
     // }    
 
-    latencies.shift();
+    
+    // latencies.shift();
 
-    save_data(latencies.join("\n"));
+    // save_data(latencies.join("\n"));
     
 }
 

@@ -7,6 +7,6 @@
     "encryption" : false,
     "num_clients": 1,
     "data_size": 32,
-    "duration": 5,
+    "duration": 3,
     "rate": 1
 }

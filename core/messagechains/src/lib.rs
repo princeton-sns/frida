@@ -9,17 +9,36 @@ pub mod wasm_wrapper;
 pub type DeviceId = String;
 pub type Hash = [u8; 32];
 
-#[derive(Default)]
+#[derive(Debug)]
 struct ChainEntry {
-    offset: usize,
-    validated_local_seq: usize,
-    chain: VecDeque<(usize, Hash)>
+    local_seq: usize,
+    digest: Hash,
 }
 
+#[derive(Debug)]
+struct DeviceState {
+    offset: usize,
+    validated_local_seq: usize,
+    chain: VecDeque<ChainEntry>,
+}
+
+impl Default for DeviceState {
+    fn default() -> DeviceState {
+        DeviceState {
+            offset: 0,
+            // We can initialize this to 0 as this points to the first
+            // *non-validated* local sequence number:
+            validated_local_seq: 0,
+            chain: VecDeque::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct MessageChains {
     own_device: DeviceId,
     pending_messages: VecDeque<Hash>,
-    chains: HashMap<DeviceId, ChainEntry>,
+    chains: HashMap<DeviceId, DeviceState>,
     local_seq: usize,
 }
 
@@ -186,15 +205,22 @@ impl MessageChains {
             let chain = self
                 .chains
                 .entry(r.borrow().clone())
-                .or_insert_with(|| ChainEntry { offset: 0, validated_local_seq: 0, chain: VecDeque::new() });
+                .or_insert_with(|| DeviceState {
+                    offset: 0,
+                    validated_local_seq: 0,
+                    chain: VecDeque::new(),
+                });
 
             let message_hash_entry = hash_message(
-                chain.chain.back().map(|(_, hash)| hash),
+                chain.chain.back().map(|entry| &entry.digest),
                 &mut recipients_vec.iter().map(|r| r.borrow()),
                 message,
             );
 
-            chain.chain.push_back((local_seq, message_hash_entry));
+            chain.chain.push_back(ChainEntry {
+                local_seq,
+                digest: message_hash_entry,
+            });
         }
 
         Ok(local_seq)
@@ -279,7 +305,7 @@ impl MessageChains {
             &pairwise_chain.chain[seq - pairwise_chain.offset],
             hash.borrow(),
         );
-        if pairwise_chain.chain[seq - pairwise_chain.offset].1 != *hash.borrow() {
+        if pairwise_chain.chain[seq - pairwise_chain.offset].digest != *hash.borrow() {
             log::debug!(
                 "validate_chain: invariant violated - validation payload \
                  sent by {:?} features incorrect hash for sequence number {}: \
@@ -297,7 +323,7 @@ impl MessageChains {
         // number).
         pairwise_chain.validated_local_seq = std::cmp::max(
             pairwise_chain.validated_local_seq,
-            pairwise_chain.chain[seq - pairwise_chain.offset].0,
+            pairwise_chain.chain[seq - pairwise_chain.offset].local_seq,
         ) + 1;
 
         // All checks passed, this validation payload is valid in the context of
@@ -342,8 +368,11 @@ impl MessageChains {
 
     pub fn validation_payload(&self, recipient: &DeviceId) -> Option<(usize, Hash)> {
         let recipient_chain = self.chains.get(recipient)?;
-        let hash = &recipient_chain.chain.back()?.1;
-        Some((recipient_chain.offset + recipient_chain.chain.len() - 1, hash.clone()))
+        let hash = &recipient_chain.chain.back()?.digest;
+        Some((
+            recipient_chain.offset + recipient_chain.chain.len() - 1,
+            hash.clone(),
+        ))
     }
 }
 

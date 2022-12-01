@@ -57,7 +57,7 @@ const store = (frida) => {
     }
   
     // invariant = no more than one period per day
-    if (frida.getData(keys[1].concat("/", keys[2])).length > 0) {
+    if (frida.getDataByPrefix(keys[1].concat("/", keys[2])).length > 0) {
       return false;
     }
   

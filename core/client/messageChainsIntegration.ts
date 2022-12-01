@@ -62,7 +62,7 @@ export class MessageChainsIntegration {
       dstIdkeys.push(this.ownIdkey);
     }
 
-    // Use a WASM to consistently sort the destination keys accross platforms:
+    // Use a WASM call to consistently sort the destination keys across platforms:
     const sortedDstIdkeys = this.messageChains.sort_recipients(dstIdkeys);
 
     // With the sorted recipients list, we can compose the common application payload:
@@ -106,10 +106,14 @@ export class MessageChainsIntegration {
     try {
       const parsedCommonPayload: commonPayloadType = JSON.parse(commonPayload);
 
+      // Use a WASM call to consistently sort the destination keys across platforms:
+      const sortedRecipients =
+	this.messageChains.sort_recipients(parsedCommonPayload.recipients);
+
       let localSeq = this.messageChains.insert_message(
         sender,
         parsedCommonPayload.applicationPayload,
-        parsedCommonPayload.recipients
+        sortedRecipients,
       );
       this.#dumpState();
 

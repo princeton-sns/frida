@@ -1,9 +1,9 @@
+use log;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use log;
 
-#[cfg(target_arch="wasm32")]
+#[cfg(target_arch = "wasm32")]
 pub mod wasm_wrapper;
 
 pub type DeviceId = String;
@@ -125,8 +125,9 @@ impl MessageChains {
         // an intermediate vector. This could potentially be
         // optimized.
         let mut recipients_vec: Vec<BD> = Vec::new();
-        let (recipients_count, acc) =
-            recipients.try_fold((0, None), |(count, acc): (usize, Option<(DeviceId, bool)>), r| {
+        let (recipients_count, acc) = recipients.try_fold(
+            (0, None),
+            |(count, acc): (usize, Option<(DeviceId, bool)>), r| {
                 let new_acc = if let Some((prev_recipient, seen_self)) = acc {
                     if prev_recipient >= *r.borrow() {
                         println!(
@@ -148,7 +149,8 @@ impl MessageChains {
                 recipients_vec.push(r);
 
                 Ok((count + 1, new_acc))
-            })?;
+            },
+        )?;
 
         // The message must go to at least one recipient (ourselves):
         if recipients_count < 1 {
@@ -282,7 +284,9 @@ impl MessageChains {
 
         // If this refers to a sequence number we don't know yet, or have
         // already trimmed, the sender or server has violated an invariant:
-        if seq < pairwise_chain.offset || seq >= (pairwise_chain.offset + pairwise_chain.chain.len()) {
+        if seq < pairwise_chain.offset
+            || seq >= (pairwise_chain.offset + pairwise_chain.chain.len())
+        {
             log::debug!(
                 "validate_chain: invariant violated - validation payload \
                  sent by {:?} refers to invalid sequence number {}. Valid \
@@ -378,7 +382,7 @@ impl MessageChains {
 
 #[cfg(test)]
 mod test {
-    use super::{DeviceId,Hash};
+    use super::{DeviceId, Hash};
 
     struct TestDeviceState {
         pub id: DeviceId,

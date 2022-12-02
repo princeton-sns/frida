@@ -36,36 +36,39 @@ type BodyWithCseqID struct {
 // 	Needs    uint `json:"needs"`
 // }
 
-const MAX_ROUTINES = 100
+const MAX_ROUTINES = 2
 
 var deviceId string;
 
 var serverAddr string = "http://localhost:8080";
 
-var msgSize = 32;
+var msgSize = 64;
 
 var msgContent []byte;
 
 var recvCount uint64 = 0;
 
-var duration int64 = 10;
+var duration int64 = 1;
 
 var keepout int64 = 1;
 
 var startTime int64;
 
-func req(reqType string, jsonStr []byte, path string){
+var httpClient *http.Client;
+
+func req(reqType string, jsonStr []byte, path string) (*http.Response){
 	req, _ := http.NewRequest(reqType, serverAddr + path, bytes.NewBuffer(jsonStr))
+	req.Close = true
 	req.Header = http.Header{
 		"Content-Type": {"application/json"},
 		"Authorization": {"Bearer " + deviceId},
 	}
-	_, err := (&http.Client{}).Do(req)
-	// defer resp.Body.Close()
+	resp, err := httpClient.Do(req)
 
 	if err != nil {
         panic(err)
     }
+	return resp
 }
 
 func sendTo(ids []string, cseqID uint64){
@@ -76,7 +79,8 @@ func sendTo(ids []string, cseqID uint64){
 		batch.Batch = append(batch.Batch, msg)
 	}
 	b, _ := json.Marshal(batch)
-	req("POST", b, "/message")
+	resp := req("POST", b, "/message")
+	defer resp.Body.Close()
 }
 
 func delete(seqID uint64){
@@ -96,7 +100,7 @@ func main() {
 	msgContent = make([]byte, msgSize)
 
 	finish := make(chan bool)
-	
+	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		msgType := string([]byte(msg.Event))
 		
@@ -107,16 +111,23 @@ func main() {
 		// }
 
 		if(msgType == "msg"){
-			// fmt.Println(string([]byte(msg.Data)))
-			var msgContent IncomingMessage
-			json.Unmarshal([]byte(msg.Data), &msgContent)
-			delete(msgContent.SeqID)
 			timePassed := now() - startTime
-			if(timePassed >= keepout * 1000000 && timePassed <= (duration - keepout) * 1000000){
+			if(timePassed > (duration - keepout) * 1000000){
+				finish <- true
+
+
+			} else if(timePassed >= keepout * 1000000){
 				recvCount += 1
-				// cseqID := msgContent.Payload.(map[string] interface{})["cseqID"]
-				// fmt.Printf("recv time[%v]: %v\n", cseqID, now())
-			}
+				cseqID := msgContent.Payload.(map[string] interface{})["cseqID"]
+				fmt.Printf("recv time[%v]: %v\n", cseqID, now())
+			} 
+			fmt.Println(string([]byte(msg.Data)))
+			go func (){
+			func(){
+				var msgContent IncomingMessage
+				json.Unmarshal([]byte(msg.Data), &msgContent)
+				delete(msgContent.SeqID)
+			}()
 		}
 
 	})
@@ -137,6 +148,6 @@ func main() {
 			<-sem
 		}(i)
 	}
-	fmt.Printf("%v : %v", deviceId, recvCount)
+	fmt.Printf("%v : %v\n", deviceId, recvCount)
 	<-finish
 }

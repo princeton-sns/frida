@@ -114,7 +114,7 @@ func main() {
 			timePassed := now() - startTime
 			if(timePassed > (duration - keepout) * 1000000){
 				// finish <- true
-
+				fmt.Printf("%n", recvCount)
 				
 			} else if(timePassed >= keepout * 1000000){
 				recvCount += 1

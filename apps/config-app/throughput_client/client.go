@@ -48,7 +48,7 @@ var msgContent []byte;
 
 var recvCount uint64 = 0;
 
-var duration int64 = 1;
+var duration int64 = 10;
 
 var keepout int64 = 1;
 
@@ -113,17 +113,17 @@ func main() {
 		if(msgType == "msg"){
 			timePassed := now() - startTime
 			if(timePassed > (duration - keepout) * 1000000){
-				finish <- true
+				// finish <- true
 
-
+				
 			} else if(timePassed >= keepout * 1000000){
 				recvCount += 1
-				cseqID := msgContent.Payload.(map[string] interface{})["cseqID"]
-				fmt.Printf("recv time[%v]: %v\n", cseqID, now())
+				// cseqID := msgContent.Payload.(map[string] interface{})["cseqID"]
+				// fmt.Printf("recv time[%v]: %v\n", cseqID, now())
 			} 
-			fmt.Println(string([]byte(msg.Data)))
+			// fmt.Println(string([]byte(msg.Data)))
 			go func (){
-			func(){
+			// func(){
 				var msgContent IncomingMessage
 				json.Unmarshal([]byte(msg.Data), &msgContent)
 				delete(msgContent.SeqID)

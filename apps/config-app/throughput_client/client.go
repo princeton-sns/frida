@@ -48,7 +48,7 @@ var msgContent []byte;
 
 var recvCount uint64 = 0;
 
-var duration int64 = 10;
+var duration int64 = 3;
 
 var keepout int64 = 1;
 
@@ -114,7 +114,7 @@ func main() {
 			timePassed := now() - startTime
 			if(timePassed > (duration - keepout) * 1000000){
 				// finish <- true
-				fmt.Printf("%n", recvCount)
+				// fmt.Printf("%v\n", recvCount)
 				
 			} else if(timePassed >= keepout * 1000000){
 				recvCount += 1

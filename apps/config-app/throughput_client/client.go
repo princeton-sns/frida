@@ -45,7 +45,7 @@ var deviceId string;
 
 var serverAddr string = "http://localhost:8080";
 
-var msgSize = 64;
+var msgSize;
 
 var msgContent []byte;
 
@@ -59,7 +59,7 @@ var startTime int64;
 
 var httpClient *http.Client;
 
-var record bool = false;
+// var record bool = false;
 
 var numHead uint64;
 var numTail uint64;
@@ -117,9 +117,15 @@ func main() {
 	}
 
 	if(len(os.Args) < 5){
+		msgSize = 32
+	} else {
+		msgSize , _ = strconv.ParseInt(os.Args[4], 10, 0)
+	}
+
+	if(len(os.Args) < 6){
 		serverAddr = "http://localhost:8080"
 	} else {
-		serverAddr , _ = os.Args[4]
+		serverAddr , _ = os.Args[5]
 	}
 
 	keepout , _ = strconv.ParseInt(os.Args[3], 10, 0)
@@ -152,7 +158,7 @@ func main() {
 
 	listToSend := []string{deviceId}
 
-	var i uint64
+	var id uint64
 
 	sem := make(chan bool, MAX_ROUTINES_SEND)
 
@@ -172,15 +178,15 @@ func main() {
 		fmt.Printf("%v, %v\n", deviceId, float32(numTail)/float32(duration - 2 * keepout))
 	}()
 
-	for i = 0; (now() - startTime <= duration * 1000000); i++ {
-		sem <- true
-		go func(id uint64){
+	for id = 0; (now() - startTime <= duration * 1000000); id++ {
+		// sem <- true
+		// func(){
 			// fmt.Printf("send time[%v]: %v\n", id, now())
-			sendTo(listToSend, id)
-			<-sem
-		}(i)
+		sendTo(listToSend, id)
+			// <-sem
+		// }(i)
 	}
 	// <-finish
-	for ;recvCount <= i ;{}
+	for ;recvCount <= id ;{}
 	// fmt.Printf("%v, %v\n", recvCount, i)
 }

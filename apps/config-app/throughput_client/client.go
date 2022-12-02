@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"time"
 	"os"
+	"strconv"
 )
 
 type OutgoingMessage struct {
@@ -36,7 +37,7 @@ type BodyWithCseqID struct {
 // 	Needs    uint `json:"needs"`
 // }
 
-const MAX_ROUTINES = 2
+const MAX_ROUTINES_SEND = 2
 
 var deviceId string;
 
@@ -48,13 +49,18 @@ var msgContent []byte;
 
 var recvCount uint64 = 0;
 
-var duration int64 = 3;
+var duration int64;
 
 var keepout int64 = 1;
 
 var startTime int64;
 
 var httpClient *http.Client;
+
+var record bool = false;
+
+var numHead uint64;
+var numTail uint64;
 
 func req(reqType string, jsonStr []byte, path string) (*http.Response){
 	req, _ := http.NewRequest(reqType, serverAddr + path, bytes.NewBuffer(jsonStr))
@@ -94,42 +100,31 @@ func now() int64 {
 
 func main() {
 	deviceId = os.Args[1]
+	duration , _ = strconv.ParseInt(os.Args[2], 10, 0)
+	keepout , _ = strconv.ParseInt(os.Args[3], 10, 0)
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + deviceId
 
 	msgContent = make([]byte, msgSize)
 
-	finish := make(chan bool)
+	// finish := make(chan bool)
 	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
-		msgType := string([]byte(msg.Event))
+		recvCount += 1
 		
 		// if(msgType == "otkey"){
 			// var msgContent NeedsOneTimeKeyEvent
 			// json.Unmarshal([]byte(msg.Data), &msgContent)
 			// fmt.Println(msgContent.DeviceId)
 		// }
-
-		if(msgType == "msg"){
-			timePassed := now() - startTime
-			if(timePassed > (duration - keepout) * 1000000){
-				// finish <- true
-				// fmt.Printf("%v\n", recvCount)
-				
-			} else if(timePassed >= keepout * 1000000){
-				recvCount += 1
-				// cseqID := msgContent.Payload.(map[string] interface{})["cseqID"]
-				// fmt.Printf("recv time[%v]: %v\n", cseqID, now())
-			} 
-			// fmt.Println(string([]byte(msg.Data)))
-			go func (){
-			// func(){
+		func(){
+			msgType := string([]byte(msg.Event))
+			if(msgType == "msg"){
 				var msgContent IncomingMessage
 				json.Unmarshal([]byte(msg.Data), &msgContent)
 				delete(msgContent.SeqID)
-			}()
-		}
-
+			}
+		}()
 	})
 	
 
@@ -137,9 +132,24 @@ func main() {
 
 	var i uint64
 
-	sem := make(chan int, MAX_ROUTINES)
+	sem := make(chan int, MAX_ROUTINES_SEND)
 
 	startTime = now()
+
+	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
+	timerTail := time.NewTimer(time.Duration(duration - keepout) * time.Second)
+
+	go func(){
+		<-timerHead.C
+		numHead = recvCount
+	}()
+
+	go func(){
+		<-timerTail.C
+		numTail = recvCount - numHead
+		fmt.Printf("%v : %v\n", deviceId, numTail)
+	}()
+
 	for i = 0; (now() - startTime <= duration * 1000000); i++ {
 		sem <- 1
 		go func(id uint64){
@@ -148,6 +158,7 @@ func main() {
 			<-sem
 		}(i)
 	}
-	fmt.Printf("%v : %v\n", deviceId, recvCount)
-	<-finish
+	// <-finish
+	for ;recvCount <= i ;{}
+	// fmt.Printf("%v, %v\n", recvCount, i)
 }

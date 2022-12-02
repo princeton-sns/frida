@@ -45,7 +45,7 @@ var deviceId string;
 
 var serverAddr string = "http://localhost:8080";
 
-var msgSize;
+var msgSize int64;
 
 var msgContent []byte;
 
@@ -113,7 +113,7 @@ func main() {
 	if(len(os.Args) < 4){
 		keepout = 1
 	} else {
-		keeoput , _ = strconv.ParseInt(os.Args[3], 10, 0)
+		keepout , _ = strconv.ParseInt(os.Args[3], 10, 0)
 	}
 
 	if(len(os.Args) < 5){
@@ -125,7 +125,7 @@ func main() {
 	if(len(os.Args) < 6){
 		serverAddr = "http://localhost:8080"
 	} else {
-		serverAddr , _ = os.Args[5]
+		serverAddr = os.Args[5]
 	}
 
 	keepout , _ = strconv.ParseInt(os.Args[3], 10, 0)
@@ -160,7 +160,7 @@ func main() {
 
 	var id uint64
 
-	sem := make(chan bool, MAX_ROUTINES_SEND)
+	// sem := make(chan bool, MAX_ROUTINES_SEND)
 
 	startTime = now()
 

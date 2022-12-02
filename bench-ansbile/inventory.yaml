@@ -5,18 +5,22 @@ all:
   children:
     noise-server:
       hosts:
-        amd260.utah.cloudlab.us:
+        ms0334.utah.cloudlab.us:
           internal_hostname: node0
 
     noise-client:
       vars:
         server_url: "http://node0:8080/"
       hosts:
-        amd264.utah.cloudlab.us:
+        ms0336.utah.cloudlab.us:
           internal_hostname: node1
-        amd258.utah.cloudlab.us:
+        ms0315.utah.cloudlab.us:
           internal_hostname: node2
+        ms0320.utah.cloudlab.us:
+          internal_hostname: node3
+        ms0340.utah.cloudlab.us:
+          internal_hostname: node4
 
     experiment-node:
       hosts:
-        amd260.utah.cloudlab.us:
+        ms0334.utah.cloudlab.us:

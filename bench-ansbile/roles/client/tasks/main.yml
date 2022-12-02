@@ -2,4 +2,4 @@
   shell: |
     . /etc/profile.d/gopath.sh
     cd /mydata/localuser/frida/apps/config-app/throughput_client
-    go build
+    go build -o client

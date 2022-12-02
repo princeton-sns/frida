@@ -39,6 +39,8 @@ type BodyWithCseqID struct {
 
 const MAX_ROUTINES_SEND = 2
 
+// const MAX_ROUTINES_DELETE = 2
+
 var deviceId string;
 
 var serverAddr string = "http://localhost:8080";
@@ -51,7 +53,7 @@ var recvCount uint64 = 0;
 
 var duration int64;
 
-var keepout int64 = 1;
+var keepout int64;
 
 var startTime int64;
 
@@ -61,6 +63,8 @@ var record bool = false;
 
 var numHead uint64;
 var numTail uint64;
+
+// var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
 func req(reqType string, jsonStr []byte, path string) (*http.Response){
 	req, _ := http.NewRequest(reqType, serverAddr + path, bytes.NewBuffer(jsonStr))
@@ -100,8 +104,26 @@ func now() int64 {
 
 func main() {
 	deviceId = os.Args[1]
-	duration , _ = strconv.ParseInt(os.Args[2], 10, 0)
+	if(len(os.Args) < 3){
+		duration = 3
+	} else {
+		duration , _ = strconv.ParseInt(os.Args[2], 10, 0)
+	}
+
+	if(len(os.Args) < 4){
+		keepout = 1
+	} else {
+		keeoput , _ = strconv.ParseInt(os.Args[3], 10, 0)
+	}
+
+	if(len(os.Args) < 5){
+		serverAddr = "http://localhost:8080"
+	} else {
+		serverAddr , _ = os.Args[4]
+	}
+
 	keepout , _ = strconv.ParseInt(os.Args[3], 10, 0)
+
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + deviceId
 
@@ -132,7 +154,7 @@ func main() {
 
 	var i uint64
 
-	sem := make(chan int, MAX_ROUTINES_SEND)
+	sem := make(chan bool, MAX_ROUTINES_SEND)
 
 	startTime = now()
 
@@ -147,11 +169,11 @@ func main() {
 	go func(){
 		<-timerTail.C
 		numTail = recvCount - numHead
-		fmt.Printf("%v : %v\n", deviceId, numTail)
+		fmt.Printf("%v, %v\n", deviceId, float32(numTail)/float32(duration - 2 * keepout))
 	}()
 
 	for i = 0; (now() - startTime <= duration * 1000000); i++ {
-		sem <- 1
+		sem <- true
 		go func(id uint64){
 			// fmt.Printf("send time[%v]: %v\n", id, now())
 			sendTo(listToSend, id)

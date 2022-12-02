@@ -531,6 +531,6 @@ func main() {
 	}
 	server := NewServer(db)
 
-	log.Fatal("HTTP server error: ", http.ListenAndServe("localhost:8080", server))
+	log.Fatal("HTTP server error: ", http.ListenAndServe("0.0.0.0:8080", server))
 
 }

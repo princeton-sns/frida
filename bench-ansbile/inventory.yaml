@@ -1,0 +1,22 @@
+all:
+  vars:
+    noise_git_rev: ee7b25d93eaa8fbe3f250c8978a3885549d241d4
+  hosts:
+  children:
+    noise-server:
+      hosts:
+        amd260.utah.cloudlab.us:
+          internal_hostname: node0
+
+    noise-client:
+      vars:
+        server_url: "http://node0:8080/"
+      hosts:
+        amd264.utah.cloudlab.us:
+          internal_hostname: node1
+        amd258.utah.cloudlab.us:
+          internal_hostname: node2
+
+    experiment-node:
+      hosts:
+        amd260.utah.cloudlab.us:

@@ -1,0 +1,5 @@
+- name: Build the noise go server
+  shell: |
+    . /etc/profile.d/gopath.sh
+    cd /mydata/localuser/frida/server
+    go build

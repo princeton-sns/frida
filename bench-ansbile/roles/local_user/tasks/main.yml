@@ -1,0 +1,16 @@
+- name: Create build and benchmark user
+  ansible.builtin.user:
+    name: localuser
+    comment: Local user with ephemeral home directory
+    uid: 500
+    group: 2793
+    groups: root
+    shell: /bin/bash
+    create_home: true
+    home: /mydata/localuser
+
+- name: Ensure the ACL package is installed for Ansible to be able to become the localuser
+  apt:
+    name: acl
+    state: present
+    update_cache: yes

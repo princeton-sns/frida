@@ -1,0 +1,53 @@
+
+- name: Create SSH directory
+  file:
+    path: /mydata/localuser/.ssh
+    state: directory
+    mode: '0700'
+
+- name: Enable SSH access to localuser using shared key
+  copy:
+    src: /tmp/id_noise_bench.pub
+    dest: /mydata/localuser/.ssh/authorized_keys
+    mode: '0600'
+    force: true
+
+- name: Check whether go is installed
+  become: yes
+  become_user: root
+  stat:
+    path: /usr/local/go
+  register: go_check
+
+- name: Determine CPU architecture
+  command: uname -m
+  register: machine_arch
+  when: not go_check.stat.exists
+
+- name: Download go package
+  become: yes
+  become_user: root
+  get_url:
+    url: https://go.dev/dl/go1.19.3.linux-{% if machine_arch.stdout == "x86_64" %}amd64{% elif machine_arch.stdout == "aarch64" %}arm64{% endif %}.tar.gz
+    dest: /root/go.tar.gz
+  when: not go_check.stat.exists
+
+- name: Install go
+  become: yes
+  become_user: root
+  shell: |
+    rm -rf /usr/local/go
+    tar -C /usr/local/ -xzf /root/go.tar.gz
+    echo 'export PATH="/usr/local/go/bin:$PATH"' > /etc/profile.d/gopath.sh
+    chmod +x /etc/profile.d/gopath.sh
+  when: not go_check.stat.exists
+
+- name: Clone the noise git repository
+  git:
+    repo: "http://github.com/princeton-sns/frida.git"
+    dest: "/mydata/localuser/frida"
+    version: "{{ noise_git_rev }}"
+    clone: yes
+    update: yes
+    force: yes
+  register: noise_git

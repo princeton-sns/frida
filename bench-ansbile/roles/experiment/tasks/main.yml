@@ -1,0 +1,64 @@
+- name: Copy the shared SSH private key for password-less login
+  copy:
+    src: /tmp/id_noise_bench
+    dest: /mydata/localuser/.ssh/id_ed25519
+    mode: '0600'
+    force: true
+
+- name: Ensure python3 and related packages are installed
+  become: yes
+  become_user: root
+  apt:
+    name:
+      - python3
+      - python3-pip
+      - python3-dev
+      - python3-venv
+    state: present
+
+- name: Install Jupyter notebook
+  become: yes
+  become_user: root
+  pip:
+    name: notebook
+    state: present
+
+- name: Ensure jupyter notebook directory exists
+  file:
+    path: /mydata/localuser/notebooks
+    state: directory
+
+- name: Create jupyter notebook systemd service
+  become: yes
+  become_user: root
+  copy:
+    dest: "/etc/systemd/system/jupyter-notebook.service"
+    mode: "0744"
+    content: |
+      [Unit]
+      Description=Jupyter Notebook
+
+      [Service]
+      Type=simple
+      PIDFile=/run/jupyter.pid
+      WorkingDir=/mydata/localuser
+      ExecStart=/usr/local/bin/jupyter-notebook --notebook-dir=/mydata/localuser/notebooks --no-browser --NotebookApp.password='sha1:137775e93d29:ba64d3b78e089f0f779167242ddb080a05c42a84'
+      User=localuser
+      Group=2793
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Start the jupyter notebook service
+  become: yes
+  become_user: root
+  systemd:
+    name: jupyter-notebook
+    state: started
+    daemon_reload: true
+
+# Potentially required missing parts of the setup
+#wget https://files.pythonhosted.org/packages/00/3f/ea5cfb789dddb327e6d2cf9377c36d9d8607af85530af0e7001165587ae7/pyOpenSSL-22.1.0-py3-none-any.whl
+#python3 -m easy_install pyOpenSSL-22.1.0-py3-none-any.whl

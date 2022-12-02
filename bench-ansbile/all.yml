@@ -1,0 +1,41 @@
+- name: Setup shared SSH keys
+  hosts: 127.0.0.1
+  connection: local
+  tasks:
+    - name: Check whether shared SSH key is generated
+      stat:
+        path: /tmp/id_noise_bench
+      register: shared_ssh_key_exists
+
+    - name: Generate shared SSH key
+      shell: |
+        ssh-keygen -t ed25519 -C "noise-cloudlab-benchmark" -f /tmp/id_noise_bench -q -N ""
+      when: not shared_ssh_key_exists.stat.exists
+
+- hosts: all
+  roles:
+    - role: local_user
+      become: yes
+    - role: base
+      become: yes
+      become_user: localuser
+
+- hosts: noise-server
+  roles:
+    - role: server
+      become: yes
+      become_user: localuser
+
+- hosts: noise-client
+  roles:
+    - role: client
+      become: yes
+      become_user: localuser
+
+- hosts: experiment-node
+  roles:
+    - role: experiment
+      become: yes
+      become_user: localuser
+
+

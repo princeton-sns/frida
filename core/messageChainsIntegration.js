@@ -7,7 +7,7 @@ export class MessageChainsIntegration {
     async #init() {
         // The messagechains module needs to be imported asynchronously, as it
         // uses async internally to load the compiled WASM object.
-        let { Sha256StringMessageChains } = await import("../messagechains/pkg/messagechains.js");
+        let { Sha256StringMessageChains } = await import("./messagechains/pkg/messagechains.js");
         // Check whether we have some serialized state in localStorage:
         let serialized = localStorage.getItem("__messagechains");
         if (serialized) {
@@ -42,7 +42,7 @@ export class MessageChainsIntegration {
         if (consistencyLoopback) {
             dstIdkeys.push(this.ownIdkey);
         }
-        // Use a WASM to consistently sort the destination keys accross platforms:
+        // Use a WASM call to consistently sort the destination keys across platforms:
         const sortedDstIdkeys = this.messageChains.sort_recipients(dstIdkeys);
         // With the sorted recipients list, we can compose the common application payload:
         const commonPayload = JSON.stringify({
@@ -76,7 +76,9 @@ export class MessageChainsIntegration {
         let ret = null;
         try {
             const parsedCommonPayload = JSON.parse(commonPayload);
-            let localSeq = this.messageChains.insert_message(sender, parsedCommonPayload.applicationPayload, parsedCommonPayload.recipients);
+            // Use a WASM call to consistently sort the destination keys across platforms:
+            const sortedRecipients = this.messageChains.sort_recipients(parsedCommonPayload.recipients);
+            let localSeq = this.messageChains.insert_message(sender, parsedCommonPayload.applicationPayload, sortedRecipients);
             this.#dumpState();
             ret = [localSeq, parsedCommonPayload.applicationPayload];
         }

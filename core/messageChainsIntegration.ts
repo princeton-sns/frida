@@ -1,6 +1,6 @@
 // We can only import the type definitions here. Loading the messagechains WASM
 // module has to happen asynchronously through an `import()` call:
-import type { Sha256StringMessageChains } from "../messagechains/pkg";
+import type { Sha256StringMessageChains } from "./messagechains/pkg";
 
 export type commonPayloadType = {
   applicationPayload: string,
@@ -24,7 +24,7 @@ export class MessageChainsIntegration {
   async #init() {
     // The messagechains module needs to be imported asynchronously, as it
     // uses async internally to load the compiled WASM object.
-    let { Sha256StringMessageChains } = await import("../messagechains/pkg/messagechains.js");
+    let { Sha256StringMessageChains } = await import("./messagechains/pkg/messagechains.js");
 
     // Check whether we have some serialized state in localStorage:
     let serialized = localStorage.getItem("__messagechains");

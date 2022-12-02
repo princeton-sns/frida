@@ -25,7 +25,8 @@
 import { EventEmitter } from "events";
 import { Core } from "../core/client";
 import { LocalStorageWrapper } from "./db/localStorageWrapper.js";
-
+import { Groups, groupObjType} from "./modules/groups";
+import { Permissions } from "./modules/permissions"; 
 
 export type payloadType = {
   msgType: string,
@@ -54,9 +55,9 @@ export type payloadType = {
   parentID?: string,
   childID?: string,
   // // when msgType = ADD/REMOVE_ADMIN
-  // adminID?: string,
+  adminID?: string,
   // // when msgType = ADD/REMOVE_WRITER
-  // writerID?: string,
+  writerID?: string,
 };
 
 export class Higher {
@@ -75,11 +76,11 @@ export class Higher {
   static LINK_GROUPS          : string = "linkGroups";
   static ADD_PARENT           : string = "addParent";
   static ADD_CHILD            : string = "addChild";
-  // static ADD_WRITER           : string = "addWriter";
-  // static ADD_ADMIN            : string = "addAdmin";
+  static ADD_WRITER           : string = "addWriter";
+  static ADD_ADMIN            : string = "addAdmin";
   static REMOVE_PARENT        : string = "removeParent";
-  // static REMOVE_WRITER        : string = "removeWriter";
-  // static REMOVE_ADMIN         : string = "removeAdmin";
+  static REMOVE_WRITER        : string = "removeWriter";
+  static REMOVE_ADMIN         : string = "removeAdmin";
   static UPDATE_GROUP         : string = "updateGroup";
   static UPDATE_DATA          : string = "updateData";
   static DELETE_DEVICE        : string = "deleteDevice";
@@ -95,7 +96,7 @@ export class Higher {
     return true;
   };
 
-  #storagePrefixes: string[] = [Higher.#GROUP];
+  #storagePrefixes: string[] = [Higher.#GROUP];   //FIX: take groups out of here?
   #onAuth  : () => void;
   #onUnauth: () => void;
   #turnEncryptionOff: boolean;
@@ -105,6 +106,7 @@ export class Higher {
   #localStorageWrapper: LocalStorageWrapper;
   #eventEmitter: EventEmitter;
   #demuxFunc;
+  #linkedGroupId: string;
 
   private constructor(
       // TODO type config
@@ -213,7 +215,7 @@ export class Higher {
       payload: payloadType,
       sender: string
   ) {
-    let permissionsOK = this.#checkPermissions(payload, sender);
+    let permissionsOK = this.#checkPermissions(payload, sender); //TODO
     if (this.#demuxFunc === undefined) {
       this.#printBadMessageError(payload.msgType);
       return;
@@ -236,6 +238,7 @@ export class Higher {
    ***********
    */
 
+   
   /**
    * Initializes a new device with a keypair and adds the public key to the
    * server.
@@ -247,25 +250,22 @@ export class Higher {
    * @private
    */
   async #initDevice(
-      linkedName?: string,
+      linkedName: string,
+      linkedId?: string,
       deviceName?: string
   ): Promise<{ idkey: string, linkedName: string }> {
     let idkey: string = await this.#core.olmWrapper.generateInitialKeys();
     console.log(idkey);
-  
-    // enforce that linkedName exists; deviceName is not necessary
-    if (!linkedName) {
-      linkedName = crypto.randomUUID();
-    }
+
     if (!deviceName) {
       deviceName = null;
     }
+    //add new group for device id
+    if (!linkedId){
+      let linkedId = Groups.newGroup(linkedName, true, [idkey]);
+    }
+    Groups.newKey(idkey, deviceName, linkedId);
 
-    this.#createGroup(Higher.#LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
-    this.#createGroup(linkedName, null, false, [Higher.#LINKED], [idkey], [linkedName], [linkedName]);
-    this.#createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName]);
-    this.#createGroup(Higher.#CONTACTS, null, false, [], [], [linkedName], [linkedName]);
-  
     return {
       idkey: idkey,
       linkedName: linkedName,
@@ -331,7 +331,7 @@ export class Higher {
    *
    * @private
    */
-  async #processUpdateLinkedRequest({
+  async #processUpdateLinkedRequest({ //TODO for refactor
       tempName,
       srcIdkey,
       newLinkedMembers
@@ -342,7 +342,7 @@ export class Higher {
   }) {
     if (confirm(`Authenticate new LINKED group member?\n\tName: ${tempName}`)) {
       // get linked idkeys to update
-      let linkedIdkeys: string[] = this.#resolveIDs([Higher.#LINKED]);
+      let linkedIdkeys: string[] = Groups.getDevices(this.#linkedGroupId);
       let linkedName: string = this.getLinkedName();
   
       /* UPDATE OLD SELF */
@@ -442,7 +442,7 @@ export class Higher {
    * @returns {string}
    */
   getLinkedName(): string {
-    return this.#getGroup(Higher.#LINKED)?.name ?? null;
+    return Groups.getGroup(Higher.#LINKED)?.name ?? null;
   }
 
   /**
@@ -489,8 +489,9 @@ export class Higher {
    */
   async #deleteDeviceLocally() {
     // notify all direct parents and contacts that this group should be removed
-    let idkey = this.#core.olmWrapper.getIdkey();
-    await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.#CONTACTS])));
+    // TODO impl pending state
+    let idkey =  this.#core.olmWrapper.getIdkey();
+    await Groups.deleteDevice(idkey);
     this.#localStorageWrapper.clear();
     this.#onUnauth();
   }
@@ -500,18 +501,14 @@ export class Higher {
       msgType: Higher.DELETE_DEVICE,
     });
   }
-  
-  async #deleteDevice(idkeys: string[]) {
-    await this.#deleteDeviceRemotely(idkeys);
-    // TODO impl pending state
-  }
 
   /**
    * Deletes the current device's data and removes it's public key from 
    * the server.
    */
   async deleteThisDevice() {
-    await this.#deleteDevice([this.#core.olmWrapper.getIdkey()]);
+    this.#deleteDeviceRemotely(this.getContacts())
+    await Groups.deleteDevice(this.#core.olmWrapper.getIdkey());
   }
   
   /**
@@ -520,14 +517,17 @@ export class Higher {
    * @param {string} idkey hex-formatted public key
    */
   async deleteLinkedDevice(idkey: string) {
-    await this.#deleteDevice([idkey]);
+    await Groups.deleteDevice(idkey);
   }
   
   /**
    * Deletes all devices that are children of this device's linked group.
    */
   async deleteAllLinkedDevices() {
-    await this.#deleteDevice(this.#resolveIDs([Higher.#LINKED]));
+    for (let g in Groups.getDevices(Higher.#LINKED)) {
+      Groups.deleteDevice(g);
+    }
+    
   }
 
   /**
@@ -536,7 +536,7 @@ export class Higher {
    * @returns {string[]}
    */
   getLinkedDevices(): string[] {
-    return this.#resolveIDs([Higher.#LINKED]);
+    return Groups.getDevices(Higher.#LINKED);
   }
 
   /*
@@ -1968,6 +1968,8 @@ export class Higher {
    *
    * @private
    */
+
+  // NEEDS TO BE MORE FLEXIBLE
   #checkPermissions(
       payload: payloadType,
       srcIdkey: string

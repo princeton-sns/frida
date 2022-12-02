@@ -15,37 +15,27 @@ const CONTACT_LEVEL: string = "contactLevel";
 const PARENTS: string = "parents";
 const CHILDREN: string = "children";
 
-type groupObjType = {
+export type groupObjType = {
     id: string,
     value: groupValType,
 };
 
-type groupValType = {
+export type groupValType = {
     name: string,
     contactLevel: boolean,
-    parents: string[],
+    parents?: string[],
     children?: string[],
 };
 
-class Key {
-    name: string;
-    contactLevel: boolean;
-    parents: string[];
-
-    constructor(name, contactLevel, parents, admins, writers) {
-        this.name = name;
-        this.contactLevel = contactLevel;
-        this.parents = parents;
-    }
-}
-
-class Group {
+export class Group {
+    id: string;
     name: string;
     contactLevel: boolean;
     parents: string[];
     children: string[];
 
-    constructor(name, contactLevel, parents, children) {
+    constructor(id, name, contactLevel, parents, children) {
+        this.id = id;
         this.name = name;
         this.contactLevel = contactLevel;
         this.parents = parents;
@@ -60,19 +50,42 @@ type storageObjType = {
 
 export class Groups {
 
-    static #PREFIX  : string = "__group";
-    #storageWrapper = LocalStorageWrapper;
+    static #PREFIX: string = "__group";
+    static #storageWrapper= new LocalStorageWrapper();
 
     /**
      * Allow groups to work on multiple storage types
      * @param storage 
      */
-    private constructor(storage) {
-        // this.#storageWrapper = storage;
+    private constructor() {}
+    
+    //FIX: overloading of the term
+    static #getKey(group: string): string {
+        return Groups.#PREFIX + "/" + group + "/";
     }
 
-    #getKey(group: string): string {
-        return Groups.#PREFIX + "/" + group + "/";
+    /**
+     * Group getter.
+     *
+     * @param {string} groupID ID of group to get
+     * @returns {Object}
+     *
+     */
+    static #getGroup(groupID: string): groupValType {
+        return this.#storageWrapper.get(this.#getKey(groupID));
+    }
+
+    /**
+     * Group setter.
+     *
+     * @param {string} groupID ID of group to set
+     * @param {Object} groupValue value to set group to
+     *
+     * @private
+     */
+
+    static #setGroup(groupID: string, groupValue: groupValType) {
+        this.#storageWrapper.set(this.#getKey(groupID), groupValue);
     }
 
     /**
@@ -83,11 +96,50 @@ export class Groups {
     *
     * @private
     */
-    #isKey(group: groupValType): boolean {
+    static #isDevice(group: groupValType): boolean {
         if (group.children) {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Create new group from list of ids 
+     * @param {string[]} ids group Ids to include in group 
+     * @return {string} group id of the newly created group
+     */
+    static newDevice(deviceId: string, name: string | undefined, parent?: string): string {
+        let newGroup = new Group(
+            deviceId,
+            name,
+            false,
+            null,
+            [parent],
+        )
+
+        this.#setGroup(deviceId, newGroup);
+        return deviceId;
+    }
+
+    /**
+     * Delete group from list of ids 
+     * @param {string[]} ids group Ids to include in group 
+     * @return {string} group id of the newly created group
+     */
+    static deleteDevice(deviceId: string): string{
+        let delDevice = this.#getGroup(deviceId);
+        for (let p in delDevice.parents) {
+            let parentGroup = this.#getGroup(p)
+            let newChildren: string[] = [];
+            for (let c in parentGroup.children) {
+                if (c != deviceId) {
+                    newChildren.push(c)
+                }
+            }
+            parentGroup.children = newChildren;
+            this.#setGroup(p, parentGroup);
+        }
+        return deviceId;
     }
 
     /**
@@ -97,27 +149,32 @@ export class Groups {
      *
      * @private
      */
-    #getNewGroupID(): string {
+    static #generateNewGroupId(): string {
         return crypto.randomUUID();
     }
+
 
     /**
      * Create new group from list of ids 
      * @param {string[]} ids group Ids to include in group 
      * @return {string} group id of the newly created group
      */
-    newGroup(name: string, contactLevel: boolean, ids: string[]): string {
-        let newGroupId = this.#getNewGroupID();
-        let newGroup = new Group (
+    static newGroup(name: string | null, contactLevel: boolean, ids: string[]): string {
+        let newGroupId = this.#generateNewGroupId();
+        let newGroup = new Group(
+            newGroupId,
             name,
             contactLevel,
             null,
             ids,
         )
 
-        this.#setGroup(newGroupId, newGroup);
+        for (let id in ids) {
+            let child = this.#getGroup(id);
+            child.parents.push(newGroupId);
+        }
 
-        // TODO: iterate over children and make sure to link this group as parent
+        this.#setGroup(newGroupId, newGroup);
         return newGroupId;
     }
 
@@ -127,35 +184,47 @@ export class Groups {
      * @param {string[]}  ids list of ideas to add to group
      * @returns {string} group id
      */
-    addToGroup(group: string, ids: string[]): string {
-        // TODO: write
-        return "hi"
+    static addToGroup(groupId: string, ids: string[]): string {
+        let group = this.#getGroup(groupId)
+        for (let id in ids) {
+            group.children?.push(id);
+            let child = this.#getGroup(id);
+            child.parents.push(groupId);
+        }
+
+        this.#setGroup(groupId, group);
+        return groupId;
     }
 
     /**
-     * Group getter.
-     *
-     * @param {string} groupID ID of group to get
-     * @returns {Object}
-     *
-     * @private
+     * Remove groups in the ids list to the group
+     * @param {string} group id of group to add ids to
+     * @param {string[]}  ids list of ideas to add to group
+     * @returns {string} group id
      */
-    getGroup(groupID: string): groupValType {
-        return this.#storageWrapper.get(this.#getKey(groupID));
+    static removeFromGroup(groupId: string, removeId: string): string {
+        let group = this.#getGroup(groupId)
+        let newChildren: string[] = []
+        for (let c in group.children) {
+            if (removeId != c) {
+                newChildren.push(c);
+            }
+        }
+
+        let removedGroup = this.#getGroup(removeId);
+        let newParents: string[] = [];
+        for (let p in removedGroup.parents) {
+            if (p != groupId) {
+                newParents.push(p)
+            }
+        }
+        removedGroup.parents = newParents;
+        
+        this.#setGroup(groupId, group);
+        this.#setGroup(removeId, removedGroup);
+        return groupId;
     }
-    /**
-     * Group setter.
-     *
-     * @param {string} groupID ID of group to set
-     * @param {Object} groupValue value to set group to
-     *
-     * @private
-     */
-    
-    setGroup(groupID: string, groupValue: groupValType) {
-        this.#storageWrapper.set(this.#getKey(groupID), groupValue);
-    }
-    
+
     /**
      * Group remover.
      *
@@ -163,13 +232,31 @@ export class Groups {
      *
      * @private
      */
-    removeGroup(groupID: string) {
+    static removeGroup(groupID: string) {
         this.#storageWrapper.remove(this.#getKey(groupID));
+        let removedGroup = this.#getGroup(groupID);
+        for (let p in removedGroup.parents) {
+            let parentGroup = this.#getGroup(p)
+            let newChildren : string[] = [];
+            for (let c in parentGroup.children){
+                if (c !=  groupID) {
+                    newChildren.push(c)
+                }
+            }
+            parentGroup.children = newChildren;
+            this.#setGroup(p, parentGroup)
+        }
     }
 
-    getDevices(groupId: string) : string[] {
-        return this.#resolveIDs([groupId]);
+    static getDevices(group: string | string[]): string[] {
+        if (typeof group === 'string'){
+            return this.#resolveIDs([group]);
+        }
+        else {
+            return this.#resolveIDs(group);
+        }
     }
+
     /**
      * Resolves a list of one or more group IDs to a list of public keys.
      *
@@ -177,12 +264,12 @@ export class Groups {
      * @return {string[]}
      *
      */
-    #resolveIDs(ids: string[]): string[] {
+    static #resolveIDs(ids: string[]): string[] {
         let idkeys = [];
         ids.forEach((id) => {
-            let group = this.getGroup(id);
+            let group = this.#getGroup(id);
             if (group !== null) {
-                if (this.#isKey(group)) {
+                if (this.#isDevice(group)) { //FIX: change to check if it has children
                     idkeys.push(id);
                 } else {
                     idkeys = idkeys.concat(this.#resolveIDs(group.children));

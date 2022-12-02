@@ -20,53 +20,11 @@
 import { EventEmitter } from "events";
 import { Core } from "../core/client";
 import { LocalStorageWrapper } from "./db/localStorageWrapper.js";
-/* doubly-linked tree, allows cycles */
-const NAME = "name";
-const CONTACT_LEVEL = "contactLevel";
-const PARENTS = "parents";
-const CHILDREN = "children";
-const ADMINS = "admins";
-const WRITERS = "writers";
-// readers list isn't necessary, any member that isn't an admin
-// or writer can be assumed to be a reader
-// TODO also deduplicate admins and writers (any writer who is also an
-// admin can _just_ exist in the admin group, since admin abilities are a
-// superset of writer abilities)
-class Key {
-    name;
-    contactLevel;
-    parents;
-    admins;
-    writers;
-    constructor(name, contactLevel, parents, admins, writers) {
-        this.name = name;
-        this.contactLevel = contactLevel;
-        this.parents = parents;
-        this.admins = admins;
-        this.writers = writers;
-    }
-}
-class Group {
-    name;
-    contactLevel;
-    parents;
-    children;
-    admins;
-    writers;
-    constructor(name, contactLevel, parents, children, admins, writers) {
-        this.name = name;
-        this.contactLevel = contactLevel;
-        this.parents = parents;
-        this.children = children;
-        this.admins = admins;
-        this.writers = writers;
-    }
-}
+import { Groups } from "./modules/groups";
 export class Higher {
     // TODO make variables private
     static #SLASH = "/";
     static #DATA = "__data";
-    static #GROUP = "__group";
     static #LINKED = "__linked";
     static #CONTACTS = "__contacts";
     static #OUTSTANDING_IDKEY = "__outstandingIdkey";
@@ -97,7 +55,7 @@ export class Higher {
             return false;
         return true;
     };
-    #storagePrefixes = [Higher.#GROUP];
+    #storagePrefixes = [Higher.#GROUP]; //FIX: take groups out of here?
     #onAuth;
     #onUnauth;
     #turnEncryptionOff;
@@ -107,6 +65,7 @@ export class Higher {
     #localStorageWrapper;
     #eventEmitter;
     #demuxFunc;
+    #linkedGroupId;
     constructor(
     // TODO type config
     config) {
@@ -190,7 +149,7 @@ export class Higher {
      *           srcIdkey: string }} msg message with encrypted contents
      */
     async #onMessage(payload, sender) {
-        let permissionsOK = this.#checkPermissions(payload, sender);
+        let permissionsOK = this.#checkPermissions(payload, sender); //TODO
         if (this.#demuxFunc === undefined) {
             this.#printBadMessageError(payload.msgType);
             return;
@@ -205,43 +164,6 @@ export class Higher {
         }
         console.log("SUCCESS");
         await this.#demuxFunc(payload);
-    }
-    /**
-     * Resolves a list of one or more group IDs to a list of public keys.
-     *
-     * @param {string[]} ids group IDs to resolve
-     * @return {string[]}
-     *
-     * @private
-     */
-    #resolveIDs(ids) {
-        let idkeys = [];
-        ids.forEach((id) => {
-            let group = this.#getGroup(id);
-            if (group !== null) {
-                if (this.#isKey(group)) {
-                    idkeys.push(id);
-                }
-                else {
-                    idkeys = idkeys.concat(this.#resolveIDs(group.children));
-                }
-            }
-        });
-        return idkeys;
-    }
-    /**
-     * Helper function for determining if resolveIDs has hit it's base case or not.
-     *
-     * @param {Object} group a group
-     * @returns {boolean}
-     *
-     * @private
-     */
-    #isKey(group) {
-        if (group.children) {
-            return false;
-        }
-        return true;
     }
     /*
      ***********
@@ -258,20 +180,17 @@ export class Higher {
      *
      * @private
      */
-    async #initDevice(linkedName, deviceName) {
+    async #initDevice(linkedName, linkedId, deviceName) {
         let idkey = await this.#core.olmWrapper.generateInitialKeys();
         console.log(idkey);
-        // enforce that linkedName exists; deviceName is not necessary
-        if (!linkedName) {
-            linkedName = crypto.randomUUID();
-        }
         if (!deviceName) {
             deviceName = null;
         }
-        this.#createGroup(Higher.#LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
-        this.#createGroup(linkedName, null, false, [Higher.#LINKED], [idkey], [linkedName], [linkedName]);
-        this.#createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName]);
-        this.#createGroup(Higher.#CONTACTS, null, false, [], [], [linkedName], [linkedName]);
+        //add new group for device id
+        if (!linkedId) {
+            let linkedId = Groups.newGroup(linkedName, true, [idkey]);
+        }
+        Groups.newKey(idkey, deviceName, linkedId);
         return {
             idkey: idkey,
             linkedName: linkedName,
@@ -327,10 +246,11 @@ export class Higher {
      *
      * @private
      */
-    async #processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
+    async #processUpdateLinkedRequest({ //TODO for refactor
+    tempName, srcIdkey, newLinkedMembers }) {
         if (confirm(`Authenticate new LINKED group member?\n\tName: ${tempName}`)) {
             // get linked idkeys to update
-            let linkedIdkeys = this.#resolveIDs([Higher.#LINKED]);
+            let linkedIdkeys = Groups.getDevices(this.#linkedGroupId);
             let linkedName = this.getLinkedName();
             /* UPDATE OLD SELF */
             // replace all occurrences of tempName with linkedName
@@ -412,7 +332,7 @@ export class Higher {
      * @returns {string}
      */
     getLinkedName() {
-        return this.#getGroup(Higher.#LINKED)?.name ?? null;
+        return Groups.getGroup(Higher.#LINKED)?.name ?? null;
     }
     /**
      * Initializes device and its linked group.
@@ -450,8 +370,9 @@ export class Higher {
      */
     async #deleteDeviceLocally() {
         // notify all direct parents and contacts that this group should be removed
+        // TODO impl pending state
         let idkey = this.#core.olmWrapper.getIdkey();
-        await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.#CONTACTS])));
+        await Groups.deleteDevice(idkey);
         this.#localStorageWrapper.clear();
         this.#onUnauth();
     }
@@ -460,16 +381,13 @@ export class Higher {
             msgType: Higher.DELETE_DEVICE,
         });
     }
-    async #deleteDevice(idkeys) {
-        await this.#deleteDeviceRemotely(idkeys);
-        // TODO impl pending state
-    }
     /**
      * Deletes the current device's data and removes it's public key from
      * the server.
      */
     async deleteThisDevice() {
-        await this.#deleteDevice([this.#core.olmWrapper.getIdkey()]);
+        this.#deleteDeviceRemotely(this.getContacts());
+        await Groups.deleteDevice(this.#core.olmWrapper.getIdkey());
     }
     /**
      * Deletes the device pointed to by idkey.
@@ -477,13 +395,15 @@ export class Higher {
      * @param {string} idkey hex-formatted public key
      */
     async deleteLinkedDevice(idkey) {
-        await this.#deleteDevice([idkey]);
+        await Groups.deleteDevice(idkey);
     }
     /**
      * Deletes all devices that are children of this device's linked group.
      */
     async deleteAllLinkedDevices() {
-        await this.#deleteDevice(this.#resolveIDs([Higher.#LINKED]));
+        for (let g in Groups.getDevices(Higher.#LINKED)) {
+            Groups.deleteDevice(g);
+        }
     }
     /**
      * Linked group getter.
@@ -491,7 +411,7 @@ export class Higher {
      * @returns {string[]}
      */
     getLinkedDevices() {
-        return this.#resolveIDs([Higher.#LINKED]);
+        return Groups.getDevices(Higher.#LINKED);
     }
     /*
      ************
@@ -867,20 +787,6 @@ export class Higher {
      *****************
      */
     /**
-     * Wrapper function for assigning a group ID to a group object consisting
-     * of a name and children list.
-     *
-     * @param {string} ID group ID
-     * @param {string} name human-readable name
-     * @param {string[]} parents groups that point to this group
-     * @param {string[]} children groups that this group points to
-     *
-     * @private
-     */
-    #createGroup(ID, name, contactLevel, parents, children, admins, writers) {
-        this.#setGroup(ID, new Group(name, contactLevel, parents, children, admins, writers));
-    }
-    /**
      * Wrapper function for assigning a key ID to a key object consisting
      * of a name.
      *
@@ -892,17 +798,6 @@ export class Higher {
      */
     #createKey(ID, name, contactLevel, parents, admins, writers) {
         this.#setGroup(ID, new Key(name, contactLevel, parents, admins, writers));
-    }
-    /**
-     * Group getter.
-     *
-     * @param {string} groupID ID of group to get
-     * @returns {Object}
-     *
-     * @private
-     */
-    #getGroup(groupID) {
-        return this.#localStorageWrapper.get(this.#getDataKey(Higher.#GROUP, groupID));
     }
     /**
      * Gets all groups on current device.
@@ -939,27 +834,6 @@ export class Higher {
             }
         });
         return groups;
-    }
-    /**
-     * Group setter.
-     *
-     * @param {string} groupID ID of group to set
-     * @param {Object} groupValue value to set group to
-     *
-     * @private
-     */
-    #setGroup(groupID, groupValue) {
-        this.#localStorageWrapper.set(this.#getDataKey(Higher.#GROUP, groupID), groupValue);
-    }
-    /**
-     * Group remover.
-     *
-     * @param {string} groupID ID of group to remove
-     *
-     * @private
-     */
-    #removeGroup(groupID) {
-        this.#localStorageWrapper.remove(this.#getDataKey(Higher.#GROUP, groupID));
     }
     /**
      * Updates group with new value.
@@ -1541,16 +1415,6 @@ export class Higher {
      *************************
      */
     /**
-     * Randomly generates a new group ID.
-     *
-     * @returns {string}
-     *
-     * @private
-     */
-    #getNewGroupID() {
-        return crypto.randomUUID();
-    }
-    /**
      * Shares data item by creating new group that subsumes both it's
      * current group and the new group to share with (commonly, a contact's
      * name). Then propagates the new group info to all members of that
@@ -1759,6 +1623,7 @@ export class Higher {
      *
      * @private
      */
+    // NEEDS TO BE MORE FLEXIBLE
     #checkPermissions(payload, srcIdkey) {
         let permissionsOK = false;
         // no reader checks, any device that gets data should correctly be a reader

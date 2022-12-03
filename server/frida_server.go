@@ -432,10 +432,10 @@ func (server *Server) serveEvents(rw http.ResponseWriter, req *http.Request) {
 		switch msg.(type) {
 		case *OutgoingMessage:
 			fmt.Fprintf(rw, "event: msg\ndata: %v\n\n", buf.String())
-			fmt.Printf("data: %v\n", buf.String())
+			// fmt.Printf("data: %v\n", buf.String())
 		case *NeedsOneTimeKeyEvent:
 			fmt.Fprintf(rw, "event: otkey\ndata: %v\n\n", buf.String())
-			fmt.Printf("event: otkey\ndata: %v\n", buf.String())
+			// fmt.Printf("event: otkey\ndata: %v\n", buf.String())
 		}
 		// Flush the data immediatly instead of buffering it for later.
 		flusher.Flush()

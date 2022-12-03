@@ -1,26 +1,23 @@
 all:
   vars:
-    noise_git_rev: 7f6b83df8a7abe8a7e9e3569edb9f1203b34fcb2
+    noise_git_rev: 8dbc34af775bfd0810b10be6128077ee06059ba3
   hosts:
   children:
     noise-server:
       hosts:
-        ms0334.utah.cloudlab.us:
+        ms0633.utah.cloudlab.us:
           internal_hostname: node0
 
     noise-client:
       vars:
         server_url: "http://node0:8080/"
       hosts:
-        ms0336.utah.cloudlab.us:
+        ms0642.utah.cloudlab.us:
           internal_hostname: node1
-        ms0315.utah.cloudlab.us:
+        ms0639.utah.cloudlab.us:
           internal_hostname: node2
-        ms0320.utah.cloudlab.us:
-          internal_hostname: node3
-        ms0340.utah.cloudlab.us:
-          internal_hostname: node4
+
 
     experiment-node:
       hosts:
-        ms0334.utah.cloudlab.us:
+        ms0633.utah.cloudlab.us:

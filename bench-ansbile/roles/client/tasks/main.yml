@@ -1,5 +1,7 @@
-- name: Build the noise go benchmark client
+- name: Build the noise go benchmark client/servers
   shell: |
     . /etc/profile.d/gopath.sh
+    cd /mydata/localuser/frida/server
+    go build
     cd /mydata/localuser/frida/experiments/throughput_bench
     go build -o client

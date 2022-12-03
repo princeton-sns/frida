@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
-
+	"io/ioutil"
 	"github.com/r3labs/sse/v2"
 )
 
@@ -69,23 +69,25 @@ var numTail uint64
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
-	req.Close = true
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
 		"Authorization": {"Bearer " + deviceId},
 	}
 	resp, err := httpClient.Do(req)
+	defer resp.Body.Close()
 
 	if err != nil {
 		panic(err)
 	}
+
+	ioutil.ReadAll(resp.Body)
 	return resp
 }
 
 func sendTo(ids []string, cseqID uint64) {
 	batch := new(Batch)
 	for _, id := range ids {
-		body := ""
+		body := msgContent
 		msg := OutgoingMessage{id, body}
 		batch.Batch = append(batch.Batch, msg)
 	}
@@ -128,9 +130,7 @@ func main() {
 	} else {
 		serverAddr = os.Args[5]
 	}
-
-	keepout, _ = strconv.ParseInt(os.Args[3], 10, 0)
-
+	
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + deviceId
 
@@ -145,9 +145,9 @@ func main() {
 
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
-			var msgContent IncomingMessage
-			json.Unmarshal([]byte(msg.Data), &msgContent)
-			atomic.StoreUint64(&maxSeq, msgContent.SeqID)
+			var incomingMsgContent IncomingMessage
+			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
+			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
 	})
 

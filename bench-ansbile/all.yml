@@ -16,6 +16,7 @@
   roles:
     - role: local_user
       become: yes
+      become_user: localuser
     - role: base
       become: yes
       become_user: localuser

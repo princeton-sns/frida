@@ -9,6 +9,7 @@ import (
 	"time"
 	"os"
 	"strconv"
+	"io/ioutil"
 )
 
 type OutgoingMessage struct {
@@ -71,10 +72,13 @@ func req(reqType string, jsonStr []byte, path string) (*http.Response){
 		"Authorization": {"Bearer " + deviceId},
 	}
 	resp, err := httpClient.Do(req)
+	defer resp.Body.Close()
 
 	if err != nil {
         panic(err)
     }
+
+	ioutil.ReadAll(resp.Body)
 	return resp
 }
 
@@ -148,6 +152,8 @@ func main() {
 
 	// finish := make(chan bool)
 	httpClient = &http.Client{}
+	defer httpClient.CloseIdleConnections()
+
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		recvCount += 1
 		// func(){

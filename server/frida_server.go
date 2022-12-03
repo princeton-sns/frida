@@ -5,6 +5,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
+	"sort"
+
+	//"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -14,29 +18,31 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
+const LOCK_BUCKETS int = 1000
+
 // Single message format from sender
 type IncomingMessage struct {
-	DeviceId string `json:"deviceId"`
+	DeviceId string      `json:"deviceId"`
 	Payload  interface{} `json:"payload"`
 	// ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
 
 // Single message format for receiver
 type OutgoingMessage struct {
-	Sender   string `json:"sender"`
-	Payload  interface{} `json:"encPayload"`
-	SeqID    uint64 `json:"seqID"`
+	Sender  string      `json:"sender"`
+	Payload interface{} `json:"encPayload"`
+	SeqID   uint64      `json:"seqID"`
 	// ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
 
 // Internal message format for moving between sender and notification handler
 type Message struct {
 	To       string
-	Outgoing  OutgoingMessage
+	Outgoing OutgoingMessage
 }
 
-type Event interface {}
-type Notification interface {}
+type Event interface{}
+type Notification interface{}
 
 type MessageEvent struct {
 	Messages []*Message
@@ -45,7 +51,7 @@ type MessageEvent struct {
 
 type NeedsOneTimeKeyEvent struct {
 	DeviceId string `json:"deviceId"`
-	Needs    uint `json:"needs"`
+	Needs    uint   `json:"needs"`
 }
 
 type ClientChan struct {
@@ -55,6 +61,7 @@ type ClientChan struct {
 
 type MessageStorage struct {
 	lock  sync.Mutex
+	locks map[int]*sync.Mutex
 	db    *pebble.DB
 }
 
@@ -84,6 +91,10 @@ func NewServer(db *pebble.DB) (server *Server) {
 		clients:        make(map[string]chan Notification),
 	}
 	server.MessageStorage.db = db
+	server.MessageStorage.locks = make(map[int]*sync.Mutex)
+	for i := 0; i <= LOCK_BUCKETS; i++ {
+		server.MessageStorage.locks[i] = new(sync.Mutex)
+	}
 
 	// Set it running - listening and broadcasting events
 	go server.listen()
@@ -149,9 +160,11 @@ func (server *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 //
 // Returns the one-time-key's public key in the dictionary:
 // ```
-// {
-//   "otkey": "somepublickey"
-// }
+//
+//	{
+//	  "otkey": "somepublickey"
+//	}
+//
 // ```
 func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
 	deviceId, e := url.QueryUnescape(req.URL.Query().Get("device_id"))
@@ -166,7 +179,7 @@ func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
 
 	prefix := append(append([]byte("otkeys/"), []byte(deviceId)...), 0)
 	batch := server.MessageStorage.db.NewIndexedBatch()
-	iter := batch.NewIter(&pebble.IterOptions {
+	iter := batch.NewIter(&pebble.IterOptions{
 		LowerBound: prefix,
 		UpperBound: append(append([]byte("otkeys/"), []byte(deviceId)...), 1),
 	})
@@ -176,11 +189,11 @@ func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
 		type OneTimeKey struct {
 			Otkey string `json:"otkey"`
 		}
-		otkey := OneTimeKey {
+		otkey := OneTimeKey{
 			Otkey: string(iter.Value()),
 		}
 		json.NewEncoder(rw).Encode(&otkey)
-		batch.Delete(iter.Key(), pebble.Sync)
+		batch.Delete(iter.Key(), pebble.NoSync)
 		count := 0
 		for ; iter.Next(); iter.Valid() {
 			count += 1
@@ -189,19 +202,19 @@ func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if count < 10 {
-			server.Notifier <- &NeedsOneTimeKeyEvent {
+			server.Notifier <- &NeedsOneTimeKeyEvent{
 				DeviceId: deviceId,
-				Needs: 20,
+				Needs:    20,
 			}
 		}
 	} else {
-		server.Notifier <- &NeedsOneTimeKeyEvent {
+		server.Notifier <- &NeedsOneTimeKeyEvent{
 			DeviceId: deviceId,
-			Needs: 20,
+			Needs:    20,
 		}
 		http.Error(rw, "Not Found", http.StatusNotFound)
 	}
-	batch.Commit(pebble.Sync)
+	batch.Commit(pebble.NoSync)
 
 }
 
@@ -227,10 +240,10 @@ func (server *Server) addOneTimeKeys(rw http.ResponseWriter, req *http.Request) 
 
 	prefix := append(append([]byte("otkeys/"), []byte(deviceId)...), 0)
 	for keyId, publicKey := range keys {
-		batch.Set(append(prefix, []byte(keyId)...), []byte(publicKey), pebble.Sync)
+		batch.Set(append(prefix, []byte(keyId)...), []byte(publicKey), pebble.NoSync)
 	}
 
-	batch.Commit(pebble.Sync)
+	batch.Commit(pebble.NoSync)
 	json.NewEncoder(rw).Encode(keys)
 }
 
@@ -248,8 +261,8 @@ func (server *Server) deleteMessages(rw http.ResponseWriter, req *http.Request) 
 	type ToDelete struct {
 		SeqID uint64 `json:"seqID"`
 	}
-	var td ToDelete;
-	e := json.NewDecoder(req.Body).Decode(&td);
+	var td ToDelete
+	e := json.NewDecoder(req.Body).Decode(&td)
 	if e != nil {
 		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
 		return
@@ -261,7 +274,7 @@ func (server *Server) deleteMessages(rw http.ResponseWriter, req *http.Request) 
 	binary.LittleEndian.PutUint64(seqBin, td.SeqID)
 	lowerBound := append([]byte(deviceId), 0)
 	upperBound := append(lowerBound, seqBin...)
-	e = server.MessageStorage.db.DeleteRange(lowerBound, upperBound, pebble.Sync)
+	e = server.MessageStorage.db.DeleteRange(lowerBound, upperBound, pebble.NoSync)
 	if e != nil {
 		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
 		return
@@ -274,11 +287,13 @@ func (server *Server) deleteMessages(rw http.ResponseWriter, req *http.Request) 
 // Returns the current device's mailbox as a JSON list of messages with sequentIDs and senders:
 //
 // ```
-// [ {
-//   "seqID": 1234,
-//   "sender": "someDeviceId",
-//   "encPayload": "youcan'treadme!"
-// } ]
+//
+//	[ {
+//	  "seqID": 1234,
+//	  "sender": "someDeviceId",
+//	  "encPayload": "youcan'treadme!"
+//	} ]
+//
 // ```
 func (server *Server) getMessages(rw http.ResponseWriter, req *http.Request) {
 	authHeader := req.Header.Get("Authorization")
@@ -289,7 +304,7 @@ func (server *Server) getMessages(rw http.ResponseWriter, req *http.Request) {
 	deviceId := strings.TrimSpace(authHeader[7:])
 
 	snapshot := server.MessageStorage.db.NewSnapshot()
-	iter := snapshot.NewIter(&pebble.IterOptions {
+	iter := snapshot.NewIter(&pebble.IterOptions{
 		LowerBound: append([]byte(deviceId), 0),
 		UpperBound: append([]byte(deviceId), 1),
 	})
@@ -308,11 +323,13 @@ func (server *Server) getMessages(rw http.ResponseWriter, req *http.Request) {
 // Expects the body of the function to be a JSON object of the format:
 //
 // ```
-// {
-//   "batch": [
-//     { "deviceId": "someid", "payload": "encryptedBlob" }
-//   ]
-// }
+//
+//	{
+//	  "batch": [
+//	    { "deviceId": "someid", "payload": "encryptedBlob" }
+//	  ]
+//	}
+//
 // ```
 //
 // Returns whatever
@@ -334,24 +351,41 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	server.MessageStorage.lock.Lock()
-	batch := server.MessageStorage.db.NewIndexedBatch()
+	lockIds := make(map[int]bool)
+	for _, msg := range msgs.Batch {
+		h := fnv.New32a()
+		h.Write([]byte(msg.DeviceId))
+		lockIds[int(h.Sum32())%LOCK_BUCKETS] = true
+	}
+
+	locks := []int{}
+	for k := range lockIds {
+		locks = append(locks, k)
+	}
+	sort.Ints(locks)
+
+	for _, i := range locks {
+		server.MessageStorage.locks[i].Lock()
+	}
+
 	var seqID uint64 = 0
+
+	batch := server.MessageStorage.db.NewIndexedBatch()
 	var newSeqCount []byte
 	seqCount, closer, e := batch.Get([]byte{0})
 	if e == nil {
 		seqID = binary.LittleEndian.Uint64(seqCount)
 		closer.Close()
 		newSeqCount = make([]byte, 8)
-		binary.LittleEndian.PutUint64(newSeqCount, seqID + 1)
+		binary.LittleEndian.PutUint64(newSeqCount, seqID+1)
 	} else {
 		seqCount = make([]byte, 8)
 		binary.LittleEndian.PutUint64(seqCount, seqID)
 
 		newSeqCount = make([]byte, 8)
-		binary.LittleEndian.PutUint64(newSeqCount, seqID + 1)
+		binary.LittleEndian.PutUint64(newSeqCount, seqID+1)
 	}
-	batch.Set([]byte{0}, newSeqCount, pebble.Sync)
+	batch.Set([]byte{0}, newSeqCount, pebble.NoSync)
 	var tmsgs []*Message
 	for _, msg := range msgs.Batch {
 		tmsg := Message{}
@@ -366,13 +400,16 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 		k := append(append([]byte(msg.DeviceId), 0), seqCount...)
 		msgStorage, _ := json.Marshal(&tmsg.Outgoing)
-		batch.Set(k, msgStorage, pebble.Sync)
+		batch.Set(k, msgStorage, pebble.NoSync)
 	}
-	batch.Commit(pebble.Sync)
-	event := MessageEvent{Messages: tmsgs, SeqID: seqID}
 
+	batch.Commit(pebble.Sync)
+	for i := len(locks) - 1; i >= 0; i-- {
+		server.MessageStorage.locks[locks[i]].Unlock()
+	}
+
+	event := MessageEvent{Messages: tmsgs, SeqID: seqID}
 	server.Notifier <- &event
-	server.MessageStorage.lock.Unlock()
 	rw.Write([]byte("{}"))
 }
 
@@ -419,7 +456,6 @@ func (server *Server) serveEvents(rw http.ResponseWriter, req *http.Request) {
 		server.closingClients <- deviceId
 	}()
 
-
 	for {
 		// Write to the ResponseWriter
 		// Server Sent Events compatible
@@ -432,10 +468,10 @@ func (server *Server) serveEvents(rw http.ResponseWriter, req *http.Request) {
 		switch msg.(type) {
 		case *OutgoingMessage:
 			fmt.Fprintf(rw, "event: msg\ndata: %v\n\n", buf.String())
-			// fmt.Printf("data: %v\n", buf.String())
+			//fmt.Printf("data: %v\n", buf.String())
 		case *NeedsOneTimeKeyEvent:
 			fmt.Fprintf(rw, "event: otkey\ndata: %v\n\n", buf.String())
-			// fmt.Printf("event: otkey\ndata: %v\n", buf.String())
+			//fmt.Printf("event: otkey\ndata: %v\n", buf.String())
 		}
 		// Flush the data immediatly instead of buffering it for later.
 		flusher.Flush()
@@ -456,7 +492,7 @@ func (server *Server) listen() {
 			func() {
 				prefix := append(append([]byte("otkeys/"), []byte(s.DeviceId)...), 0)
 				batch := server.MessageStorage.db.NewIndexedBatch()
-				iter := batch.NewIter(&pebble.IterOptions {
+				iter := batch.NewIter(&pebble.IterOptions{
 					LowerBound: prefix,
 					UpperBound: append(append([]byte("otkeys/"), []byte(s.DeviceId)...), 1),
 				})
@@ -467,12 +503,13 @@ func (server *Server) listen() {
 						break
 					}
 				}
+
 				batch.Commit(pebble.NoSync)
 
 				if count < 10 {
-					s.Channel <- &NeedsOneTimeKeyEvent {
+					s.Channel <- &NeedsOneTimeKeyEvent{
 						DeviceId: s.DeviceId,
-						Needs: 20,
+						Needs:    20,
 					}
 				}
 			}()
@@ -481,7 +518,7 @@ func (server *Server) listen() {
 			func() {
 				prefix := append([]byte(s.DeviceId), 0)
 				batch := server.MessageStorage.db.NewIndexedBatch()
-				iter := batch.NewIter(&pebble.IterOptions {
+				iter := batch.NewIter(&pebble.IterOptions{
 					LowerBound: prefix,
 					UpperBound: append([]byte(s.DeviceId), 1),
 				})

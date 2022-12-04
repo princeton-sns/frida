@@ -56,14 +56,20 @@ var duration int64
 
 var keepout int64
 
-var startTime int64
-
 var httpClient *http.Client
 
 // var record bool = false;
 
 var numHead uint64
 var numTail uint64
+
+var latencies []int64;
+
+var msgPerSecond int64;
+
+var startRec int64;
+
+var sendTimestamp int64;
 
 // var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
@@ -107,6 +113,7 @@ func now() int64 {
 
 func main() {
 	deviceId = os.Args[1]
+	
 	if len(os.Args) < 3 {
 		duration = 3
 	} else {
@@ -130,6 +137,12 @@ func main() {
 	} else {
 		serverAddr = os.Args[5]
 	}
+
+	if len(os.Args) < 7 {
+		msgPerSecond = 5
+	} else {
+		msgPerSecond, _ = strconv.ParseInt(os.Args[6], 10, 0)
+	}
 	
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + deviceId
@@ -140,9 +153,11 @@ func main() {
 	var maxSeq uint64
 	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
+		if(atomic.LoadInt64(&startRec) == 1){
+			latencies = append(latencies, now() - atomic.LoadInt64(&sendTimestamp))
+		}
 		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
-
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
@@ -155,28 +170,41 @@ func main() {
 
 	var id uint64
 
-	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 
-	go func() {
-		<-timerHead.C
-		numHead = atomic.AddUint64(&recvCount, 1)
-	}()
+	// go func() {
+	// 	<-timerHead.C
+	// 	numHead = atomic.AddUint64(&recvCount, 1)
+	// }()
+	atomic.StoreInt64(&startRec, 0)
+	delete_tick := time.Tick(10 * time.Second)
 
-	tick := time.Tick(10 * time.Second)
+	send_tick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
 	for {
 		select {
+		case <- timerHead.C:
+			numHead = atomic.AddUint64(&recvCount, 1)
+			atomic.StoreInt64(&startRec, 1)
 		case <-timerTail.C:
+			atomic.StoreInt64(&startRec, 0)
 			numTail = (atomic.AddUint64(&recvCount, 1) - 1) - numHead
-			fmt.Printf("%v, %v\n", deviceId, float32(numTail)/float32(duration-2*keepout))
+			var sum int64 = 0
+			for _, lat := range latencies{
+				sum += lat
+			}
+
+			fmt.Printf("%v, throughput: %v\n", deviceId, float32(numTail)/float32(duration-2*keepout))
+			fmt.Printf("%v, latency: %v\n", deviceId, float32(sum)/float32(len(latencies)))
 			delete(maxSeq)
 			return
-		case <-tick:
+		case <-delete_tick:
 			delete(atomic.LoadUint64(&maxSeq))
-		default:
+		// default:
+		case <-send_tick:
+			atomic.StoreInt64(&sendTimestamp, now())
 			sendTo(listToSend, id)
 			<-messageReceived
 		}

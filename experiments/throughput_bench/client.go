@@ -136,11 +136,11 @@ func main() {
 
 	msgContent = string(make([]byte, msgSize))
 
-	messageReceived := make(chan int, 1000)
+	// messageReceived := make(chan int, 1000)
 	var maxSeq uint64
 	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
-		messageReceived <- 1
+		// messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
 
 		msgType := string([]byte(msg.Event))
@@ -178,7 +178,7 @@ func main() {
 			delete(atomic.LoadUint64(&maxSeq))
 		default:
 			sendTo(listToSend, id)
-			<-messageReceived
+			// <-messageReceived
 		}
 	}
 }

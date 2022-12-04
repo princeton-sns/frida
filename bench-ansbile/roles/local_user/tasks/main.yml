@@ -1,4 +1,6 @@
 - name: Create build and benchmark user
+  become: yes
+  become_user: root
   ansible.builtin.user:
     name: localuser
     comment: Local user with ephemeral home directory

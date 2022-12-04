@@ -32,3 +32,19 @@
     name: acl
     state: present
     update_cache: yes
+
+- name: Download htop
+  become: yes
+  become_user: root
+  apt:
+    name: htop
+    state: present
+    update_cache: yes
+  
+- name: Download nload
+  become: yes
+  become_user: root
+  apt:
+    name: nload
+    state: present
+    update_cache: yes

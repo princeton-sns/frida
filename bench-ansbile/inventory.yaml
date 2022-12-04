@@ -1,39 +1,58 @@
 all:
   vars:
-    noise_git_rev:  4b2b49def7ffec5f1613bfb03b494fed16face1c
+    noise_git_rev:  9c3d1dd2865e25ffae4a265bf53f5180ec84424f
   hosts:
   children:
     noise-server:
       hosts:
-        ms0329.utah.cloudlab.us:
+        ms0410.utah.cloudlab.us:
           internal_hostname: node0
 
     noise-client:
       vars:
         server_url: "http://node0:8080/"
       hosts:
-        ms0316.utah.cloudlab.us:
+        ms0411.utah.cloudlab.us:
           internal_hostname: node1
-        ms0323.utah.cloudlab.us:
+        ms0404.utah.cloudlab.us:
           internal_hostname: node2
-        ms0319.utah.cloudlab.us:
+        ms0445.utah.cloudlab.us:
           internal_hostname: node3
-        ms0332.utah.cloudlab.us:
+        ms0416.utah.cloudlab.us:
           internal_hostname: node4
-        ms0337.utah.cloudlab.us:
+        ms0415.utah.cloudlab.us:
           internal_hostname: node5
-        ms0333.utah.cloudlab.us:
+        ms0420.utah.cloudlab.us:
           internal_hostname: node6
-        ms0320.utah.cloudlab.us:
+        ms0401.utah.cloudlab.us:
           internal_hostname: node7
-        ms0339.utah.cloudlab.us:
+        ms0439.utah.cloudlab.us:
           internal_hostname: node8
-        ms0325.utah.cloudlab.us:
+        ms0419.utah.cloudlab.us:
           internal_hostname: node9
-        ms0335.utah.cloudlab.us:
+        ms0442.utah.cloudlab.us:
           internal_hostname: node10
-
+        ms0417.utah.cloudlab.us:
+          internal_hostname: node11
+        ms0438.utah.cloudlab.us:
+          internal_hostname: node12
+        ms0443.utah.cloudlab.us:
+          internal_hostname: node13
+        ms0405.utah.cloudlab.us:
+          internal_hostname: node14
+        ms0429.utah.cloudlab.us:
+          internal_hostname: node15
+        ms0427.utah.cloudlab.us:
+          internal_hostname: node16
+        ms0418.utah.cloudlab.us:
+          internal_hostname: node17
+        ms0413.utah.cloudlab.us:
+          internal_hostname: node18
+        ms0432.utah.cloudlab.us:
+          internal_hostname: node19
+        ms0431.utah.cloudlab.us:
+          internal_hostname: node20
 
     experiment-node:
       hosts:
-        ms0335.utah.cloudlab.us:
+        ms0431.utah.cloudlab.us:

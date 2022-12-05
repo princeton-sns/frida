@@ -140,11 +140,11 @@ func main() {
 	var maxSeq uint64
 	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
-		messageReceived <- 1
+		
 		atomic.AddUint64(&recvCount, 1)
-
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
+			messageReceived <- 1
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)

@@ -6,9 +6,10 @@ duration=$3
 keepout=$4
 datasize=$5
 server=$6
+throughput=$7
 
 for (( id=0; id<$nclients; id++ ))
 do
-        ./client ${name}_$id $duration $keepout $datasize $server &
+        ./client ${name}_$id $duration $keepout $datasize $server $throughput &
 done
 wait

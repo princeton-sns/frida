@@ -5,3 +5,5 @@
     go build
     cd /mydata/localuser/frida/experiments/throughput_bench
     go build -o client
+    cd /mydata/localuser/frida/experiments/latency_bench
+    go build -o client

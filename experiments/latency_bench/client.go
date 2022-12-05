@@ -156,10 +156,10 @@ func main() {
 		if(atomic.LoadInt64(&startRec) == 1){
 			latencies = append(latencies, now() - atomic.LoadInt64(&sendTimestamp))
 		}
-		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
+			messageReceived <- 1
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
@@ -196,8 +196,7 @@ func main() {
 				sum += lat
 			}
 
-			fmt.Printf("%v, throughput: %v\n", deviceId, float32(numTail)/float32(duration-2*keepout))
-			fmt.Printf("%v, latency: %v\n", deviceId, float32(sum)/float32(len(latencies)))
+			fmt.Printf("%v, %v, %v, %v\n", deviceId, float32(numTail)/float32(duration-2*keepout), (float32(sum) / 1000)/float32(len(latencies)), len(latencies))
 			delete(maxSeq)
 			return
 		case <-delete_tick:

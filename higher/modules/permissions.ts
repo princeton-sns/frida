@@ -8,32 +8,32 @@ import { LocalStorageWrapper } from "../db/localStorageWrapper.js";
  *  or else have to introduce more logic here
  *  but readers don't necessarily have to know about
  *  all other readers
- *  */ 
+ *  */
 export type permissionField = {
-    admin: string,
+    admin: string
     write: string,
-    read: string,
+    read: string[],
 }
 
 export class Permissions {
 
     #linkedGroupId: string = "";
-    #storageWrapper = new LocalStorageWrapper();
+    static #storageWrapper = new LocalStorageWrapper();
 
 
     constructor(linkedGroup, storage) {
         this.#linkedGroupId = linkedGroup;
-        this.#storageWrapper = storage;
+        // this.#storageWrapper = storage;
 
         //TODO: support not just admin, write, read privileges
         //can be developer defined 
     }
 
-    #getPermissions(objectKey): permissionField {
+    static #getPermissions(objectKey): permissionField {
         return this.#storageWrapper.get(objectKey).perms;
     }
 
-    #setPermissions(objectKey, permissionField) {
+    static #setPermissions(objectKey, permissionField) {
         let object = this.#storageWrapper.get(objectKey);
         object.perms = permissionField;
         this.#storageWrapper.set(objectKey, object)
@@ -43,92 +43,191 @@ export class Permissions {
     // like setGroup(permField, groupId)
 
     /**
-     * Assigns GroupId to readers in permissions
+     * Append GroupId to readers in permissions
      * @param objectKey 
      * @param groupId 
      */
 
-    setReadGroup(objectKey, groupId) {
+    static addReader(objectKey, groups: string[]) {
         let perms = this.#getPermissions(objectKey);
 
-        let newPerms : permissionField = {
+        let newPerms: permissionField = {
             admin: perms.admin,
             write: perms.write,
-            read: groupId,
-        };     
-
-        this.#setPermissions(objectKey, newPerms);
-
-    }
-
-    /**
-     * Assigns GroupId to readers in permissions
-     * @param objectKey 
-     * @param groupId 
-     */
-
-    setWriteGroup(objectKey, groupId) {
-        let perms = this.#getPermissions(objectKey);
-
-        let newPerms : permissionField = {
-            admin: perms.admin,
-            write: groupId,
-            read: perms.read,
-        };     
+            read: perms.read.concat(groups),
+        };
 
         this.#setPermissions(objectKey, newPerms);
     }
 
     /**
-     * Assigns GroupId to readers in permissions
+     * Append GroupId to readers in permissions
      * @param objectKey 
      * @param groupId 
      */
 
-    setAdminGroup(objectKey, groupId) {
+    static addWriter(objectKey, groups: string[]) {
         let perms = this.#getPermissions(objectKey);
 
-        let newPerms : permissionField = {
-            admin: groupId,
-            write: perms.write,
+        let writers = [perms.write].concat(groups)
+        let newWriteGroup = Groups.newGroup(undefined, false, writers)
+        let newPerms: permissionField = {
+            admin: perms.admin,
+            write: newWriteGroup,
             read: perms.read,
-        };     
+        };
 
         this.#setPermissions(objectKey, newPerms);
     }
-    
-    setPermissionField(objectKey, adminGroupId, writeGroupId, readGroupId) {
 
-        let newPerms : permissionField = {
+    /**
+     * Append GroupId to readers in permissions
+     * @param objectKey 
+     * @param groupId 
+     */
+
+    static addAdmin(objectKey, groups: string[]) {
+        let perms = this.#getPermissions(objectKey);
+
+        let admins = [perms.admin].concat(groups)
+        let newAdminGroup = Groups.newGroup(undefined, false, admins)
+        let newPerms: permissionField = {
+            admin: newAdminGroup,
+            write: perms.write,
+            read: perms.read,
+        };
+
+        this.#setPermissions(objectKey, newPerms);
+    }
+
+    /**
+     * 
+     * @param objectKey 
+     * @param groupId 
+     */
+    static removeReader(objectKey: string, groupId: string) {
+        let perms = this.#getPermissions(objectKey);
+        let newRead: string[] = []
+
+        for (let r in perms.read) {
+            if (r != groupId) {
+                newRead.push(r);
+            }
+        }
+
+        let newPerms: permissionField = {
+            admin: perms.admin,
+            write: perms.write,
+            read: newRead,
+        };
+
+        this.#setPermissions(objectKey, newPerms);
+    }
+
+    /**
+     * Remove GroupId to writers in permissions
+     * @param objectKey 
+     * @param groupId 
+     * 
+     */
+    static removeWriter(objectKey: string, groupId: string) {
+        let perms = this.#getPermissions(objectKey);
+        let newWriteGroup = Groups.removeFromGroup(perms.write, groupId)
+
+        let newPerms: permissionField = {
+            admin: perms.admin,
+            write: newWriteGroup,
+            read: perms.read,
+        };
+
+        this.#setPermissions(objectKey, newPerms);
+    }
+
+    /**
+     * Remove GroupId to readers in permissions
+     * @param objectKey 
+     * @param groupId 
+     * 
+     * FIX: should this remove admin from group or 
+     * make new group without admin
+     */
+    static removeAdmin(objectKey: string, groupId: string) {
+        let perms = this.#getPermissions(objectKey);
+        let newAdminGroup = Groups.removeFromGroup(perms.admin, groupId)
+
+        let newPerms: permissionField = {
+            admin: newAdminGroup,
+            write: perms.write,
+            read: perms.read,
+        };
+
+        this.#setPermissions(objectKey, newPerms);
+    }
+
+    static setPermissionField(objectKey, adminGroupId, writeGroupId, readGroupId) {
+
+        let newPerms: permissionField = {
             admin: adminGroupId,
             write: writeGroupId,
             read: readGroupId
-        };     
+        };
 
         this.#setPermissions(objectKey, newPerms);
     }
 
-    copyPermissions(toShareKey, toCopyKey) {
+    static copyPermissions(toShareKey, toCopyKey) {
         let perms = this.#getPermissions(toCopyKey);
         this.#setPermissions(toShareKey, perms);
 
     }
 
-    // TODO: combine following two into just hasPerms(permType, deviceId)
-    hasWritePermissions(objectKey, deviceId): boolean {
+    // TODO: make general(permType, deviceId)
+
+    static hasReadPermissions(objectKey, deviceId): boolean {
         let perms = this.#getPermissions(objectKey);
-        if (Groups.getDevices(perms.write).includes(deviceId)){
+        if (Groups.isMember(deviceId, perms.read.concat(perms.write, perms.admin))) {
             return true
-        } 
+        }
+        return false;
+    }
+    static hasWritePermissions(objectKey, deviceId): boolean {
+        let perms = this.#getPermissions(objectKey);
+        if (Groups.isMember(deviceId, [perms.write, perms.admin])) {
+            return true
+        }
         return false;
     }
 
-    hasAdminPermissions(objectKey, deviceId) {
+    static hasAdminPermissions(objectKey, deviceId): boolean {
         let perms = this.#getPermissions(objectKey);
-        if (Groups.getDevices(perms.admin).includes(deviceId)){
+        if (Groups.isMember(deviceId, [perms.admin])) {
             return true
-        } 
+        }
         return false;
+    }
+
+    /**
+     * Unshares data item by creating new group that excludes groupID (commonly
+     * a contact's name or any other subgroup). Propagates the new group info
+     * to the new group members and deletes old group and data from groupID's
+     * devices.
+     *
+     * @param {string} prefix data prefix
+     * @param {string} id data id
+     * @param {string} toUnshareGroupID id with which to unshare data
+     *
+     * @private
+     */
+    static unshareData(key: string, toUnshareGroupID: string) {
+        if (Permissions.hasAdminPermissions(key, toUnshareGroupID)) {
+            Permissions.removeAdmin(key, toUnshareGroupID)
+        }
+        if (Permissions.hasWritePermissions(key, toUnshareGroupID)) {
+            Permissions.removeWriter(key, toUnshareGroupID)
+        }
+        if (Permissions.hasReadPermissions(key, toUnshareGroupID)) {
+            Permissions.removeReader(key, toUnshareGroupID)
+        }
     }
 
 }

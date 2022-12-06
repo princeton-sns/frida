@@ -7,9 +7,11 @@ keepout=$4
 datasize=$5
 server=$6
 throughput=$7
+# NPROCS="$(nproc --all)"
 
 for (( id=0; id<$nclients; id++ ))
 do
-        ./client ${name}_$id $duration $keepout $datasize $server $throughput &
+        # taskset -c $(($id % $NPROCS))
+        ./client ${name}_${id} $duration $keepout $datasize $server $throughput &
 done
 wait

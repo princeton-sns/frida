@@ -15,12 +15,12 @@ import (
 
 type OutgoingMessage struct {
 	DeviceId string `json:"deviceId"`
-	Payload  string `json:"payload"`
+	Payload  BodyWithTimestamp `json:"payload"`
 }
 
 type IncomingMessage struct {
-	//Sender  string         `json:"sender"`
-	//Payload BodyWithCseqID `json:"encPayload"`
+	Sender  string         `json:"sender"`
+	Payload BodyWithTimestamp `json:"encPayload"`
 	SeqID uint64 `json:"seqID"`
 }
 
@@ -28,9 +28,9 @@ type Batch struct {
 	Batch []OutgoingMessage `json:"batch"`
 }
 
-type BodyWithCseqID struct {
+type BodyWithTimestamp struct {
 	Body   string `json:"body"`
-	CseqID uint64 `json:"cseqID"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // type NeedsOneTimeKeyEvent struct {
@@ -63,17 +63,14 @@ var httpClient *http.Client
 var numHead uint64
 var numTail uint64
 
-var latencies []int64;
+var latencies [] int64;
 
 var msgPerSecond int64;
 
 var startRec int64;
 
-var sendTimestamp int64;
-
-// var semDelete make(chan bool MAX_ROUTINES_DELETE);
-
 func req(reqType string, jsonStr []byte, path string) *http.Response {
+	// fmt.Printf("Send+++++++++++++++++++++++++\n%v\n", string(jsonStr))
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
@@ -90,10 +87,10 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	return resp
 }
 
-func sendTo(ids []string, cseqID uint64) {
+func sendTo(ids []string, timestamp time.Time) {
 	batch := new(Batch)
 	for _, id := range ids {
-		body := msgContent
+		body := BodyWithTimestamp{msgContent, timestamp}
 		msg := OutgoingMessage{id, body}
 		batch.Batch = append(batch.Batch, msg)
 	}
@@ -107,11 +104,11 @@ func delete(seqID uint64) {
 	req("DELETE", []byte(delMsg), "/self/messages")
 }
 
-func now() int64 {
-	return time.Now().UnixNano() / int64(time.Microsecond)
+func now() time.Time {
+	return time.Now()
 }
 
-func main() {
+func readParams(){
 	deviceId = os.Args[1]
 	
 	if len(os.Args) < 3 {
@@ -143,69 +140,75 @@ func main() {
 	} else {
 		msgPerSecond, _ = strconv.ParseInt(os.Args[6], 10, 0)
 	}
+}
+
+func main() {
+	readParams()
 	
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + deviceId
 
 	msgContent = string(make([]byte, msgSize))
 
-	messageReceived := make(chan int, 1000)
+	// messageReceived := make(chan int, 1000)
+	latenciesMeasured := make(chan int64, 1000)
+
 	var maxSeq uint64
 	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
-		if(atomic.LoadInt64(&startRec) == 1){
-			latencies = append(latencies, now() - atomic.LoadInt64(&sendTimestamp))
-		}
-		atomic.AddUint64(&recvCount, 1)
+		recvTimestamp := now()		
+
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
-			messageReceived <- 1
+			// messageReceived <- 1
+			atomic.AddUint64(&recvCount, 1)
 			var incomingMsgContent IncomingMessage
+			// fmt.Printf("Recv---------------------\n%v\n", string([]byte(msg.Data)))
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
+			if(atomic.LoadInt64(&startRec) == 1){
+				latency :=  recvTimestamp.Sub(incomingMsgContent.Payload.Timestamp).Microseconds()
+				latenciesMeasured <- latency
+			}
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
 	})
 
 	listToSend := []string{deviceId}
 
-	var id uint64
-
-
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 
-	// go func() {
-	// 	<-timerHead.C
-	// 	numHead = atomic.AddUint64(&recvCount, 1)
-	// }()
 	atomic.StoreInt64(&startRec, 0)
-	delete_tick := time.Tick(10 * time.Second)
 
+	delete_tick := time.Tick(10 * time.Second)
 	send_tick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
 	for {
 		select {
 		case <- timerHead.C:
-			numHead = atomic.AddUint64(&recvCount, 1)
+			numHead = atomic.LoadUint64(&recvCount)
 			atomic.StoreInt64(&startRec, 1)
 		case <-timerTail.C:
+			numTail = (atomic.LoadUint64(&recvCount))
 			atomic.StoreInt64(&startRec, 0)
-			numTail = (atomic.AddUint64(&recvCount, 1) - 1) - numHead
-			var sum int64 = 0
-			for _, lat := range latencies{
-				sum += lat
-			}
+			local_throughput := float32(numTail-numHead)/float32(duration-2*keepout)
 
-			fmt.Printf("%v, %v, %v, %v\n", deviceId, float32(numTail)/float32(duration-2*keepout), (float32(sum) / 1000)/float32(len(latencies)), len(latencies))
-			delete(maxSeq)
+			var sum_lat int64 = 0
+			for _, lat := range latencies{
+				sum_lat += lat
+			}
+			avg_lat_in_ms := (float32(sum_lat) / 1000)/float32(len(latencies))
+			// fmt.Println(latencies)
+			fmt.Printf("%v, %v, %v, %v\n", deviceId, local_throughput, avg_lat_in_ms, len(latencies))
+			delete(atomic.LoadUint64(&maxSeq))
 			return
 		case <-delete_tick:
 			delete(atomic.LoadUint64(&maxSeq))
-		// default:
+		case latency := <-latenciesMeasured:
+			latencies = append(latencies, latency)
 		case <-send_tick:
-			atomic.StoreInt64(&sendTimestamp, now())
-			sendTo(listToSend, id)
-			<-messageReceived
+			sendTo(listToSend, now())
+			// <-messageReceived
 		}
 	}
 }

@@ -59,7 +59,7 @@ var duration int64
 
 var keepout int64
 
-var httpClient *http.Client
+var httpClient_send *http.Client
 
 // var record bool = false;
 
@@ -79,7 +79,7 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 		"Content-Type":  {"application/json"},
 		"Authorization": {"Bearer " + deviceId},
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient_send.Do(req)
 	defer resp.Body.Close()
 
 	if err != nil {
@@ -149,16 +149,9 @@ func main() {
 	readParams()
 	
 	client := sse.NewClient(serverAddr + "/events")
-	client.Headers["Authorization"] = "Bearer " + deviceId
+	
 
-	msgContent = string(make([]byte, msgSize))
-
-	messageReceived := make(chan int, 1000)
-	latenciesMeasured := make(chan int64, 1000)
-
-	var maxSeq uint64
-
-	dialer := &net.Dialer{
+	dialer_sse := &net.Dialer{
         Control: func(network, address string, conn syscall.RawConn) error {
             var operr error
             if err := conn.Control(func(fd uintptr) {
@@ -171,11 +164,48 @@ func main() {
         },
     }
 
-	httpClient = &http.Client{
+	httpClient_sse := &http.Client{
 		Transport: &http.Transport{
-            DialContext: dialer.DialContext,
+            DialContext: dialer_sse.DialContext,
         },
 	}
+
+	// client := &sse.Client{
+	// 	URL:           serverAddr + "/events",
+	// 	Connection:    httpClient,
+	// 	Headers:       make(map[string]string),
+	// 	subscribed:    make(map[chan *sse.Event]chan struct{}),
+	// 	maxBufferSize: 1 << 16,
+	// }
+	client.Connection = httpClient_sse
+	client.Headers["Authorization"] = "Bearer " + deviceId
+
+	msgContent = string(make([]byte, msgSize))
+
+	messageReceived := make(chan int, 1000)
+	latenciesMeasured := make(chan int64, 1000)
+
+	var maxSeq uint64
+
+	dialer_send := &net.Dialer{
+        Control: func(network, address string, conn syscall.RawConn) error {
+            var operr error
+            if err := conn.Control(func(fd uintptr) {
+                operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_QUICKACK, 1)
+				operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY, 1)
+            }); err != nil {
+                return err
+            }
+            return operr
+        },
+    }
+
+	httpClient_send = &http.Client{
+		Transport: &http.Transport{
+            DialContext: dialer_send.DialContext,
+        },
+	}
+
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		recvTimestamp := now()
 

@@ -11,6 +11,9 @@ import (
 	"time"
 	"io/ioutil"
 	"github.com/r3labs/sse/v2"
+	"net"
+	"syscall"
+    "golang.org/x/sys/unix"
 )
 
 type OutgoingMessage struct {
@@ -150,17 +153,35 @@ func main() {
 
 	msgContent = string(make([]byte, msgSize))
 
-	// messageReceived := make(chan int, 1000)
+	messageReceived := make(chan int, 1000)
 	latenciesMeasured := make(chan int64, 1000)
 
 	var maxSeq uint64
-	httpClient = &http.Client{}
-	go client.Subscribe("msg", func(msg *sse.Event) {
-		recvTimestamp := now()		
 
+	dialer := &net.Dialer{
+        Control: func(network, address string, conn syscall.RawConn) error {
+            var operr error
+            if err := conn.Control(func(fd uintptr) {
+                operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_QUICKACK, 1)
+				operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY, 1)
+            }); err != nil {
+                return err
+            }
+            return operr
+        },
+    }
+
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+            DialContext: dialer.DialContext,
+        },
+	}
+	go client.Subscribe("msg", func(msg *sse.Event) {
+		recvTimestamp := now()
+
+		messageReceived <- 1
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
-			// messageReceived <- 1
 			atomic.AddUint64(&recvCount, 1)
 			var incomingMsgContent IncomingMessage
 			// fmt.Printf("Recv---------------------\n%v\n", string([]byte(msg.Data)))
@@ -208,7 +229,7 @@ func main() {
 			latencies = append(latencies, latency)
 		case <-send_tick:
 			sendTo(listToSend, now())
-			// <-messageReceived
+			<-messageReceived
 		}
 	}
 }

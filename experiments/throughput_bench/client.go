@@ -28,10 +28,10 @@ type Batch struct {
 	Batch []OutgoingMessage `json:"batch"`
 }
 
-type BodyWithCseqID struct {
-	Body   string `json:"body"`
-	CseqID uint64 `json:"cseqID"`
-}
+// type BodyWithCseqID struct {
+// 	Body   string `json:"body"`
+// 	CseqID uint64 `json:"cseqID"`
+// }
 
 // type NeedsOneTimeKeyEvent struct {
 // 	DeviceId string `json:"deviceId"`
@@ -93,7 +93,7 @@ func sendTo(ids []string, cseqID uint64) {
 	}
 	b, _ := json.Marshal(batch)
 	resp := req("POST", b, "/message")
-	defer resp.Body.Close()
+	// defer resp.Body.Close()
 }
 
 func delete(seqID uint64) {
@@ -105,8 +105,9 @@ func now() int64 {
 	return time.Now().UnixNano() / int64(time.Microsecond)
 }
 
-func main() {
+func readParams(){
 	deviceId = os.Args[1]
+	
 	if len(os.Args) < 3 {
 		duration = 3
 	} else {
@@ -130,7 +131,10 @@ func main() {
 	} else {
 		serverAddr = os.Args[5]
 	}
-	
+}
+
+func main() {
+	readParams()
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + deviceId
 
@@ -161,16 +165,19 @@ func main() {
 
 	go func() {
 		<-timerHead.C
-		numHead = atomic.AddUint64(&recvCount, 1) 
+		numHead = atomic.LoadUint64(&recvCount, 1) 
 	}()
 
 	tick := time.Tick(10 * time.Second)
 
+	// Wait for otkeys message
+	<-messageReceived
 	for {
 		select {
 		case <-timerTail.C:
-			numTail = (atomic.AddUint64(&recvCount, 1) - 1) - numHead
-			fmt.Printf("%v, %v\n", deviceId, float32(numTail)/float32(duration-2*keepout))
+			numTail = atomic.LoadUint64(&recvCount)
+			local_throughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
+			fmt.Printf("%v, %v\n", deviceId, local_throughput)
 			delete(maxSeq)
 			return
 		case <-tick:

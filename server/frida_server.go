@@ -10,14 +10,11 @@ import (
 
 	//"fmt"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
-	"context"
-	"syscall"
-	"golang.org/x/sys/unix"
+
 	"github.com/cockroachdb/pebble"
 )
 
@@ -471,7 +468,7 @@ func (server *Server) serveEvents(rw http.ResponseWriter, req *http.Request) {
 		switch msg.(type) {
 		case *OutgoingMessage:
 			fmt.Fprintf(rw, "event: msg\ndata: %v\n\n", buf.String())
-			//fmt.Printf("data: %v\n", buf.String())
+			// fmt.Printf("data: %v\n", buf.String())
 		case *NeedsOneTimeKeyEvent:
 			fmt.Fprintf(rw, "event: otkey\ndata: %v\n\n", buf.String())
 			//fmt.Printf("event: otkey\ndata: %v\n", buf.String())
@@ -570,33 +567,7 @@ func main() {
 		log.Panic(err)
 	}
 	server := NewServer(db)
-	lc := net.ListenConfig{
-        Control: func(network, address string, conn syscall.RawConn) error {
-            var operr error
-            if err := conn.Control(func(fd uintptr) {
-                // operr = syscall.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT,1)
-				operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY,1)
-				operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_QUICKACK,1)
-            }); err != nil {
-                return err
-            }
-            return operr
-        },
-    }
 
-    ln, err := lc.Listen(context.Background(), "tcp", "0.0.0.0:8080")
-    if err != nil {
-        panic(err)
-    }
-
-    // http.HandleFunc("/", func(w http.ResponseWriter, _req *http.Request) {
-    //     w.Write([]byte("Hello, world!\n"))
-    // })
-
-    if err := http.Serve(ln, server); err != nil {
-        panic(err)
-    }
-
-	// log.Fatal("HTTP server error: ", http.ListenAndServe("0.0.0.0:8080", server))
+	log.Fatal("HTTP server error: ", http.ListenAndServe("0.0.0.0:8080", server))
 
 }

@@ -11,19 +11,19 @@ import (
 	"time"
 	"io/ioutil"
 	"github.com/r3labs/sse/v2"
-	"net"
-	"syscall"
-    "golang.org/x/sys/unix"
+	// "net"
+	// "syscall"
+    // "golang.org/x/sys/unix"
 )
 
 type OutgoingMessage struct {
 	DeviceId string `json:"deviceId"`
-	Payload  BodyWithTimestamp `json:"payload"`
+	Payload  string `json:"payload"`
 }
 
 type IncomingMessage struct {
-	Sender  string         `json:"sender"`
-	Payload BodyWithTimestamp `json:"encPayload"`
+	// Sender  string         `json:"sender"`
+	// Payload BodyWithTimestamp `json:"encPayload"`
 	SeqID uint64 `json:"seqID"`
 }
 
@@ -53,7 +53,7 @@ var msgSize int64
 
 var msgContent string
 
-var recvCount uint64 = 0
+// var recvCount uint64 = 0
 
 var duration int64
 
@@ -63,8 +63,8 @@ var httpClient_send *http.Client
 
 // var record bool = false;
 
-var numHead uint64
-var numTail uint64
+// var numHead uint64
+// var numTail uint64
 
 var latencies [] int64;
 
@@ -72,13 +72,16 @@ var msgPerSecond int64;
 
 var startRec int64;
 
-func req(reqType string, jsonStr []byte, path string) *http.Response {
+var sendTimestamp time.Time
+
+func req(reqType string, jsonStr []byte, path string) time.Time {
 	// fmt.Printf("Send+++++++++++++++++++++++++\n%v\n", string(jsonStr))
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
 		"Authorization": {"Bearer " + deviceId},
 	}
+	send_time := now()
 	resp, err := httpClient_send.Do(req)
 	defer resp.Body.Close()
 
@@ -87,19 +90,22 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	}
 
 	ioutil.ReadAll(resp.Body)
-	return resp
+	return send_time
 }
 
-func sendTo(ids []string, timestamp time.Time) {
+func sendTo(ids []string) time.Time {
 	batch := new(Batch)
 	for _, id := range ids {
-		body := BodyWithTimestamp{msgContent, timestamp}
+		// body := BodyWithTimestamp{msgContent, timestamp}
+		body := msgContent
 		msg := OutgoingMessage{id, body}
 		batch.Batch = append(batch.Batch, msg)
 	}
 	b, _ := json.Marshal(batch)
-	resp := req("POST", b, "/message")
-	defer resp.Body.Close()
+	send_time := req("POST", b, "/message")
+	return send_time
+	// defer resp.Body.Close()
+
 }
 
 func delete(seqID uint64) {
@@ -138,46 +144,16 @@ func readParams(){
 		serverAddr = os.Args[5]
 	}
 
-	if len(os.Args) < 7 {
-		msgPerSecond = 5
-	} else {
-		msgPerSecond, _ = strconv.ParseInt(os.Args[6], 10, 0)
-	}
+	// if len(os.Args) < 7 {
+	// 	msgPerSecond = 5
+	// } else {
+	// 	msgPerSecond, _ = strconv.ParseInt(os.Args[6], 10, 0)
+	// }
 }
 
 func main() {
 	readParams()
-	
 	client := sse.NewClient(serverAddr + "/events")
-	
-
-	dialer_sse := &net.Dialer{
-        Control: func(network, address string, conn syscall.RawConn) error {
-            var operr error
-            if err := conn.Control(func(fd uintptr) {
-                operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_QUICKACK, 1)
-				operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY, 1)
-            }); err != nil {
-                return err
-            }
-            return operr
-        },
-    }
-
-	httpClient_sse := &http.Client{
-		Transport: &http.Transport{
-            DialContext: dialer_sse.DialContext,
-        },
-	}
-
-	// client := &sse.Client{
-	// 	URL:           serverAddr + "/events",
-	// 	Connection:    httpClient,
-	// 	Headers:       make(map[string]string),
-	// 	subscribed:    make(map[chan *sse.Event]chan struct{}),
-	// 	maxBufferSize: 1 << 16,
-	// }
-	client.Connection = httpClient_sse
 	client.Headers["Authorization"] = "Bearer " + deviceId
 
 	msgContent = string(make([]byte, msgSize))
@@ -187,40 +163,26 @@ func main() {
 
 	var maxSeq uint64
 
-	dialer_send := &net.Dialer{
-        Control: func(network, address string, conn syscall.RawConn) error {
-            var operr error
-            if err := conn.Control(func(fd uintptr) {
-                operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_QUICKACK, 1)
-				operr = syscall.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_NODELAY, 1)
-            }); err != nil {
-                return err
-            }
-            return operr
-        },
-    }
-
-	httpClient_send = &http.Client{
-		Transport: &http.Transport{
-            DialContext: dialer_send.DialContext,
-        },
-	}
+	httpClient_send = &http.Client{}
 
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		recvTimestamp := now()
-
-		messageReceived <- 1
 		msgType := string([]byte(msg.Event))
+
+		// First message is otkeys
+		messageReceived <- 1
+
 		if msgType == "msg" {
-			atomic.AddUint64(&recvCount, 1)
+			// atomic.AddUint64(&recvCount, 1)
 			var incomingMsgContent IncomingMessage
-			// fmt.Printf("Recv---------------------\n%v\n", string([]byte(msg.Data)))
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
+			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
+
 			if(atomic.LoadInt64(&startRec) == 1){
-				latency :=  recvTimestamp.Sub(incomingMsgContent.Payload.Timestamp).Microseconds()
+				// latency :=  recvTimestamp.Sub(incomingMsgContent.Payload.Timestamp).Microseconds()
+				latency :=  recvTimestamp.Sub(sendTimestamp).Microseconds()
 				latenciesMeasured <- latency
 			}
-			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
 	})
 
@@ -232,33 +194,38 @@ func main() {
 	atomic.StoreInt64(&startRec, 0)
 
 	delete_tick := time.Tick(10 * time.Second)
-	send_tick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
+	// send_tick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
+
+	// otkeys message
+	<-messageReceived
 	for {
 		select {
-		case <- timerHead.C:
-			numHead = atomic.LoadUint64(&recvCount)
+		case <-timerHead.C:
+			// numHead = atomic.LoadUint64(&recvCount)
 			atomic.StoreInt64(&startRec, 1)
 		case <-timerTail.C:
-			numTail = (atomic.LoadUint64(&recvCount))
+			// numTail = (atomic.LoadUint64(&recvCount))
 			atomic.StoreInt64(&startRec, 0)
-			local_throughput := float32(numTail-numHead)/float32(duration-2*keepout)
+			// local_throughput := float32(numTail-numHead)/float32(duration-2*keepout)
 
-			var sum_lat int64 = 0
+			// var sum_lat int64 = 0
 			for _, lat := range latencies{
-				sum_lat += lat
+				// sum_lat += lat
+				fmt.Printf("%v, %v\n", deviceId, lat)
 			}
-			avg_lat_in_ms := (float32(sum_lat) / 1000)/float32(len(latencies))
+			// avg_lat_in_ms := (float32(sum_lat) / 1000)/float32(len(latencies))
 			// fmt.Println(latencies)
-			fmt.Printf("%v, %v, %v, %v\n", deviceId, local_throughput, avg_lat_in_ms, len(latencies))
+			// fmt.Printf("%v, %v, %v, %v\n", deviceId, local_throughput, avg_lat_in_ms, len(latencies))
 			delete(atomic.LoadUint64(&maxSeq))
 			return
 		case <-delete_tick:
 			delete(atomic.LoadUint64(&maxSeq))
 		case latency := <-latenciesMeasured:
 			latencies = append(latencies, latency)
-		case <-send_tick:
-			sendTo(listToSend, now())
+		// case <-send_tick:
+		default:
+			sendTimestamp = sendTo(listToSend)
 			<-messageReceived
 		}
 	}

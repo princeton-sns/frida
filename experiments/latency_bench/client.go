@@ -186,6 +186,9 @@ func main() {
 		}
 	})
 
+	// otkeys message
+	<-messageReceived
+	
 	listToSend := []string{deviceId}
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
@@ -197,8 +200,7 @@ func main() {
 	// send_tick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
 
-	// otkeys message
-	<-messageReceived
+	
 	for {
 		select {
 		case <-timerHead.C:

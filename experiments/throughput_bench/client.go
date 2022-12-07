@@ -154,6 +154,9 @@ func main() {
 		}
 	})
 
+	// Wait for otkeys message
+	<-messageReceived
+
 	listToSend := []string{deviceId}
 
 	var id uint64
@@ -170,8 +173,6 @@ func main() {
 
 	tick := time.Tick(10 * time.Second)
 
-	// Wait for otkeys message
-	<-messageReceived
 	for {
 		select {
 		case <-timerTail.C:

@@ -1,4 +1,4 @@
-module example.com/client
+module example.com/groupclient
 
 go 1.19
 

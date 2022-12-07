@@ -92,7 +92,7 @@ func sendTo(ids []string, cseqID uint64) {
 		batch.Batch = append(batch.Batch, msg)
 	}
 	b, _ := json.Marshal(batch)
-	resp := req("POST", b, "/message")
+	req("POST", b, "/message")
 	// defer resp.Body.Close()
 }
 
@@ -168,7 +168,7 @@ func main() {
 
 	go func() {
 		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount, 1) 
+		numHead = atomic.LoadUint64(&recvCount) 
 	}()
 
 	tick := time.Tick(10 * time.Second)

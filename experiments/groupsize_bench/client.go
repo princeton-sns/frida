@@ -82,8 +82,9 @@ func sendTo(ids []string, cseqID uint64) {
 		batch.Batch = append(batch.Batch, msg)
 	}
 	b, _ := json.Marshal(batch)
-	resp := req("POST", b, "/message")
+	req("POST", b, "/message")
 	// defer resp.Body.Close()
+	
 }
 
 func delete(seqID uint64) {
@@ -131,13 +132,13 @@ func readParams(){
 	if len(os.Args) < 8 {
 		receiver_low = 0
 	} else {
-		receiver_low = strconv.ParseInt(os.Args[7])
+		receiver_low, _ = strconv.ParseInt(os.Args[7], 10, 0)
 	}
 
 	if len(os.Args) < 9 {
 		receiver_high = 10
 	} else {
-		receiver_high = strconv.ParseInt(os.Args[8])
+		receiver_high, _ = strconv.ParseInt(os.Args[8], 10, 0)
 	}
 }
 
@@ -152,20 +153,30 @@ func main() {
 	var maxSeq uint64
 	httpClient = &http.Client{}
 	go client.Subscribe("msg", func(msg *sse.Event) {
-		messageReceived <- 1
-		atomic.AddUint64(&recvCount, 1)
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
+			if(incomingMsgContent.Sender == deviceId){
+				atomic.AddUint64(&recvCount, 1)
+				messageReceived <- 1
+			}
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
+		} else {
+			messageReceived <- 1
 		}
 	})
 
 	// Wait for otkeys message
 	<-messageReceived
 
-	listToSend := []string{deviceId}
+	listToSend := make([]string, 0)
+	for i := receiver_low; i <= receiver_high; i++ {
+		rname := fmt.Sprintf("%s_%v", receiver_prefix, i)
+		listToSend = append(listToSend, rname)
+	} 
+
+	listToSend = append(listToSend, deviceId)
 
 	var id uint64
 
@@ -176,7 +187,7 @@ func main() {
 
 	go func() {
 		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount, 1) 
+		numHead = atomic.LoadUint64(&recvCount) 
 	}()
 
 	tick := time.Tick(10 * time.Second)

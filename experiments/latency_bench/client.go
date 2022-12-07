@@ -214,7 +214,7 @@ func main() {
 			// var sum_lat int64 = 0
 			for _, lat := range latencies{
 				// sum_lat += lat
-				fmt.Printf("%v\n", deviceId, lat)
+				fmt.Printf("%v\n", lat)
 			}
 			// avg_lat_in_ms := (float32(sum_lat) / 1000)/float32(len(latencies))
 			// fmt.Println(latencies)

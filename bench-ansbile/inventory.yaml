@@ -1,6 +1,6 @@
 all:
   vars:
-    noise_git_rev:  c947dc8e32150bb97942f7c3fc3c1e88da130979
+    noise_git_rev:  3c1b9092c266cd32dbcb8b8b21d7b9d6c7faaa82
   hosts:
   children:
     noise-server:

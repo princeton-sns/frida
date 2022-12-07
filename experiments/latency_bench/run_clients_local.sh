@@ -9,10 +9,12 @@ server=$6
 # throughput=$7
 # NPROCS="$(nproc --all)"
 
+mkdir -p /exp_results
+
 for (( id=0; id<$nclients; id++ ))
 do
         # taskset -c $(($id % $NPROCS))
         # ./client ${name}_${id} $duration $keepout $datasize $server $throughput &
-        ./client ${name}_${id} $duration $keepout $datasize $server &
+        ./client ${name}_${id} $duration $keepout $datasize $server | tee /exp_results/lat_${name}_${id} &
 done
 wait

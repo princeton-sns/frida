@@ -27,7 +27,7 @@ type Batch struct {
 	Batch []OutgoingMessage `json:"batch"`
 }
 
-var deviceId string
+var myDeviceId string
 
 var serverAddr string = "http://localhost:8080"
 
@@ -42,7 +42,7 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
-		"Authorization": {"Bearer " + deviceId},
+		"Authorization": {"Bearer " + myDeviceId},
 	}
 	resp, err := httpClient.Do(req)
 	defer resp.Body.Close()
@@ -61,7 +61,7 @@ func delete(seqID uint64) {
 }
 
 func readParams(){
-	deviceId = os.Args[1]
+	myDeviceId = os.Args[1]
 	if len(os.Args) < 3 {
 		serverAddr = "http://localhost:8080"
 	} else {
@@ -72,7 +72,7 @@ func readParams(){
 func main() {
 	readParams()
 	client := sse.NewClient(serverAddr + "/events")
-	client.Headers["Authorization"] = "Bearer " + deviceId
+	client.Headers["Authorization"] = "Bearer " + myDeviceId
 
 	messageReceived := make(chan int, 1)
 	var maxSeq uint64
@@ -83,7 +83,7 @@ func main() {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
-			fmt.Printf("%v: %v\n", deviceId, maxSeq)
+			fmt.Printf("%v: %v\n", myDeviceId, maxSeq)
 		} else {
 			messageReceived <- 1
 		}
@@ -93,7 +93,7 @@ func main() {
 	<-messageReceived
 
 
-	tick := time.Tick(10 * time.Second)
+	tick := time.Tick(5 * time.Second)
 
 	for {
 		select {

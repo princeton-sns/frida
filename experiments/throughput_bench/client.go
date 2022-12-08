@@ -177,8 +177,8 @@ func main() {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			local_throughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
-			fmt.Printf("%v, %v\n", deviceId, local_throughput)
+			localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
+			fmt.Printf("%v, %v\n", deviceId, localThroughput)
 			delete(maxSeq)
 			return
 		case <-tick:

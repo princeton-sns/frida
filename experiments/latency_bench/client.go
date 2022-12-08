@@ -45,7 +45,7 @@ const MAX_ROUTINES_SEND = 2
 
 // const MAX_ROUTINES_DELETE = 2
 
-var deviceId string
+var myDeviceId string
 
 var serverAddr string = "http://localhost:8080"
 
@@ -79,7 +79,7 @@ func req(reqType string, jsonStr []byte, path string) time.Time {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
-		"Authorization": {"Bearer " + deviceId},
+		"Authorization": {"Bearer " + myDeviceId},
 	}
 	send_time := now()
 	resp, err := httpClient_send.Do(req)
@@ -118,7 +118,7 @@ func now() time.Time {
 }
 
 func readParams(){
-	deviceId = os.Args[1]
+	myDeviceId = os.Args[1]
 	
 	if len(os.Args) < 3 {
 		duration = 3
@@ -154,7 +154,7 @@ func readParams(){
 func main() {
 	readParams()
 	client := sse.NewClient(serverAddr + "/events")
-	client.Headers["Authorization"] = "Bearer " + deviceId
+	client.Headers["Authorization"] = "Bearer " + myDeviceId
 
 	msgContent = string(make([]byte, msgSize))
 
@@ -189,15 +189,15 @@ func main() {
 	// otkeys message
 	<-messageReceived
 
-	listToSend := []string{deviceId}
+	listToSend := []string{myDeviceId}
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 
 	atomic.StoreInt64(&startRec, 0)
 
-	delete_tick := time.Tick(10 * time.Second)
-	// send_tick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
+	deleteTick := time.Tick(10 * time.Second)
+	// sendTick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
 
 	
@@ -221,11 +221,11 @@ func main() {
 			// fmt.Printf("%v, %v, %v, %v\n", deviceId, local_throughput, avg_lat_in_ms, len(latencies))
 			delete(atomic.LoadUint64(&maxSeq))
 			return
-		case <-delete_tick:
+		case <-deleteTick:
 			delete(atomic.LoadUint64(&maxSeq))
 		case latency := <-latenciesMeasured:
 			latencies = append(latencies, latency)
-		// case <-send_tick:
+		// case <-sendTick:
 		default:
 			sendTimestamp = sendTo(listToSend)
 			<-messageReceived

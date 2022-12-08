@@ -25,7 +25,7 @@ do
                 num_per_sender=$(( ($receiver_high - $receiver_low)/ $nclients ))
                 this_sender_low=$(( $receiver_low + $id * $num_per_sender ))
                 this_sender_high=$(( $receiver_low + ($id+1) * $num_per_sender))
-                ./groupclient ${name}_${id} $duration $keepout $datasize $server $receiver_prefix $this_sender_low $this_sender_high $num_rand
+                ./groupclient ${name}_${id} $duration $keepout $datasize $server $receiver_prefix $this_sender_low $this_sender_high $num_rand1
         fi
         
 done

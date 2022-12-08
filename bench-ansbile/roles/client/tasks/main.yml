@@ -9,3 +9,10 @@
     cd /mydata/localuser/frida/experiments/latency_bench
     rm ./client
     go build -o client
+    cd /mydata/localuser/frida/experiments/receiver
+    rm ./receiver
+    go build
+    cd /mydata/localuser/frida/experiments/groupsize_bench
+    rm ./groupclient
+    go build
+

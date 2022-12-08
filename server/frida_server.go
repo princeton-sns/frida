@@ -18,7 +18,7 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
-const LOCK_BUCKETS int = 1000
+const LOCK_BUCKETS int = 1000000
 
 // Single message format from sender
 type IncomingMessage struct {

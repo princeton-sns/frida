@@ -15,6 +15,6 @@ for (( id=0; id<$nclients; id++ ))
 do
         # taskset -c $(($id % $NPROCS))
         # ./client ${name}_${id} $duration $keepout $datasize $server $throughput &
-        ./client ${name}_${id} $duration $keepout $datasize $server | tee ~/exp_results/lat_${name}_${id} &
+        ./client ${name}_${id} $duration $keepout $datasize $server &
 done
 wait

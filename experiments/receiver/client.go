@@ -83,7 +83,7 @@ func main() {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
-			fmt.Printf("%v: %v\n", myDeviceId, maxSeq)
+			// fmt.Printf("%v: %v\n", myDeviceId, maxSeq)
 		} else {
 			messageReceived <- 1
 		}
@@ -99,7 +99,7 @@ func main() {
 		select {
 		case <-tick:
 			delete(atomic.LoadUint64(&maxSeq))
-		// default:
+		default:
 		}
 
 	}

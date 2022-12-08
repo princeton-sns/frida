@@ -59,13 +59,11 @@ var httpClient *http.Client
 
 var receiverPrefix string
 
-var receiverLow int64
-var receiverHigh int64
-
 var numHead uint64
 var numTail uint64
 
-var numRand int64;
+var groupSize int64;
+var independent int64;
 // var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
@@ -141,21 +139,15 @@ func readParams(){
 	}
 
 	if len(os.Args) < 8 {
-		receiverLow = 0
+		groupSize = 1
 	} else {
-		receiverLow, _ = strconv.ParseInt(os.Args[7], 10, 0)
+		groupSize, _ = strconv.ParseInt(os.Args[7], 10, 0)
 	}
 
 	if len(os.Args) < 9 {
-		receiverHigh = 1
+		independent = 1
 	} else {
-		receiverHigh, _ = strconv.ParseInt(os.Args[8], 10, 0)
-	}
-
-	if len(os.Args) < 10 {
-		numRand = 0
-	} else {
-		numRand, _ = strconv.ParseInt(os.Args[9], 10, 0)
+		independent, _ = strconv.ParseInt(os.Args[8], 10, 0)
 	}
 
 }
@@ -190,15 +182,15 @@ func main() {
 	<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
-	for i := receiverLow; i < receiverHigh; i++ {
+	for i := int64(0); i < groupSize - 1; i++ {
 		rname := fmt.Sprintf("%s_%v", receiverPrefix, i)
 		allClientList = append(allClientList, rname)
 	} 
 
-	if(numRand >= 0){
+	if(independent == 0){
 		rand.Seed(time.Now().UnixNano())
 		allClientList = remove(allClientList, myDeviceId)
-		for i := int64(0); i < numRand; i++{
+		for i := int64(0); i < groupSize - 1; i++{
 			randomDeviceId := allClientList[rand.Intn(len(allClientList))]
 			listToSend = append(listToSend, randomDeviceId)
 			allClientList = remove(allClientList, randomDeviceId)

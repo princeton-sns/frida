@@ -20,7 +20,7 @@ type OutgoingMessage struct {
 }
 
 type IncomingMessage struct {
-	Sender  string         `json:"sender"`
+	// Sender  string         `json:"sender"`
 	//Payload BodyWithCseqID `json:"encPayload"`
 	SeqID uint64 `json:"seqID"`
 }
@@ -46,6 +46,8 @@ var serverAddr string = "http://localhost:8080"
 var msgSize int64
 
 var msgContent string
+
+var batchContent []byte
 
 var recvCount uint64 = 0
 
@@ -83,15 +85,16 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	return resp
 }
 
-func sendTo(ids []string) {
-	batch := new(Batch)
-	for _, id := range ids {
-		body := msgContent
-		msg := OutgoingMessage{id, body}
-		batch.Batch = append(batch.Batch, msg)
-	}
-	b, _ := json.Marshal(batch)
-	req("POST", b, "/message")
+// func sendTo(ids []string) {
+func send() {
+	// batch := new(Batch)
+	// for _, id := range ids {
+	// 	body := msgContent
+	// 	msg := OutgoingMessage{id, body}
+	// 	batch.Batch = append(batch.Batch, msg)
+	// }
+	// b, _ := json.Marshal(batch)
+	req("POST", batchContent, "/message")
 	// defer resp.Body.Close()
 	
 }
@@ -164,18 +167,18 @@ func main() {
 	httpClient = &http.Client{}
 
 	go client.Subscribe("msg", func(msg *sse.Event) {
+		messageReceived <- 1
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
-			if(incomingMsgContent.Sender == myDeviceId){
-				atomic.AddUint64(&recvCount, 1)
-				messageReceived <- 1
-			}
+			// if(incomingMsgContent.Sender == myDeviceId){
+			atomic.AddUint64(&recvCount, 1)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
-		} else {
-			messageReceived <- 1
 		}
+		// else {
+		// 	messageReceived <- 1
+		// }
 	})
 
 	// Wait for otkeys message
@@ -201,6 +204,15 @@ func main() {
 	listToSend = append(listToSend, myDeviceId)	
 	// fmt.Printf("%v\n", listToSend)
 
+	batch := new(Batch)
+	for _, id := range listToSend {
+		body := msgContent
+		msg := OutgoingMessage{id, body}
+		batch.Batch = append(batch.Batch, msg)
+	}
+	batchContent, _ = json.Marshal(batch)
+	
+
 	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
@@ -224,7 +236,7 @@ func main() {
 		case <-tick:
 			delete(atomic.LoadUint64(&maxSeq))
 		default:
-			sendTo(listToSend)
+			send()
 			<-messageReceived
 		}
 	}

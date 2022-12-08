@@ -195,9 +195,7 @@ func main() {
 		allClientList = append(allClientList, rname)
 	} 
 
-	if(numRand == 0){
-		listToSend = allClientList
-	} else {
+	if(numRand >= 0){
 		rand.Seed(time.Now().UnixNano())
 		allClientList = remove(allClientList, myDeviceId)
 		for i := int64(0); i < numRand; i++{
@@ -205,6 +203,8 @@ func main() {
 			listToSend = append(listToSend, randomDeviceId)
 			allClientList = remove(allClientList, randomDeviceId)
 		}
+	} else {
+		listToSend = allClientList
 	}
 	listToSend = append(listToSend, myDeviceId)	
 	// fmt.Printf("%v\n", listToSend)

@@ -1,1 +1,6 @@
 node_modules/
+exp_data/
+tmp
+groupclient
+.gitignore
+receiver

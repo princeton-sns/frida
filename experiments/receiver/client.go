@@ -99,8 +99,7 @@ func main() {
 		select {
 		case <-tick:
 			delete(atomic.LoadUint64(&maxSeq))
-		default:
-			
+		// default:
 		}
 
 	}

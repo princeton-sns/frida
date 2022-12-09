@@ -7,7 +7,7 @@ keepout=$4
 datasize=$5
 server=$6
 # NPROCS="$(nproc --all)"
-mkdir -p ~/exp_results
+# mkdir -p ~/exp_results
 
 for (( id=0; id<$nclients; id++ ))
 do

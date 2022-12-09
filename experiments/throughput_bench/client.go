@@ -172,7 +172,7 @@ func main() {
 	}()
 
 	tick := time.Tick(10 * time.Second)
-
+	fmt.Println("--------------reached here----------------")
 	for {
 		select {
 		case <-timerTail.C:

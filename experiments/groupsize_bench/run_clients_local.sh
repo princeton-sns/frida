@@ -18,7 +18,6 @@ do
         then
                  ./groupclient ${name}_${id} $duration $keepout $datasize $server ${name}_${id} $group_size $independent &
         else
-                # num_per_sender=$(( ($receiver_high - $receiver_low)/ $nclients ))
                 ./groupclient ${name}_$((${id} + ${startID})) $duration $keepout $datasize $server $receiver_prefix $group_size $independent &
         fi
         

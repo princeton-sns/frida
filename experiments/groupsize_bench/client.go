@@ -168,12 +168,12 @@ func main() {
 
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		messageReceived <- 1
+		atomic.AddUint64(&recvCount, 1)
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
 			// if(incomingMsgContent.Sender == myDeviceId){
-			atomic.AddUint64(&recvCount, 1)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
 		// else {

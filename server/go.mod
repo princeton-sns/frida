@@ -1,4 +1,4 @@
-module github.com/princeton-sns/frida/server
+module github.com/princeton-sns/frida/noise-server
 
 go 1.18
 

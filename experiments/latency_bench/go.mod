@@ -1,4 +1,4 @@
-module example.com/client
+module example.com/latency-bench-client
 
 go 1.19
 

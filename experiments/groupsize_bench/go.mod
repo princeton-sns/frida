@@ -1,4 +1,4 @@
-module example.com/groupclient
+module example.com/groupsize-bench-client
 
 go 1.19
 

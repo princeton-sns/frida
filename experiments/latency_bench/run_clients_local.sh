@@ -15,6 +15,6 @@ for (( id=0; id<$nclients; id++ ))
 do
         # taskset -c $(($id % $NPROCS))
         # ./client ${name}_${id} $duration $keepout $datasize $server $throughput &
-        ./client ${name}_${id} $duration $keepout $datasize $server &
+        ./latency-bench-client ${name}_${id} $duration $keepout $datasize $server &
 done
 wait

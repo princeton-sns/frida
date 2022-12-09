@@ -12,6 +12,6 @@ mkdir -p ~/exp_results
 for (( id=0; id<$nclients; id++ ))
 do
         # taskset -c $(($id % $NPROCS))
-        ./client ${name}_${id} $duration $keepout $datasize $server &
+        ./throughput-bench-client ${name}_${id} $duration $keepout $datasize $server &
 done
 wait

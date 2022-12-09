@@ -16,9 +16,9 @@ for (( id=0; id<$nclients; id++ ))
 do
         if [ $independent -gt 0 ]
         then
-                 ./groupclient ${name}_${id} $duration $keepout $datasize $server ${name}_${id} $group_size $independent &
+                 ./groupsize-bench-client ${name}_${id} $duration $keepout $datasize $server ${name}_${id} $group_size $independent &
         else
-                ./groupclient ${name}_$((${id} + ${startID})) $duration $keepout $datasize $server $receiver_prefix $group_size $independent &
+                ./groupsize-bench-client ${name}_$((${id} + ${startID})) $duration $keepout $datasize $server $receiver_prefix $group_size $independent &
         fi
         
 done

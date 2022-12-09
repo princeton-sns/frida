@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	// "sort"
+	"sort"
 
 	//"fmt"
 	"log"
@@ -341,38 +341,32 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	senderDeviceId := strings.TrimSpace(authHeader[7:])
 
-	// type Batch struct {
-	// 	Batch []*IncomingMessage `json:"batch"`
-	// }
-	// var msgs Batch
-	// e := json.NewDecoder(req.Body).Decode(&msgs)
-	// if e != nil {
-	// 	http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
-	// 	return
-	// }
+	type Batch struct {
+		Batch []*IncomingMessage `json:"batch"`
+	}
+	var msgs Batch
+	e := json.NewDecoder(req.Body).Decode(&msgs)
+	if e != nil {
+		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
+		return
+	}
 	
-	// lockIds := make(map[int]bool)
-	// for _, msg := range msgs.Batch {
-	// 	h := fnv.New32a()
-	// 	h.Write([]byte(msg.DeviceId))
-	// 	lockIds[int(h.Sum32())%LOCK_BUCKETS] = true
-	// }
+	lockIds := make(map[int]bool)
+	for _, msg := range msgs.Batch {
+		h := fnv.New32a()
+		h.Write([]byte(msg.DeviceId))
+		lockIds[int(h.Sum32())%LOCK_BUCKETS] = true
+	}
 
-	// locks := []int{}
-	// for k := range lockIds {
-	// 	locks = append(locks, k)
-	// }
-	// sort.Ints(locks)
+	locks := []int{}
+	for k := range lockIds {
+		locks = append(locks, k)
+	}
+	sort.Ints(locks)
 
-	// for _, i := range locks {
-	// 	server.MessageStorage.locks[i].Lock()
-	// }
-
-
-
-	h := fnv.New32a()
-	h.Write([]byte(senderDeviceId))
-	server.MessageStorage.locks[int(h.Sum32())%LOCK_BUCKETS].Lock()
+	for _, i := range locks {
+		server.MessageStorage.locks[i].Lock()
+	}
 
 
 
@@ -395,41 +389,27 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	batch.Set([]byte{0}, newSeqCount, pebble.NoSync)
 	var tmsgs []*Message
-	// for _, msg := range msgs.Batch {
-	// 	tmsg := Message{}
+	for _, msg := range msgs.Batch {
+		tmsg := Message{}
 
-	// 	tmsg.To = msg.DeviceId
-	// 	tmsg.To = senderDeviceId
-	// 	tmsg.Outgoing.Payload = msg.Payload
-	// 	tmsg.Outgoing.Sender = senderDeviceId
-	// 	tmsg.Outgoing.SeqID = seqID
+		tmsg.To = msg.DeviceId
+		tmsg.To = senderDeviceId
+		tmsg.Outgoing.Payload = msg.Payload
+		tmsg.Outgoing.Sender = senderDeviceId
+		tmsg.Outgoing.SeqID = seqID
 
-	// 	tmsgs = append(tmsgs, &tmsg)
+		tmsgs = append(tmsgs, &tmsg)
 
-	// 	k := append(append([]byte(msg.DeviceId), 0), seqCount...)
-	// 	msgStorage, _ := json.Marshal(&tmsg.Outgoing)
-	// 	batch.Set(k, msgStorage, pebble.NoSync)
-	// }
+		k := append(append([]byte(msg.DeviceId), 0), seqCount...)
+		msgStorage, _ := json.Marshal(&tmsg.Outgoing)
+		batch.Set(k, msgStorage, pebble.NoSync)
+	}
 
-	tmsg := Message{}
-	tmsg.To = senderDeviceId
-	tmsg.Outgoing.Payload = ""
-	tmsg.Outgoing.Sender = senderDeviceId
-	tmsg.Outgoing.SeqID = seqID
-
-	tmsgs = append(tmsgs, &tmsg)
-
-	// k := append(append([]byte(msg.DeviceId), 0), seqCount...)
-	k := append(append([]byte(senderDeviceId), 0), seqCount...)
-
-	msgStorage, _ := json.Marshal(&tmsg.Outgoing)
-	batch.Set(k, msgStorage, pebble.NoSync)
 
 	batch.Commit(pebble.Sync)
-	// for i := len(locks) - 1; i >= 0; i-- {
-	// 	server.MessageStorage.locks[locks[i]].Unlock()
-	// }
-	server.MessageStorage.locks[int(h.Sum32())%LOCK_BUCKETS].Unlock()
+	for i := len(locks) - 1; i >= 0; i-- {
+		server.MessageStorage.locks[locks[i]].Unlock()
+	}
 
 	event := MessageEvent{Messages: tmsgs, SeqID: seqID}
 	server.Notifier <- &event

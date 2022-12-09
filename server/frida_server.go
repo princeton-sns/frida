@@ -403,7 +403,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		batch.Set(k, msgStorage, pebble.NoSync)
 	}
 
-	batch.Commit(pebble.Sync)
+	batch.Commit(pebble.NoSync)
 	for i := len(locks) - 1; i >= 0; i-- {
 		server.MessageStorage.locks[locks[i]].Unlock()
 	}

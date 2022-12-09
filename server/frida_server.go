@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	// "hash/fnv"
-	// "sort"
+	"hash/fnv"
+	"sort"
 
 	//"fmt"
 	"log"
@@ -351,22 +351,22 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// lockIds := make(map[int]bool)
-	// for _, msg := range msgs.Batch {
-	// 	h := fnv.New32a()
-	// 	h.Write([]byte(msg.DeviceId))
-	// 	lockIds[int(h.Sum32())%LOCK_BUCKETS] = true
-	// }
+	lockIds := make(map[int]bool)
+	for _, msg := range msgs.Batch {
+		h := fnv.New32a()
+		h.Write([]byte(msg.DeviceId))
+		lockIds[int(h.Sum32())%LOCK_BUCKETS] = true
+	}
 
-	// locks := []int{}
-	// for k := range lockIds {
-	// 	locks = append(locks, k)
-	// }
-	// sort.Ints(locks)
+	locks := []int{}
+	for k := range lockIds {
+		locks = append(locks, k)
+	}
+	sort.Ints(locks)
 
-	// for _, i := range locks {
-	// 	server.MessageStorage.locks[i].Lock()
-	// }
+	for _, i := range locks {
+		server.MessageStorage.locks[i].Lock()
+	}
 
 	var seqID uint64 = 0
 
@@ -403,10 +403,10 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		batch.Set(k, msgStorage, pebble.NoSync)
 	}
 
-	batch.Commit(pebble.NoSync)
-	// for i := len(locks) - 1; i >= 0; i-- {
-	// 	server.MessageStorage.locks[locks[i]].Unlock()
-	// }
+	batch.Commit(pebble.Sync)
+	for i := len(locks) - 1; i >= 0; i-- {
+		server.MessageStorage.locks[locks[i]].Unlock()
+	}
 
 	event := MessageEvent{Messages: tmsgs, SeqID: seqID}
 	server.Notifier <- &event

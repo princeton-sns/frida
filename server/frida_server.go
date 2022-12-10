@@ -67,6 +67,7 @@ type MessageStorage struct {
 }
 
 type Server struct {
+	locksl         sync.RWMutex
 	MessageStorage *MessageStorage
 
 	// Events are pushed to this channel by the main events-gathering routine
@@ -414,7 +415,9 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	server.MessageStorage.locksl.RUnlock()
 	for _, msg := range tmsgs {
+		server.locksl.RLock()
 		c, ok := server.clients[msg.To]
+		server.locksl.RUnlock()
 		var outgoing *OutgoingMessage = &msg.Outgoing
 		if ok {
 			c <- outgoing
@@ -497,7 +500,9 @@ func (server *Server) listen() {
 
 			// A new client has connected.
 			// Register their message channel
+			server.locksl.Lock()
 			server.clients[s.DeviceId] = s.Channel
+			server.locksl.Unlock()
 
 			// Check if there are some one time keys
 			func() {
@@ -545,7 +550,9 @@ func (server *Server) listen() {
 
 			// A client has dettached and we want to
 			// stop sending them messages.
+			server.locksl.Lock()
 			delete(server.clients, s)
+			server.locksl.Unlock()
 			log.Printf("Removed client. %d registered clients", len(server.clients))
 		case event := <-server.Notifier:
 
@@ -554,7 +561,9 @@ func (server *Server) listen() {
 				// Send event to all connected clients
 				e := event.(*MessageEvent)
 				for _, msg := range e.Messages {
+					server.locksl.RLock()
 					c, ok := server.clients[msg.To]
+					server.locksl.RUnlock()
 					var outgoing *OutgoingMessage = &msg.Outgoing
 					if ok {
 						c <- outgoing
@@ -562,7 +571,9 @@ func (server *Server) listen() {
 				}
 			case *NeedsOneTimeKeyEvent:
 				e := event.(*NeedsOneTimeKeyEvent)
+				server.locksl.RLock()
 				c, ok := server.clients[e.DeviceId]
+				server.locksl.RUnlock()
 				if ok {
 					c <- e
 				}

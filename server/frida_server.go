@@ -396,7 +396,6 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg := Message{}
 
 		tmsg.To = msg.DeviceId
-		tmsg.To = senderDeviceId
 		tmsg.Outgoing.Payload = msg.Payload
 		tmsg.Outgoing.Sender = senderDeviceId
 		tmsg.Outgoing.SeqID = seqID
@@ -522,7 +521,7 @@ func (server *Server) listen() {
 			}()
 
 			// Check if there are some messages
-			func() {
+			/*func() {
 				prefix := append([]byte(s.DeviceId), 0)
 				batch := server.MessageStorage.db.NewIndexedBatch()
 				iter := batch.NewIter(&pebble.IterOptions{
@@ -535,7 +534,7 @@ func (server *Server) listen() {
 					s.Channel <- om
 				}
 				batch.Commit(pebble.NoSync)
-			}()
+			}()*/
 			log.Printf("Client added. %d registered clients", len(server.clients))
 		case s := <-server.closingClients:
 

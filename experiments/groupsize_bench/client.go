@@ -205,13 +205,16 @@ func main() {
 	listToSend = append(listToSend, myDeviceId)
 	// fmt.Printf("%v\n", listToSend)
 
-	batch := new(Batch)
+	var batchBuffer bytes.Buffer
+	batchBuffer.WriteByte(uint8(len(listToSend)))
 	for _, id := range listToSend {
-		body := msgContent
-		msg := OutgoingMessage{id, body}
-		batch.Batch = append(batch.Batch, msg)
+		batchBuffer.WriteByte(uint8(len(id)))
+		batchBuffer.WriteString(id)
+
+		batchBuffer.WriteByte(uint8(len(msgContent)))
+		batchBuffer.WriteString(msgContent)
 	}
-	batchContent, _ = json.Marshal(batch)
+	batchContent = batchBuffer.Bytes()
 
 	startTime = now()
 

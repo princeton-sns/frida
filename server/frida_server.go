@@ -349,11 +349,25 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		Batch []*IncomingMessage `json:"batch"`
 	}
 	var msgs Batch
-	e := json.NewDecoder(req.Body).Decode(&msgs)
-	if e != nil {
-		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
-		return
+	buf := make([]byte, 256)
+	req.Body.Read(buf[:1])
+	blen := buf[0]
+	for i := uint8(0); i < blen; i++ {
+		var im IncomingMessage
+
+		req.Body.Read(buf[:1])
+		devIdLen := buf[0]
+		req.Body.Read(buf[:devIdLen])
+		im.DeviceId = string(buf[:devIdLen])
+
+		req.Body.Read(buf[:1])
+		payloadLen := buf[0]
+		req.Body.Read(buf[:payloadLen])
+		im.Payload = string(buf[:payloadLen])
+
+		msgs.Batch = append(msgs.Batch, &im)
 	}
+	req.Body.Close()
 
 	lockIds := make(map[int]bool)
 	for _, msg := range msgs.Batch {

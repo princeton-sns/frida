@@ -4,15 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
 	"sync/atomic"
 	"time"
-
+	"io/ioutil"
 	"github.com/r3labs/sse/v2"
+	"math/rand"
 )
 
 type OutgoingMessage struct {
@@ -31,13 +30,14 @@ type Batch struct {
 }
 
 func remove(arr []string, str string) []string {
-	for i, element := range arr {
-		if element == str {
-			return append(arr[:i], arr[i+1:]...)
-		}
-	}
-	return arr
+    for i, element := range arr {
+        if element == str {
+            return append(arr[:i], arr[i+1:]...)
+        }
+    }
+    return arr
 }
+
 
 var myDeviceId string
 
@@ -64,9 +64,8 @@ var receiverPrefix string
 var numHead uint64
 var numTail uint64
 
-var groupSize int64
-var independent int64
-
+var groupSize int64;
+var independent int64;
 // var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
@@ -97,7 +96,7 @@ func send() {
 	// b, _ := json.Marshal(batch)
 	req("POST", batchContent, "/message")
 	// defer resp.Body.Close()
-
+	
 }
 
 func delete(seqID uint64) {
@@ -109,9 +108,9 @@ func now() int64 {
 	return time.Now().UnixNano() / int64(time.Microsecond)
 }
 
-func readParams() {
+func readParams(){
 	myDeviceId = os.Args[1]
-
+	
 	if len(os.Args) < 3 {
 		duration = 3
 	} else {
@@ -163,12 +162,12 @@ func main() {
 	client.Headers["Authorization"] = "Bearer " + myDeviceId
 	msgContent = string(make([]byte, msgSize))
 
-	//messageReceived := make(chan int, 1000)
+	messageReceived := make(chan int, 1000)
 	var maxSeq uint64
 	httpClient = &http.Client{}
 
 	go client.Subscribe("msg", func(msg *sse.Event) {
-		//messageReceived <- 1
+		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
@@ -183,18 +182,18 @@ func main() {
 	})
 
 	// Wait for otkeys message
-	//<-messageReceived
+	<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
-	for i := int64(0); i < groupSize-1; i++ {
+	for i := int64(0); i < groupSize - 1; i++ {
 		rname := fmt.Sprintf("%s_%v", receiverPrefix, i)
 		allClientList = append(allClientList, rname)
-	}
+	} 
 
-	if independent == 0 {
+	if(independent == 0){
 		rand.Seed(time.Now().UnixNano())
 		allClientList = remove(allClientList, myDeviceId)
-		for i := int64(0); i < groupSize-1; i++ {
+		for i := int64(0); i < groupSize - 1; i++{
 			randomDeviceId := allClientList[rand.Intn(len(allClientList))]
 			listToSend = append(listToSend, randomDeviceId)
 			allClientList = remove(allClientList, randomDeviceId)
@@ -202,7 +201,7 @@ func main() {
 	} else {
 		listToSend = allClientList
 	}
-	listToSend = append(listToSend, myDeviceId)
+	listToSend = append(listToSend, myDeviceId)	
 	// fmt.Printf("%v\n", listToSend)
 
 	batch := new(Batch)
@@ -212,6 +211,7 @@ func main() {
 		batch.Batch = append(batch.Batch, msg)
 	}
 	batchContent, _ = json.Marshal(batch)
+	
 
 	startTime = now()
 
@@ -220,7 +220,7 @@ func main() {
 
 	go func() {
 		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount)
+		numHead = atomic.LoadUint64(&recvCount) 
 	}()
 
 	tick := time.Tick(10 * time.Second)
@@ -230,14 +230,14 @@ func main() {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
 			// localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
-			fmt.Printf("%v\n", float32(numTail-numHead))
+			fmt.Printf("%v\n", float32(numTail - numHead))
 			delete(maxSeq)
 			return
 		case <-tick:
 			delete(atomic.LoadUint64(&maxSeq))
 		default:
 			send()
-			//<-messageReceived
+			<-messageReceived
 		}
 	}
 }

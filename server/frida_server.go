@@ -584,7 +584,9 @@ func (server *Server) listen() {
 
 func main() {
 
-	db, err := pebble.Open("storage", &pebble.Options{})
+	db, err := pebble.Open("storage", &pebble.Options{
+		Cache: pebble.NewCache(10 * 1024 * 1024 * 1024),
+	})
 	if err != nil {
 		log.Panic(err)
 	}

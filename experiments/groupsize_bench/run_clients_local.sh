@@ -8,18 +8,10 @@ datasize=$(($5))
 server=$6
 receiver_prefix=$7
 group_size=$(($8))
-independent=$((${9}))
-startID=$((${10}))
-mkdir -p ~/exp_results
+waitrecv=$((${9}))
 
 for (( id=0; id<$nclients; id++ ))
 do
-        if [ $independent -gt 0 ]
-        then
-                 ./groupsize-bench-client ${name}_${id} $duration $keepout $datasize $server ${name}_${id} $group_size $independent &
-        else
-                ./groupsize-bench-client ${name}_$((${id} + ${startID})) $duration $keepout $datasize $server $receiver_prefix $group_size $independent &
-        fi
-        
+        ./groupsize-bench-client ${name}_${id} $duration $keepout $datasize $server ${name}_${id} $group_size $waitrecv &       
 done
 wait

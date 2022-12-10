@@ -60,9 +60,10 @@ type ClientChan struct {
 }
 
 type MessageStorage struct {
-	lock  sync.Mutex
-	locks sync.Map
-	db    *pebble.DB
+	lock   sync.Mutex
+	locksl sync.RWMutex
+	locks  map[int]*sync.Mutex
+	db     *pebble.DB
 }
 
 type Server struct {
@@ -91,9 +92,12 @@ func NewServer(db *pebble.DB) (server *Server) {
 		clients:        make(map[string]chan Notification),
 	}
 	server.MessageStorage.db = db
+	server.MessageStorage.locksl.Lock()
+	server.MessageStorage.locks = make(map[int]*sync.Mutex)
 	for i := 0; i <= LOCK_BUCKETS; i++ {
-		server.MessageStorage.locks.Store(i, new(sync.Mutex))
+		server.MessageStorage.locks[i] = new(sync.Mutex)
 	}
+	server.MessageStorage.locksl.Unlock()
 
 	// Set it running - listening and broadcasting events
 	go server.listen()
@@ -363,10 +367,11 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	sort.Ints(locks)
 
+	server.MessageStorage.locksl.RLock()
 	for _, i := range locks {
-		lock, _ := server.MessageStorage.locks.Load(i)
-		lock.(*sync.Mutex).Lock()
+		server.MessageStorage.locks[i].Lock()
 	}
+	server.MessageStorage.locksl.RUnlock()
 
 	var seqID uint64 = 0
 
@@ -404,10 +409,11 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	batch.Commit(pebble.Sync)
+	server.MessageStorage.locksl.RLock()
 	for i := len(locks) - 1; i >= 0; i-- {
-		lock, _ := server.MessageStorage.locks.Load(i)
-		lock.(*sync.Mutex).Unlock()
+		server.MessageStorage.locks[locks[i]].Unlock()
 	}
+	server.MessageStorage.locksl.RUnlock()
 
 	event := MessageEvent{Messages: tmsgs, SeqID: seqID}
 	server.Notifier <- &event

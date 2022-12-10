@@ -162,7 +162,7 @@ func main() {
 	client.Headers["Authorization"] = "Bearer " + myDeviceId
 	msgContent = string(make([]byte, msgSize))
 
-	// messageReceived := make(chan int, 1000)
+	messageReceived := make(chan int, 1000)
 	var maxSeq uint64
 	httpClient = &http.Client{}
 
@@ -170,24 +170,24 @@ func main() {
 		atomic.AddUint64(&recvCount, 1)
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
-			// if(waitrecv > 0){
-			// 	messageReceived <- 1
-			// }
+			if(waitrecv > 0){
+				messageReceived <- 1
+			}
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		} 
-		// else {
-			// For otkeys message
-			// messageReceived <- 1
-		// }
+		else {
+			For otkeys message
+			messageReceived <- 1
+		}
 	})
 
 	// Not doing anything, just let go not panic including rand, which keeps vender hash in Nix!
 	// tmp := rand.Intn(100)
 
-	// Wait for otkeys message
-	// <-messageReceived
+	Wait for otkeys message
+	<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
 	for i := int64(0); i < groupSize - 1; i++ {
@@ -233,9 +233,9 @@ func main() {
 			delete(atomic.LoadUint64(&maxSeq))
 		default:
 			send()
-			// if(waitrecv > 0){
-			// 	<-messageReceived
-			// }
+			if(waitrecv > 0){
+				<-messageReceived
+			}
 		}
 	}
 }

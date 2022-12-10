@@ -396,7 +396,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg := Message{}
 
 		tmsg.To = msg.DeviceId
-		tmsg.Outgoing.Payload = msg.Payload
+		tmsg.Outgoing.Payload = &msg.Payload
 		tmsg.Outgoing.Sender = senderDeviceId
 		tmsg.Outgoing.SeqID = seqID
 
@@ -413,9 +413,14 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		server.MessageStorage.locks[locks[i]].Unlock()
 	}
 	server.MessageStorage.locksl.RUnlock()
+	for _, msg := range tmsgs {
+		c, ok := server.clients[msg.To]
+		var outgoing *OutgoingMessage = &msg.Outgoing
+		if ok {
+			c <- outgoing
+		}
+	}
 
-	event := MessageEvent{Messages: tmsgs, SeqID: seqID}
-	server.Notifier <- &event
 	rw.Write([]byte("{}"))
 }
 

@@ -75,8 +75,8 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	}
 	resp, err := httpClient.Do(req)
 	defer resp.Body.Close()
-
 	if err != nil {
+		fmt.Println("-----------------ERROR--------------")
 		panic(err)
 	}
 
@@ -172,7 +172,6 @@ func main() {
 	}()
 
 	tick := time.Tick(10 * time.Second)
-	fmt.Println("--------------reached here----------------")
 	for {
 		select {
 		case <-timerTail.C:

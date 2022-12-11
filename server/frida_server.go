@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"sort"
 
 	//"fmt"
@@ -20,8 +19,6 @@ import (
 
 	"github.com/cockroachdb/pebble"
 )
-
-const LOCK_BUCKETS int = 1000000
 
 // Single message format from sender
 type IncomingMessage struct {
@@ -65,7 +62,7 @@ type ClientChan struct {
 type MessageStorage struct {
 	lock   sync.Mutex
 	locksl sync.RWMutex
-	locks  map[int]*sync.Mutex
+	locks  map[string]*sync.Mutex
 	db     *pebble.DB
 }
 
@@ -97,10 +94,7 @@ func NewServer(db *pebble.DB) (server *Server) {
 	}
 	server.MessageStorage.db = db
 	server.MessageStorage.locksl.Lock()
-	server.MessageStorage.locks = make(map[int]*sync.Mutex)
-	for i := 0; i <= LOCK_BUCKETS; i++ {
-		server.MessageStorage.locks[i] = new(sync.Mutex)
-	}
+	server.MessageStorage.locks = make(map[string]*sync.Mutex)
 	server.MessageStorage.locksl.Unlock()
 
 	// Set it running - listening and broadcasting events
@@ -375,18 +369,11 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	req.Body.Close()
 
-	lockIds := make(map[int]bool)
+	locks := []string{}
 	for _, msg := range msgs.Batch {
-		h := fnv.New32a()
-		h.Write([]byte(msg.DeviceId))
-		lockIds[int(h.Sum32())%LOCK_BUCKETS] = true
+		locks = append(locks, msg.DeviceId)
 	}
-
-	locks := []int{}
-	for k := range lockIds {
-		locks = append(locks, k)
-	}
-	sort.Ints(locks)
+	sort.Strings(locks)
 
 	seqCount := make([]byte, 8)
 	seq := atomic.AddUint64(&seqID, 1)
@@ -394,7 +381,20 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 	server.MessageStorage.locksl.RLock()
 	for _, i := range locks {
-		server.MessageStorage.locks[i].Lock()
+		x, ok := server.MessageStorage.locks[i]
+		if ok {
+			x.Lock()
+		} else {
+			server.MessageStorage.locksl.RUnlock()
+			server.MessageStorage.locksl.Lock()
+
+			newLock := new(sync.Mutex)
+			newLock.Lock()
+			server.MessageStorage.locks[i] = newLock
+
+			server.MessageStorage.locksl.Unlock()
+			server.MessageStorage.locksl.RLock()
+		}
 	}
 	server.MessageStorage.locksl.RUnlock()
 

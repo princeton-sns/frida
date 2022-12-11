@@ -41,9 +41,6 @@ type BodyWithTimestamp struct {
 // 	Needs    uint `json:"needs"`
 // }
 
-const MAX_ROUTINES_SEND = 2
-
-// const MAX_ROUTINES_DELETE = 2
 
 var myDeviceId string
 
@@ -74,6 +71,8 @@ var startRec int64;
 
 var sendTimestamp time.Time
 
+var batchContent []byte
+
 func req(reqType string, jsonStr []byte, path string) time.Time {
 	// fmt.Printf("Send+++++++++++++++++++++++++\n%v\n", string(jsonStr))
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
@@ -93,16 +92,16 @@ func req(reqType string, jsonStr []byte, path string) time.Time {
 	return send_time
 }
 
-func sendTo(ids []string) time.Time {
-	batch := new(Batch)
-	for _, id := range ids {
-		// body := BodyWithTimestamp{msgContent, timestamp}
-		body := msgContent
-		msg := OutgoingMessage{id, body}
-		batch.Batch = append(batch.Batch, msg)
-	}
-	b, _ := json.Marshal(batch)
-	send_time := req("POST", b, "/message")
+func send() time.Time {
+	// batch := new(Batch)
+	// for _, id := range ids {
+	// 	// body := BodyWithTimestamp{msgContent, timestamp}
+	// 	body := msgContent
+	// 	msg := OutgoingMessage{id, body}
+	// 	batch.Batch = append(batch.Batch, msg)
+	// }
+	// b, _ := json.Marshal(batch)
+	send_time := req("POST", batchContent, "/message")
 	return send_time
 	// defer resp.Body.Close()
 
@@ -144,11 +143,6 @@ func readParams(){
 		serverAddr = os.Args[5]
 	}
 
-	// if len(os.Args) < 7 {
-	// 	msgPerSecond = 5
-	// } else {
-	// 	msgPerSecond, _ = strconv.ParseInt(os.Args[6], 10, 0)
-	// }
 }
 
 func main() {
@@ -191,12 +185,24 @@ func main() {
 
 	listToSend := []string{myDeviceId}
 
+	var batchBuffer bytes.Buffer
+	batchBuffer.WriteByte(uint8(len(listToSend)))
+	for _, id := range listToSend {
+		batchBuffer.WriteByte(uint8(len(id)))
+		batchBuffer.WriteString(id)
+
+		batchBuffer.WriteByte(uint8(len(msgContent)))
+		batchBuffer.WriteString(msgContent)
+	}
+	batchContent = batchBuffer.Bytes()
+
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
+	timerEnd := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 
 	atomic.StoreInt64(&startRec, 0)
 
-	deleteTick := time.Tick(10 * time.Second)
+	// deleteTick := time.Tick(10 * time.Second)
 	// sendTick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
 
@@ -210,24 +216,21 @@ func main() {
 			// numTail = (atomic.LoadUint64(&recvCount))
 			atomic.StoreInt64(&startRec, 0)
 			// local_throughput := float32(numTail-numHead)/float32(duration-2*keepout)
-
+		case <-timerEnd.C:
 			// var sum_lat int64 = 0
 			for _, lat := range latencies{
 				// sum_lat += lat
 				fmt.Printf("%v\n", lat)
 			}
-			// avg_lat_in_ms := (float32(sum_lat) / 1000)/float32(len(latencies))
-			// fmt.Println(latencies)
-			// fmt.Printf("%v, %v, %v, %v\n", deviceId, local_throughput, avg_lat_in_ms, len(latencies))
 			delete(atomic.LoadUint64(&maxSeq))
 			return
-		case <-deleteTick:
-			delete(atomic.LoadUint64(&maxSeq))
+		// case <-deleteTick:
+		// 	delete(atomic.LoadUint64(&maxSeq))
 		case latency := <-latenciesMeasured:
 			latencies = append(latencies, latency)
 		// case <-sendTick:
 		default:
-			sendTimestamp = sendTo(listToSend)
+			sendTimestamp = send()
 			<-messageReceived
 		}
 	}

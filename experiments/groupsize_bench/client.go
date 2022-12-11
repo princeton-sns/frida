@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
+	// "math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -59,13 +59,13 @@ var startTime int64
 
 var httpClient *http.Client
 
-var receiverPrefix string
+// var receiverPrefix string
 
 var numHead uint64
 var numTail uint64
 
 var groupSize int64
-var independent int64
+// var independent int64
 
 // var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
@@ -137,22 +137,22 @@ func readParams() {
 	}
 
 	if len(os.Args) < 7 {
-		receiverPrefix = "receiver"
-	} else {
-		receiverPrefix = os.Args[6]
-	}
-
-	if len(os.Args) < 8 {
 		groupSize = 1
 	} else {
-		groupSize, _ = strconv.ParseInt(os.Args[7], 10, 0)
+		groupSize, _ = strconv.ParseInt(os.Args[6], 10, 0)
 	}
 
-	if len(os.Args) < 9 {
-		independent = 1
-	} else {
-		independent, _ = strconv.ParseInt(os.Args[8], 10, 0)
-	}
+	// if len(os.Args) < 7 {
+	// 	receiverPrefix = "receiver"
+	// } else {
+	// 	receiverPrefix = os.Args[6]
+	// }
+
+	// if len(os.Args) < 9 {
+	// 	independent = 1
+	// } else {
+	// 	independent, _ = strconv.ParseInt(os.Args[8], 10, 0)
+	// }
 
 }
 
@@ -187,21 +187,22 @@ func main() {
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
 	for i := int64(0); i < groupSize-1; i++ {
-		rname := fmt.Sprintf("%s_%s_%v", myDeviceId, receiverPrefix, i)
+		// rname := fmt.Sprintf("%s_%s_%v", myDeviceId, receiverPrefix, i)
+		rname := fmt.Sprintf("%s_%v", myDeviceId, i)
 		allClientList = append(allClientList, rname)
 	}
 
-	if independent == 0 {
-		rand.Seed(time.Now().UnixNano())
-		allClientList = remove(allClientList, myDeviceId)
-		for i := int64(0); i < groupSize-1; i++ {
-			randomDeviceId := allClientList[rand.Intn(len(allClientList))]
-			listToSend = append(listToSend, randomDeviceId)
-			allClientList = remove(allClientList, randomDeviceId)
-		}
-	} else {
-		listToSend = allClientList
-	}
+	// if independent == 0 {
+	// 	rand.Seed(time.Now().UnixNano())
+	// 	allClientList = remove(allClientList, myDeviceId)
+	// 	for i := int64(0); i < groupSize-1; i++ {
+	// 		randomDeviceId := allClientList[rand.Intn(len(allClientList))]
+	// 		listToSend = append(listToSend, randomDeviceId)
+	// 		allClientList = remove(allClientList, randomDeviceId)
+	// 	}
+	// } else {
+	listToSend = allClientList
+	// }
 	listToSend = append(listToSend, myDeviceId)
 	// fmt.Printf("%v\n", listToSend)
 

@@ -59,15 +59,11 @@ var startTime int64
 
 var httpClient *http.Client
 
-// var receiverPrefix string
 
 var numHead uint64
 var numTail uint64
 
 var groupSize int64
-// var independent int64
-
-// var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
@@ -142,18 +138,6 @@ func readParams() {
 	} else {
 		groupSize, _ = strconv.ParseInt(os.Args[6], 10, 0)
 	}
-	// if len(os.Args) < 7 {
-	// 	receiverPrefix = "receiver"
-	// } else {
-	// 	receiverPrefix = os.Args[6]
-	// }
-
-
-	// if len(os.Args) < 9 {
-	// 	independent = 1
-	// } else {
-	// 	independent, _ = strconv.ParseInt(os.Args[8], 10, 0)
-	// }
 
 }
 
@@ -210,7 +194,8 @@ func main() {
 	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
-	timerTail := time.NewTimer(time.Duration(duration) * time.Second)
+	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
+	timerEnd := time.NewTimer(time.Duration(duration) * time.Second)
 
 	go func() {
 		<-timerHead.C
@@ -223,7 +208,8 @@ func main() {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			localThroughput := float32(numTail - numHead)/float32(duration - keepout)
+		case <-timerEnd.C:
+			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
 			fmt.Printf("%v\n", localThroughput)
 			delete(maxSeq)
 			return

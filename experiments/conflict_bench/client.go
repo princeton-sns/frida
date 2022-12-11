@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	// "math/rand"
 	"net/http"
 	"os"
 	"strconv"
 	"sync/atomic"
 	"time"
-	"io/ioutil"
+	"bufio"
 	"github.com/r3labs/sse/v2"
 )
 
@@ -19,7 +21,7 @@ type OutgoingMessage struct {
 }
 
 type IncomingMessage struct {
-	//Sender  string         `json:"sender"`
+	// Sender  string         `json:"sender"`
 	//Payload BodyWithCseqID `json:"encPayload"`
 	SeqID uint64 `json:"seqID"`
 }
@@ -28,16 +30,14 @@ type Batch struct {
 	Batch []OutgoingMessage `json:"batch"`
 }
 
-// type BodyWithCseqID struct {
-// 	Body   string `json:"body"`
-// 	CseqID uint64 `json:"cseqID"`
-// }
-
-// type NeedsOneTimeKeyEvent struct {
-// 	DeviceId string `json:"deviceId"`
-// 	Needs    uint `json:"needs"`
-// }
-
+func remove(arr []string, str string) []string {
+	for i, element := range arr {
+		if element == str {
+			return append(arr[:i], arr[i+1:]...)
+		}
+	}
+	return arr
+}
 
 var myDeviceId string
 
@@ -46,6 +46,10 @@ var serverAddr string = "http://localhost:8080"
 var msgSize int64
 
 var msgContent string
+
+var numClients int64
+
+var batchContent []byte
 
 var recvCount uint64 = 0
 
@@ -57,12 +61,13 @@ var startTime int64
 
 var httpClient *http.Client
 
+
 var numHead uint64
 var numTail uint64
 
-var batchContent []byte
+var groupSize int64
 
-// var semDelete make(chan bool MAX_ROUTINES_DELETE);
+var conflictProb float64;
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
@@ -72,6 +77,7 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	}
 	resp, err := httpClient.Do(req)
 	defer resp.Body.Close()
+
 	if err != nil {
 		panic(err)
 	}
@@ -80,8 +86,8 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	return resp
 }
 
-// func sendTo(ids []string, cseqID uint64) {
-func send(){
+// func sendTo(ids []string) {
+func send() {
 	// batch := new(Batch)
 	// for _, id := range ids {
 	// 	body := msgContent
@@ -91,6 +97,7 @@ func send(){
 	// b, _ := json.Marshal(batch)
 	req("POST", batchContent, "/message")
 	// defer resp.Body.Close()
+
 }
 
 func delete(seqID uint64) {
@@ -102,44 +109,63 @@ func now() int64 {
 	return time.Now().UnixNano() / int64(time.Microsecond)
 }
 
-func readParams(){
+func readParams() {
 	myDeviceId = os.Args[1]
-	
+
 	if len(os.Args) < 3 {
-		duration = 3
+		numClients = 1
 	} else {
-		duration, _ = strconv.ParseInt(os.Args[2], 10, 0)
+		numClients, _ = strconv.ParseInt(os.Args[2], 10, 0)
 	}
 
 	if len(os.Args) < 4 {
-		keepout = 1
+		duration = 3
 	} else {
-		keepout, _ = strconv.ParseInt(os.Args[3], 10, 0)
+		duration, _ = strconv.ParseInt(os.Args[3], 10, 0)
 	}
 
-	if len(os.Args) < 5 {
-		msgSize = 32
+	if len(os.Args) < 5{
+		keepout = 1
 	} else {
-		msgSize, _ = strconv.ParseInt(os.Args[4], 10, 0)
+		keepout, _ = strconv.ParseInt(os.Args[4], 10, 0)
 	}
 
 	if len(os.Args) < 6 {
+		msgSize = 32
+	} else {
+		msgSize, _ = strconv.ParseInt(os.Args[5], 10, 0)
+	}
+
+	if len(os.Args) < 7 {
 		serverAddr = "http://localhost:8080"
 	} else {
-		serverAddr = os.Args[5]
+		serverAddr = os.Args[6]
+	}
+
+	
+	if len(os.Args) < 8 {
+		groupSize = 1
+	} else {
+		groupSize, _ = strconv.ParseInt(os.Args[7], 10, 0)
 	}
 }
 
 func main() {
 	readParams()
+	var receiverLists = make([][]string)
+
+
+
+	return 
+
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + myDeviceId
-
 	msgContent = string(make([]byte, msgSize))
 
 	messageReceived := make(chan int, 1000)
 	var maxSeq uint64
 	httpClient = &http.Client{}
+
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
@@ -147,11 +173,25 @@ func main() {
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
+			// if(incomingMsgContent.Sender == myDeviceId){
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
+		// else {
+		// 	messageReceived <- 1
+		// }
 	})
 
-	listToSend := []string{myDeviceId}
+	// Wait for otkeys message
+	<-messageReceived
+	listToSend := make([]string, 0)
+	allClientList := make([]string, 0)
+	for i := int64(0); i < groupSize-1; i++ {
+		rname := fmt.Sprintf("%s_%v", myDeviceId, i)
+		allClientList = append(allClientList, rname)
+	}
+
+	listToSend = allClientList
+	listToSend = append(listToSend, myDeviceId)
 	// fmt.Printf("%v\n", listToSend)
 
 	var batchBuffer bytes.Buffer
@@ -165,12 +205,6 @@ func main() {
 	}
 	batchContent = batchBuffer.Bytes()
 
-	// Wait for otkeys message
-	<-messageReceived
-
-
-
-
 	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
@@ -179,21 +213,22 @@ func main() {
 
 	go func() {
 		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount) 
+		numHead = atomic.LoadUint64(&recvCount)
 	}()
 
-	// tick := time.Tick(10 * time.Second)
+	//tick := time.Tick(10 * time.Second)
+
 	for {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
-			fmt.Printf("%v\n", localThroughput)
 		case <-timerEnd.C:
+			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
+			fmt.Printf("%v\n", localThroughput)
 			delete(maxSeq)
 			return
-		// case <-tick:
-		// 	delete(atomic.LoadUint64(&maxSeq))
+		//case <-tick:
+		//delete(atomic.LoadUint64(&maxSeq))
 		default:
 			send()
 			<-messageReceived

@@ -186,7 +186,7 @@ func main() {
 	// Not doing anything, just let go not panic including rand, which keeps vender hash in Nix!
 	// tmp := rand.Intn(100)
 
-	Wait for otkeys message
+	// Wait for otkeys message
 	<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)

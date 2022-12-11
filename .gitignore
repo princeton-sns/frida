@@ -2,5 +2,6 @@ node_modules/
 exp_data/
 tmp
 groupclient
+throughput-bench-client
 .gitignore
 receiver

@@ -38,11 +38,8 @@ type Batch struct {
 // 	Needs    uint `json:"needs"`
 // }
 
-const MAX_ROUTINES_SEND = 2
 
-// const MAX_ROUTINES_DELETE = 2
-
-var deviceId string
+var myDeviceId string
 
 var serverAddr string = "http://localhost:8080"
 
@@ -60,10 +57,10 @@ var startTime int64
 
 var httpClient *http.Client
 
-// var record bool = false;
-
 var numHead uint64
 var numTail uint64
+
+var batchContent []byte
 
 // var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
@@ -71,12 +68,11 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
-		"Authorization": {"Bearer " + deviceId},
+		"Authorization": {"Bearer " + myDeviceId},
 	}
 	resp, err := httpClient.Do(req)
 	defer resp.Body.Close()
 	if err != nil {
-		fmt.Println("-----------------ERROR--------------")
 		panic(err)
 	}
 
@@ -84,15 +80,16 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	return resp
 }
 
-func sendTo(ids []string, cseqID uint64) {
-	batch := new(Batch)
-	for _, id := range ids {
-		body := msgContent
-		msg := OutgoingMessage{id, body}
-		batch.Batch = append(batch.Batch, msg)
-	}
-	b, _ := json.Marshal(batch)
-	req("POST", b, "/message")
+// func sendTo(ids []string, cseqID uint64) {
+func send(){
+	// batch := new(Batch)
+	// for _, id := range ids {
+	// 	body := msgContent
+	// 	msg := OutgoingMessage{id, body}
+	// 	batch.Batch = append(batch.Batch, msg)
+	// }
+	// b, _ := json.Marshal(batch)
+	req("POST", batchContent, "/message")
 	// defer resp.Body.Close()
 }
 
@@ -106,7 +103,7 @@ func now() int64 {
 }
 
 func readParams(){
-	deviceId = os.Args[1]
+	myDeviceId = os.Args[1]
 	
 	if len(os.Args) < 3 {
 		duration = 3
@@ -136,7 +133,7 @@ func readParams(){
 func main() {
 	readParams()
 	client := sse.NewClient(serverAddr + "/events")
-	client.Headers["Authorization"] = "Bearer " + deviceId
+	client.Headers["Authorization"] = "Bearer " + myDeviceId
 
 	msgContent = string(make([]byte, msgSize))
 
@@ -154,36 +151,51 @@ func main() {
 		}
 	})
 
+	listToSend := []string{myDeviceId}
+	// fmt.Printf("%v\n", listToSend)
+
+	var batchBuffer bytes.Buffer
+	batchBuffer.WriteByte(uint8(len(listToSend)))
+	for _, id := range listToSend {
+		batchBuffer.WriteByte(uint8(len(id)))
+		batchBuffer.WriteString(id)
+
+		batchBuffer.WriteByte(uint8(len(msgContent)))
+		batchBuffer.WriteString(msgContent)
+	}
+	batchContent = batchBuffer.Bytes()
+
 	// Wait for otkeys message
 	<-messageReceived
 
-	listToSend := []string{deviceId}
 
-	var id uint64
+
 
 	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
+	timerEnd := time.NewTimer(time.Duration(duration) * time.Second)
 
 	go func() {
 		<-timerHead.C
 		numHead = atomic.LoadUint64(&recvCount) 
 	}()
 
-	tick := time.Tick(10 * time.Second)
+	// tick := time.Tick(10 * time.Second)
 	for {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
+		case <-timerEnd.C:
 			localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
-			fmt.Printf("%v, %v\n", deviceId, localThroughput)
+			fmt.Printf("%v\n", localThroughput)
 			delete(maxSeq)
 			return
-		case <-tick:
-			delete(atomic.LoadUint64(&maxSeq))
+		// case <-tick:
+		// 	delete(atomic.LoadUint64(&maxSeq))
 		default:
-			sendTo(listToSend, id)
+			send()
 			<-messageReceived
 		}
 	}

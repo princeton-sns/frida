@@ -192,17 +192,7 @@ func main() {
 		allClientList = append(allClientList, rname)
 	}
 
-	// if independent == 0 {
-	// 	rand.Seed(time.Now().UnixNano())
-	// 	allClientList = remove(allClientList, myDeviceId)
-	// 	for i := int64(0); i < groupSize-1; i++ {
-	// 		randomDeviceId := allClientList[rand.Intn(len(allClientList))]
-	// 		listToSend = append(listToSend, randomDeviceId)
-	// 		allClientList = remove(allClientList, randomDeviceId)
-	// 	}
-	// } else {
 	listToSend = allClientList
-	// }
 	listToSend = append(listToSend, myDeviceId)
 	// fmt.Printf("%v\n", listToSend)
 

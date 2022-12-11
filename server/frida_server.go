@@ -416,8 +416,9 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		//batch.Set(k, msgStorage, pebble.NoSync)
 	}
 
-	msgStorage, _ := json.Marshal(&tmsgs)
-	batch.Set(seqCount, []byte{msgStorage[0]}, pebble.NoSync)
+	//msgStorage, _ := json.Marshal(&tmsgs)
+	msgStorage := make([]byte, len(tmsgs) * (32 + 32) + 32 + 8)
+	batch.Set(seqCount, msgStorage, pebble.NoSync)
 	batch.Commit(pebble.Sync)
 
 	server.MessageStorage.locksl.RLock()

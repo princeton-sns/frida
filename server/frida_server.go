@@ -398,7 +398,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	server.MessageStorage.locksl.RUnlock()
 
-	batch := server.MessageStorage.db.NewBatch()
+	//batch := server.MessageStorage.db.NewBatch()
 
 	var tmsgs []*Message
 	for _, msg := range msgs.Batch {
@@ -418,8 +418,8 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 	//msgStorage, _ := json.Marshal(&tmsgs)
 	msgStorage := make([]byte, len(tmsgs) * (32 + 32) + 32 + 8)
-	batch.Set(seqCount, msgStorage, pebble.NoSync)
-	batch.Commit(pebble.Sync)
+	server.MessageStorage.db.LogData(msgStorage, pebble.Sync)
+	//batch.Commit(pebble.Sync)
 
 	server.MessageStorage.locksl.RLock()
 	for i := len(locks) - 1; i >= 0; i-- {

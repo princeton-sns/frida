@@ -232,7 +232,7 @@ func main() {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			localThroughput := float32(numTail - numHead)/float32(duration - keepout)
+			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
 			fmt.Printf("%v\n", localThroughput)
 			delete(maxSeq)
 			return

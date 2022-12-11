@@ -183,7 +183,7 @@ func main() {
 	})
 
 	// Wait for otkeys message
-	//<-messageReceived
+	<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
 	for i := int64(0); i < groupSize-1; i++ {

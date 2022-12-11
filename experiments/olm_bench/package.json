@@ -1,0 +1,17 @@
+{
+  "name": "olm_bench",
+  "version": "0.0.1",
+  "description": "Microbenchmark of the overhead of Olm double ratchet encryption",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "The Noise Project Developers",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@matrix-org/olm": "^3.2.14",
+    "localstorage-polyfill": "^1.0.1"
+  }
+}

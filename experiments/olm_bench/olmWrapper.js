@@ -3,16 +3,17 @@
  * Olm Crypto *
  **************
  */
-// @ts-ignore
 import Olm from "@matrix-org/olm";
 // TODO can eventually make data abstraction module use these basic methods
 class ThinLSWrapper {
     suffix = "";
+
     constructor(suffix) {
-        if (suffix) {
-            this.suffix = "_" + suffix;
-        }
+	if (suffix) {
+	    this.suffix = "_" + suffix;
+	}
     }
+
     set(key, value) {
         localStorage.setItem(key + this.suffix, JSON.stringify(value));
     }
@@ -37,32 +38,24 @@ export class OlmWrapper {
     static ENDPOINT2 = "__endpoint2";
     static INIT_NUM_OTKEYS = 10;
     static MORE_NUM_OTKEYS = 5;
-    // used when sending message through server (for seqID) to self device
+    // used when sending message through server (for seqID) to self device 
     // (to avoid unnecessary encrypting/decrypting)
     #selfMsgQueue = [];
     #turnEncryptionOff = false;
     #thinLSWrapper;
-    debug = false;
-    constructor(turnEncryptionOff, storageSuffix) {
+    constructor(turnEncryptionOff, suffix) {
         this.#turnEncryptionOff = turnEncryptionOff;
-        this.#thinLSWrapper = new ThinLSWrapper(storageSuffix);
+        this.#thinLSWrapper = new ThinLSWrapper(suffix);
     }
-    async #init(wasmPath) {
-        let olmInitOpts = {};
-        if (wasmPath) {
-            olmInitOpts["locateFile"] = () => wasmPath;
-        }
-        await Olm.init(olmInitOpts);
+    async #init() {
+        await Olm.init({
+
+        });
     }
-    static async create(turnEncryptionOff, wasmPath, storageSuffix) {
-        let olmWrapper = new OlmWrapper(turnEncryptionOff, storageSuffix);
-        await olmWrapper.#init(wasmPath);
+    static async create(turnEncryptionOff, suffix) {
+        let olmWrapper = new OlmWrapper(turnEncryptionOff, suffix);
+        await olmWrapper.#init();
         return olmWrapper;
-    }
-    #log(...args) {
-        if (this.debug) {
-            console.log(...args);
-        }
     }
     getIdkey() {
         return this.#thinLSWrapper.get(OlmWrapper.IDKEY);
@@ -130,7 +123,7 @@ export class OlmWrapper {
         // ensure only one stored sess with SESSION_ID at a time
         let spliceIdx;
         for (let i = 0; i < allSess.inactive.length; i++) {
-            // don't need to go through whole array b/c
+            // don't need to go through whole array b/c 
             // shouldn't have duplicates in the first place
             if (sessid === allSess.inactive[i].id) {
                 spliceIdx = i;
@@ -169,7 +162,7 @@ export class OlmWrapper {
     async #createOutboundSession(serverComm, dstIdkey, acct) {
         let dstOtkey = await serverComm.getOtkeyFromServer(dstIdkey);
         if (!dstOtkey) {
-            this.#log("dest device has been deleted - no otkey");
+            console.log("dest device has been deleted - no otkey");
             return -1;
         }
         let sess = new Olm.Session();
@@ -181,7 +174,7 @@ export class OlmWrapper {
         let sess = new Olm.Session();
         let acct = this.#getAccount();
         if (acct === null) {
-            this.#log("device is being deleted - no acct");
+            console.log("device is being deleted - no acct");
             sess.free();
             return null;
         }
@@ -204,7 +197,6 @@ export class OlmWrapper {
         return plaintext;
     }
     async #encryptHelper(serverComm, plaintext, dstIdkey) {
-        this.#log("REAL ENCRYPT -- ");
         if (dstIdkey === this.getIdkey()) {
             this.#selfMsgQueue.push(plaintext);
             return "{}";
@@ -215,7 +207,7 @@ export class OlmWrapper {
         if (sess === null || !sess.has_received_message()) {
             let acct = this.#getAccount();
             if (acct === null) {
-                this.#log("device is being deleted - no acct");
+                console.log("device is being deleted - no acct");
                 sess.free();
                 return "{}";
             }
@@ -223,19 +215,15 @@ export class OlmWrapper {
             acct.free();
         }
         if (sess === null) {
-            this.#log("device is being deleted - no sess");
+            console.log("device is being deleted - no sess");
             return "{}";
         }
-        else if (typeof sess === 'number' && -1) {
+        else if (sess === -1) {
             return "{}";
-        }
-        else if (typeof sess === 'number') {
-            throw "Unexpected return value of #createOutboundSession.";
         }
         let ciphertext = sess.encrypt(plaintext);
         this.#setSession(sess, dstIdkey);
         sess.free();
-        this.#log(JSON.parse(plaintext));
         return ciphertext;
     }
     #dummyEncrypt(plaintext) {
@@ -243,13 +231,12 @@ export class OlmWrapper {
         return plaintext;
     }
     #decryptHelper(ciphertext, srcIdkey) {
-        this.#log("REAL DECRYPT -- ", ciphertext);
         if (typeof ciphertext === 'string') {
             if (srcIdkey === this.getIdkey()) {
-                this.#log("getting msg from queue");
+                console.log("getting msg from queue");
                 return this.#selfMsgQueue.shift();
             }
-            this.#log("ciphertext is a string when it should be an object");
+            console.log("ciphertext is a string when it should be an object");
             return "{}";
         }
         let sessList = this.#getAllSessions(srcIdkey);
@@ -257,7 +244,7 @@ export class OlmWrapper {
         // with a one-time key, generate new inbound session
         if (sessList === null || ciphertext.type === 0) {
             let plaintext = this.#useNewInbound(srcIdkey, ciphertext);
-            this.#log(JSON.parse(plaintext));
+            // console.log(JSON.parse(plaintext));
             return plaintext;
         }
         // otherwise, scan existing sessions for the right one
@@ -268,18 +255,17 @@ export class OlmWrapper {
             try {
                 plaintext = sess.decrypt(ciphertext.type, ciphertext.body);
                 this.#setSession(sess, srcIdkey);
-                this.#log(JSON.parse(plaintext));
                 return plaintext;
             }
             catch (err) {
-                this.#log(err);
+                console.log(err);
                 continue;
             }
             finally {
                 sess.free();
             }
         }
-        this.#log("NO EXISTING SESSIONS WORKED");
+        console.log("NO EXISTING SESSIONS WORKED");
         return "{}";
     }
     #dummyDecrypt(ciphertext) {

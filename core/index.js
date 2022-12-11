@@ -30,7 +30,7 @@ export class Core {
         });
     }
     async #init(turnEncryptionOff, ip, port) {
-        this.olmWrapper = await OlmWrapper.create(turnEncryptionOff);
+        this.olmWrapper = await OlmWrapper.create(turnEncryptionOff, "/olm.wasm", undefined);
         this.#serverComm = await ServerComm.create(this.eventEmitter, this.olmWrapper, ip, port);
         this.messageChains = await MessageChainsIntegration.create(this.olmWrapper.getIdkey());
     }

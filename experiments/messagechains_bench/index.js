@@ -86,7 +86,7 @@ function measure(count, messageLength, unidirectional) {
 
     let endTime = Date.now();
 
-    console.log(`Exchanging ${exchangedMessages} messages took ${endTime - startTime}ms.`);
+    console.log(`Exchanging ${exchangedMessages} (${messageLength} bytes) messages took ${endTime - startTime}ms.`);
     console.log(`Duration per message: ${(endTime - startTime) * 1000 / exchangedMessages}us.\n`);
 
     return [exchangedMessages, messageLength, endTime - startTime];

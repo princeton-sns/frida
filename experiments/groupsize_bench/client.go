@@ -220,7 +220,7 @@ func main() {
 	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
-	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
+	timerTail := time.NewTimer(time.Duration(duration) * time.Second)
 
 	go func() {
 		<-timerHead.C

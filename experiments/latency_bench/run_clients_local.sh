@@ -9,7 +9,6 @@ server=$6
 # throughput=$7
 # NPROCS="$(nproc --all)"
 
-mkdir -p ~/exp_results
 
 for (( id=0; id<$nclients; id++ ))
 do

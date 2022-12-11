@@ -203,23 +203,17 @@ func main() {
 	atomic.StoreInt64(&startRec, 0)
 
 	// deleteTick := time.Tick(10 * time.Second)
-	// sendTick := time.Tick((time.Duration(1000000 / msgPerSecond)) * time.Microsecond)
 
 
 	
 	for {
 		select {
 		case <-timerHead.C:
-			// numHead = atomic.LoadUint64(&recvCount)
 			atomic.StoreInt64(&startRec, 1)
 		case <-timerTail.C:
-			// numTail = (atomic.LoadUint64(&recvCount))
 			atomic.StoreInt64(&startRec, 0)
-			// local_throughput := float32(numTail-numHead)/float32(duration-2*keepout)
 		case <-timerEnd.C:
-			// var sum_lat int64 = 0
 			for _, lat := range latencies{
-				// sum_lat += lat
 				fmt.Printf("%v\n", lat)
 			}
 			delete(atomic.LoadUint64(&maxSeq))
@@ -228,7 +222,6 @@ func main() {
 		// 	delete(atomic.LoadUint64(&maxSeq))
 		case latency := <-latenciesMeasured:
 			latencies = append(latencies, latency)
-		// case <-sendTick:
 		default:
 			sendTimestamp = send()
 			<-messageReceived

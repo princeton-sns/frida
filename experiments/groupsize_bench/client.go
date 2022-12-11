@@ -4,6 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+<<<<<<< HEAD
+||||||| f2f2882
+	"io/ioutil"
+	"math/rand"
+=======
+	"io/ioutil"
+	// "math/rand"
+>>>>>>> config-app-testing
 	"net/http"
 	"os"
 	"strconv"
@@ -59,13 +67,23 @@ var startTime int64
 
 var httpClient *http.Client
 
-var receiverPrefix string
+// var receiverPrefix string
 
 var numHead uint64
 var numTail uint64
 
+<<<<<<< HEAD
 var groupSize int64;
 var waitrecv int64;
+||||||| f2f2882
+var groupSize int64
+var independent int64
+
+=======
+var groupSize int64
+// var independent int64
+
+>>>>>>> config-app-testing
 // var semDelete make(chan bool MAX_ROUTINES_DELETE);
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
@@ -136,22 +154,22 @@ func readParams(){
 	}
 
 	if len(os.Args) < 7 {
-		receiverPrefix = "receiver"
-	} else {
-		receiverPrefix = os.Args[6]
-	}
-
-	if len(os.Args) < 8 {
 		groupSize = 1
 	} else {
-		groupSize, _ = strconv.ParseInt(os.Args[7], 10, 0)
+		groupSize, _ = strconv.ParseInt(os.Args[6], 10, 0)
 	}
 
-	if len(os.Args) < 9 {
-		waitrecv = 0
-	} else {
-		waitrecv, _ = strconv.ParseInt(os.Args[8], 10, 0)
-	}
+	// if len(os.Args) < 7 {
+	// 	receiverPrefix = "receiver"
+	// } else {
+	// 	receiverPrefix = os.Args[6]
+	// }
+
+	// if len(os.Args) < 9 {
+	// 	independent = 1
+	// } else {
+	// 	independent, _ = strconv.ParseInt(os.Args[8], 10, 0)
+	// }
 
 }
 
@@ -190,24 +208,36 @@ func main() {
 	<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
-	for i := int64(0); i < groupSize - 1; i++ {
-		rname := fmt.Sprintf("%s_%v", receiverPrefix, i)
+	for i := int64(0); i < groupSize-1; i++ {
+		// rname := fmt.Sprintf("%s_%s_%v", myDeviceId, receiverPrefix, i)
+		rname := fmt.Sprintf("%s_%v", myDeviceId, i)
 		allClientList = append(allClientList, rname)
 	} 
 
-	
+	// if independent == 0 {
+	// 	rand.Seed(time.Now().UnixNano())
+	// 	allClientList = remove(allClientList, myDeviceId)
+	// 	for i := int64(0); i < groupSize-1; i++ {
+	// 		randomDeviceId := allClientList[rand.Intn(len(allClientList))]
+	// 		listToSend = append(listToSend, randomDeviceId)
+	// 		allClientList = remove(allClientList, randomDeviceId)
+	// 	}
+	// } else {
 	listToSend = allClientList
-	listToSend = append(listToSend, myDeviceId)	
+	// }
+	listToSend = append(listToSend, myDeviceId)
 	// fmt.Printf("%v\n", listToSend)
 
-	batch := new(Batch)
+	var batchBuffer bytes.Buffer
+	batchBuffer.WriteByte(uint8(len(listToSend)))
 	for _, id := range listToSend {
-		body := msgContent
-		msg := OutgoingMessage{id, body}
-		batch.Batch = append(batch.Batch, msg)
+		batchBuffer.WriteByte(uint8(len(id)))
+		batchBuffer.WriteString(id)
+
+		batchBuffer.WriteByte(uint8(len(msgContent)))
+		batchBuffer.WriteString(msgContent)
 	}
-	batchContent, _ = json.Marshal(batch)
-	
+	batchContent = batchBuffer.Bytes()
 
 	startTime = now()
 
@@ -225,8 +255,8 @@ func main() {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			// localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
-			fmt.Printf("%v\n", float32(numTail - numHead))
+			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
+			fmt.Printf("%v\n", localThroughput)
 			delete(maxSeq)
 			return
 		case <-tick:

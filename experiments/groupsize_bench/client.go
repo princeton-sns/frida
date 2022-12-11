@@ -183,11 +183,11 @@ func main() {
 	})
 
 	// Wait for otkeys message
-	<-messageReceived
+	//<-messageReceived
 	listToSend := make([]string, 0)
 	allClientList := make([]string, 0)
 	for i := int64(0); i < groupSize-1; i++ {
-		rname := fmt.Sprintf("%s_%v", receiverPrefix, i)
+		rname := fmt.Sprintf("%s_%s_%v", myDeviceId, receiverPrefix, i)
 		allClientList = append(allClientList, rname)
 	}
 
@@ -232,8 +232,8 @@ func main() {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			// localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
-			fmt.Printf("%v\n", float32(numTail-numHead))
+			localThroughput := float32(numTail - numHead)/float32(duration - keepout)
+			fmt.Printf("%v\n", localThroughput)
 			delete(maxSeq)
 			return
 		//case <-tick:

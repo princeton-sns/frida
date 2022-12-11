@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"bufio"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -11,9 +12,11 @@ import (
 	//"fmt"
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/cockroachdb/pebble"
 )
@@ -116,6 +119,9 @@ func (server *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	switch req.URL.Path {
+	case "/profile":
+		pprof.Profile(rw, req)
+		return
 	case "/events":
 		if req.Method != "GET" {
 			http.Error(rw, "Not Found", http.StatusNotFound)
@@ -324,6 +330,8 @@ func (server *Server) getMessages(rw http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(rw).Encode(msgs)
 }
 
+var seqID uint64
+
 // Expects the body of the function to be a JSON object of the format:
 //
 // ```
@@ -349,20 +357,18 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		Batch []*IncomingMessage `json:"batch"`
 	}
 	var msgs Batch
+	body := bufio.NewReader(req.Body)
 	buf := make([]byte, 256)
-	req.Body.Read(buf[:1])
-	blen := buf[0]
+	blen,_ := body.ReadByte()
 	for i := uint8(0); i < blen; i++ {
 		var im IncomingMessage
 
-		req.Body.Read(buf[:1])
-		devIdLen := buf[0]
-		req.Body.Read(buf[:devIdLen])
+		devIdLen,_ := body.ReadByte()
+		body.Read(buf[:devIdLen])
 		im.DeviceId = string(buf[:devIdLen])
 
-		req.Body.Read(buf[:1])
-		payloadLen := buf[0]
-		req.Body.Read(buf[:payloadLen])
+		payloadLen,_ := body.ReadByte()
+		body.Read(buf[:payloadLen])
 		im.Payload = string(buf[:payloadLen])
 
 		msgs.Batch = append(msgs.Batch, &im)
@@ -382,30 +388,18 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	}
 	sort.Ints(locks)
 
+	seqCount := make([]byte, 8)
+	seq := atomic.AddUint64(&seqID, 1)
+	binary.LittleEndian.PutUint64(seqCount, seq)
+
 	server.MessageStorage.locksl.RLock()
 	for _, i := range locks {
 		server.MessageStorage.locks[i].Lock()
 	}
 	server.MessageStorage.locksl.RUnlock()
 
-	var seqID uint64 = 0
+	batch := server.MessageStorage.db.NewBatch()
 
-	batch := server.MessageStorage.db.NewIndexedBatch()
-	var newSeqCount []byte
-	seqCount, closer, e := batch.Get([]byte{0})
-	if e == nil {
-		seqID = binary.LittleEndian.Uint64(seqCount)
-		closer.Close()
-		newSeqCount = make([]byte, 8)
-		binary.LittleEndian.PutUint64(newSeqCount, seqID+1)
-	} else {
-		seqCount = make([]byte, 8)
-		binary.LittleEndian.PutUint64(seqCount, seqID)
-
-		newSeqCount = make([]byte, 8)
-		binary.LittleEndian.PutUint64(newSeqCount, seqID+1)
-	}
-	batch.Set([]byte{0}, newSeqCount, pebble.NoSync)
 	var tmsgs []*Message
 	for _, msg := range msgs.Batch {
 		tmsg := Message{}
@@ -422,7 +416,8 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		batch.Set(k, msgStorage, pebble.NoSync)
 	}
 
-	batch.Commit(pebble.NoSync)
+	batch.Commit(pebble.Sync)
+
 	server.MessageStorage.locksl.RLock()
 	for i := len(locks) - 1; i >= 0; i-- {
 		server.MessageStorage.locks[locks[i]].Unlock()
@@ -598,9 +593,14 @@ func (server *Server) listen() {
 
 func main() {
 
-	db, err := pebble.Open("storage", &pebble.Options{
+	options := &pebble.Options{
 		Cache: pebble.NewCache(10 * 1024 * 1024 * 1024),
-	})
+		Levels: []pebble.LevelOptions{ pebble.LevelOptions {
+			Compression: pebble.NoCompression,
+		}},
+	};
+	options.Experimental.MaxWriterConcurrency = 10
+	db, err := pebble.Open("storage", options)
 	if err != nil {
 		log.Panic(err)
 	}

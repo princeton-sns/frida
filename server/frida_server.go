@@ -411,11 +411,12 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 		tmsgs = append(tmsgs, &tmsg)
 
-		k := append(append([]byte(msg.DeviceId), 0), seqCount...)
-		msgStorage, _ := json.Marshal(&tmsg.Outgoing)
-		batch.Set(k, msgStorage, pebble.NoSync)
+		//k := append(append([]byte(msg.DeviceId), 0), seqCount...)
+		//msgStorage, _ := json.Marshal(&tmsg.Outgoing)
+		//batch.Set(k, msgStorage, pebble.NoSync)
 	}
 
+	batch.Set(seqCount, []byte("hello"), pebble.NoSync)
 	batch.Commit(pebble.Sync)
 
 	server.MessageStorage.locksl.RLock()

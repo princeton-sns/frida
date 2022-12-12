@@ -144,27 +144,23 @@ func readParams() {
 func main() {
 	readParams()
 
-	client := sse.NewClient(serverAddr + "/events")
-	client.Headers["Authorization"] = "Bearer " + myDeviceId
+	sseClient := sse.NewClient(serverAddr + "/events")
+	sseClient.Headers["Authorization"] = "Bearer " + myDeviceId
 	msgContent = string(make([]byte, msgSize))
 
 	messageReceived := make(chan int, 1000)
 	var maxSeq uint64
 	httpClient = &http.Client{}
 
-	go client.Subscribe("msg", func(msg *sse.Event) {
+	go sseClient.Subscribe("msg", func(msg *sse.Event) {
 		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
 		msgType := string([]byte(msg.Event))
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
-			// if(incomingMsgContent.Sender == myDeviceId){
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
-		// else {
-		// 	messageReceived <- 1
-		// }
 	})
 
 	// Wait for otkeys message
@@ -197,15 +193,17 @@ func main() {
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 	timerEnd := time.NewTimer(time.Duration(duration) * time.Second)
 
-	go func() {
-		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount)
-	}()
+	// go func() {
+	// 	<-timerHead.C
+	// 	numHead = atomic.LoadUint64(&recvCount)
+	// }()
 
 	//tick := time.Tick(10 * time.Second)
 
 	for {
 		select {
+		case <-timerHead.C:
+			numHead = atomic.LoadUint64(&recvCount)
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
 			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)

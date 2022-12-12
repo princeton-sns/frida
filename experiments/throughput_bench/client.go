@@ -177,17 +177,14 @@ func main() {
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 	timerEnd := time.NewTimer(time.Duration(duration) * time.Second)
 
-	go func() {
-		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount) 
-	}()
-
 	// tick := time.Tick(10 * time.Second)
 	for {
 		select {
+		case <-timerHead.C:
+			numHead = atomic.LoadUint64(&recvCount) 
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-			localThroughput := float32(numTail - numHead)/float32(duration - 2 * keepout)
+			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
 			fmt.Printf("%v\n", localThroughput)
 		case <-timerEnd.C:
 			delete(maxSeq)

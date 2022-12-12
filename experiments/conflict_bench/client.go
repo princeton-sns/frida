@@ -13,6 +13,7 @@ import (
 	"time"
 	"bufio"
 	"github.com/r3labs/sse/v2"
+	"sync"
 )
 
 type OutgoingMessage struct {
@@ -39,17 +40,13 @@ func remove(arr []string, str string) []string {
 	return arr
 }
 
-var myDeviceId string
+var deviceIdPrefix string
 
 var serverAddr string = "http://localhost:8080"
 
 var msgSize int64
 
-var msgContent string
-
 var numClients int64
-
-var batchContent []byte
 
 var recvCount uint64 = 0
 
@@ -57,25 +54,17 @@ var duration int64
 
 var keepout int64
 
-var startTime int64
-
-var httpClient *http.Client
-
-
-var numHead uint64
-var numTail uint64
-
 var groupSize int64
 
-var conflictProb float64;
+var wg sync.WaitGroup
 
-func req(reqType string, jsonStr []byte, path string) *http.Response {
+func req(reqType string, jsonStr []byte, path string, client *http.Client, deviceId string) *http.Response {
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},
-		"Authorization": {"Bearer " + myDeviceId},
+		"Authorization": {"Bearer " + deviceId},
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	defer resp.Body.Close()
 
 	if err != nil {
@@ -86,23 +75,13 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 	return resp
 }
 
-// func sendTo(ids []string) {
-func send() {
-	// batch := new(Batch)
-	// for _, id := range ids {
-	// 	body := msgContent
-	// 	msg := OutgoingMessage{id, body}
-	// 	batch.Batch = append(batch.Batch, msg)
-	// }
-	// b, _ := json.Marshal(batch)
-	req("POST", batchContent, "/message")
-	// defer resp.Body.Close()
-
+func send(batchContent []byte, client *http.Client, deviceId string) {
+	req("POST", batchContent, "/message", client, deviceId)
 }
 
-func delete(seqID uint64) {
+func delete(seqID uint64,  client *http.Client, deviceId string) {
 	delMsg := fmt.Sprintf(`{"seqID" : %v }`, seqID)
-	req("DELETE", []byte(delMsg), "/self/messages")
+	req("DELETE", []byte(delMsg), "/self/messages",  client, deviceId)
 }
 
 func now() int64 {
@@ -110,13 +89,14 @@ func now() int64 {
 }
 
 func readParams() {
-	myDeviceId = os.Args[1]
 
-	if len(os.Args) < 3 {
+	if len(os.Args) < 2 {
 		numClients = 1
 	} else {
-		numClients, _ = strconv.ParseInt(os.Args[2], 10, 0)
+		numClients, _ = strconv.ParseInt(os.Args[1], 10, 0)
 	}
+
+	deviceIdPrefix = os.Args[2]
 
 	if len(os.Args) < 4 {
 		duration = 3
@@ -150,22 +130,16 @@ func readParams() {
 	}
 }
 
-func main() {
-	readParams()
-	var receiverLists = make([][]string)
-	reader := bufio.NewReader(os.Stdin)
-	
-
-
-	return 
+func runClient(id int64, listToSend []string){
+	defer wg.Done()
+	myDeviceId := fmt.Sprintf("%s_%v", deviceIdPrefix, id)
 
 	client := sse.NewClient(serverAddr + "/events")
 	client.Headers["Authorization"] = "Bearer " + myDeviceId
-	msgContent = string(make([]byte, msgSize))
 
 	messageReceived := make(chan int, 1000)
 	var maxSeq uint64
-	httpClient = &http.Client{}
+	httpClient := &http.Client{}
 
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		messageReceived <- 1
@@ -174,27 +148,17 @@ func main() {
 		if msgType == "msg" {
 			var incomingMsgContent IncomingMessage
 			json.Unmarshal([]byte(msg.Data), &incomingMsgContent)
-			// if(incomingMsgContent.Sender == myDeviceId){
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
-		// else {
-		// 	messageReceived <- 1
-		// }
 	})
 
 	// Wait for otkeys message
 	<-messageReceived
-	listToSend := make([]string, 0)
-	allClientList := make([]string, 0)
-	for i := int64(0); i < groupSize-1; i++ {
-		rname := fmt.Sprintf("%s_%v", myDeviceId, i)
-		allClientList = append(allClientList, rname)
-	}
-
-	listToSend = allClientList
+	// listToSend = receiverLists[id]
 	listToSend = append(listToSend, myDeviceId)
-	// fmt.Printf("%v\n", listToSend)
+	fmt.Printf("%v: %v\n", myDeviceId, listToSend)
 
+	msgContent := string(make([]byte, msgSize))
 	var batchBuffer bytes.Buffer
 	batchBuffer.WriteByte(uint8(len(listToSend)))
 	for _, id := range listToSend {
@@ -204,35 +168,53 @@ func main() {
 		batchBuffer.WriteByte(uint8(len(msgContent)))
 		batchBuffer.WriteString(msgContent)
 	}
-	batchContent = batchBuffer.Bytes()
-
-	startTime = now()
+	batchContent := batchBuffer.Bytes()
+	var numHead uint64
+	var numTail uint64
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
 	timerEnd := time.NewTimer(time.Duration(duration) * time.Second)
 
-	go func() {
-		<-timerHead.C
-		numHead = atomic.LoadUint64(&recvCount)
-	}()
-
 	//tick := time.Tick(10 * time.Second)
 
 	for {
 		select {
+		case <-timerHead.C:
+			numHead = atomic.LoadUint64(&recvCount)
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
 		case <-timerEnd.C:
 			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
 			fmt.Printf("%v\n", localThroughput)
-			delete(maxSeq)
+			delete(maxSeq, httpClient, myDeviceId)
 			return
 		//case <-tick:
 		//delete(atomic.LoadUint64(&maxSeq))
 		default:
-			send()
+			send(batchContent, httpClient, myDeviceId)
 			<-messageReceived
 		}
 	}
+}
+
+func main() {
+	readParams()
+	var receiverLists = make([][]string, 0)
+	reader := bufio.NewReader(os.Stdin)
+	for c := int64(0); c < numClients; c++{
+		rlist := make([]string, 0)
+		for r:= int64(0); r < groupSize - 1; r++{
+			rname,_ := reader.ReadString('\n')	
+			rlist = append(rlist, "rec_" + rname)
+		}
+		receiverLists = append(receiverLists, rlist)
+	}	
+	
+	// fmt.Printf("%v\n", receiverLists)
+	wg.Add(int(numClients))
+	for i:=int64(0); i < numClients; i++ {
+		go runClient(i, receiverLists[i])
+	}
+	wg.Wait()
 }

@@ -198,7 +198,7 @@ func main() {
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)
-	timerEnd := time.NewTimer(time.Duration(duration-keepout) * time.Second)
+	timerEnd := time.NewTimer(time.Duration(duration) * time.Second)
 
 	atomic.StoreInt64(&startRec, 0)
 

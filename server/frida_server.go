@@ -427,9 +427,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 	server.MessageStorage.locksl.RLock()
 	for i := len(locks) - 1; i >= 0; i-- {
-		fmt.Printf("In %s: unlocking %s\n", senderDeviceId, locks[i])
 		server.MessageStorage.locks[locks[i]].Unlock()
-		fmt.Printf("In %s: %s unlocked\n", senderDeviceId, locks[i])
 	}
 	server.MessageStorage.locksl.RUnlock()
 	for _, msg := range tmsgs {

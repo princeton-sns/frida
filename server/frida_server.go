@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"bufio"
+	// "bufio"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -351,24 +351,31 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		Batch []*IncomingMessage `json:"batch"`
 	}
 	var msgs Batch
-	body := bufio.NewReader(req.Body)
-	buf := make([]byte, 256)
-	blen,_ := body.ReadByte()
-	fmt.Printf("From %s, length = %v\n", senderDeviceId, blen)
-	for i := uint8(0); i < blen; i++ {
-		var im IncomingMessage
 
-		devIdLen,_ := body.ReadByte()
-		body.Read(buf[:devIdLen])
-		im.DeviceId = string(buf[:devIdLen])
-
-		payloadLen,_ := body.ReadByte()
-		body.Read(buf[:payloadLen])
-		im.Payload = string(buf[:payloadLen])
-
-		msgs.Batch = append(msgs.Batch, &im)
+	e := json.NewDecoder(req.Body).Decode(&msgs)
+	if e != nil {
+		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
+		return
 	}
-	req.Body.Close()
+
+	// body := bufio.NewReader(req.Body)
+	// buf := make([]byte, 256)
+	// blen,_ := body.ReadByte()
+	// fmt.Printf("From %s, length = %v\n", senderDeviceId, blen)
+	// for i := uint8(0); i < blen; i++ {
+	// 	var im IncomingMessage
+
+	// 	devIdLen,_ := body.ReadByte()
+	// 	body.Read(buf[:devIdLen])
+	// 	im.DeviceId = string(buf[:devIdLen])
+
+	// 	payloadLen,_ := body.ReadByte()
+	// 	body.Read(buf[:payloadLen])
+	// 	im.Payload = string(buf[:payloadLen])
+
+	// 	msgs.Batch = append(msgs.Batch, &im)
+	// }
+	defer req.Body.Close()
 
 	locks := []string{}
 	for _, msg := range msgs.Batch {
@@ -417,12 +424,12 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg.Outgoing.SeqID = seqID
 
 		tmsgs = append(tmsgs, &tmsg)
-		fmt.Printf("From %s, To %s\n", senderDeviceId, msg.DeviceId)
+		// fmt.Printf("From %s, To %s\n", senderDeviceId, msg.DeviceId)
 		//k := append(append([]byte(msg.DeviceId), 0), seqCount...)
 		//msgStorage, _ := json.Marshal(&tmsg.Outgoing)
 		//batch.Set(k, msgStorage, pebble.NoSync)
 	}
-	fmt.Printf("Finished reading batch from %s\n", senderDeviceId)
+	// fmt.Printf("Finished reading batch from %s\n", senderDeviceId)
 	msgStorage, _ := json.Marshal(&tmsgs)
 	// msgStorage := make([]byte, len(tmsgs) * (32 + 32) + 32 + 8)
 	server.MessageStorage.db.LogData(msgStorage, pebble.Sync)

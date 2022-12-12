@@ -208,9 +208,9 @@ func main() {
 		select {
 		case <-timerTail.C:
 			numTail = atomic.LoadUint64(&recvCount)
-		case <-timerEnd.C:
 			localThroughput := float32(numTail - numHead)/float32(duration - 2*keepout)
 			fmt.Printf("%v\n", localThroughput)
+		case <-timerEnd.C:
 			delete(maxSeq)
 			return
 		//case <-tick:

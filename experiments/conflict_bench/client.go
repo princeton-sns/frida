@@ -153,7 +153,8 @@ func readParams() {
 func main() {
 	readParams()
 	var receiverLists = make([][]string)
-
+	reader := bufio.NewReader(os.Stdin)
+	
 
 
 	return 

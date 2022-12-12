@@ -3,16 +3,20 @@
     . /etc/profile.d/gopath.sh
     cd /mydata/localuser/frida/server
     go build
+
     cd /mydata/localuser/frida/experiments/throughput_bench
-    rm ./client
-    go build -o client
-    cd /mydata/localuser/frida/experiments/latency_bench
-    rm ./client
-    go build -o client
-    cd /mydata/localuser/frida/experiments/receiver
-    rm ./receiver
+    rm ./throughput-bench-client
     go build
+
+    cd /mydata/localuser/frida/experiments/latency_bench
+    rm ./latency-bench-client
+    go build
+
     cd /mydata/localuser/frida/experiments/groupsize_bench
-    rm ./groupclient
+    rm ./groupsize-bench-client
+    go build
+    
+    cd /mydata/localuser/frida/experiments/conflict_bench
+    rm ./conflict-bench-client
     go build
 

@@ -66,6 +66,7 @@ var numTail uint64
 var groupSize int64
 
 func req(reqType string, jsonStr []byte, path string) *http.Response {
+	// fmt.Printf("from %s, %s\n\n\n\n\n\n", myDeviceId, string(jsonStr))
 	req, _ := http.NewRequest(reqType, serverAddr+path, bytes.NewBuffer(jsonStr))
 	req.Header = http.Header{
 		"Content-Type":  {"application/json"},

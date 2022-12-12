@@ -211,7 +211,7 @@ func main() {
 	}	
 	
 	// fmt.Printf("%v\n", receiverLists)
-	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 200
+	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 300
 	wg.Add(int(numClients))
 	for i:=int64(0); i < numClients; i++ {
 		go runClient(i, receiverLists[i])

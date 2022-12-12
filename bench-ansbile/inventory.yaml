@@ -1,38 +1,40 @@
 all:
   vars:
-    noise_git_rev:  3753c9b7cdeb5bdd21db675df28a0bff701ce26c
+    noise_git_rev:  57eb62dd1475fdb19bbdf07b36a61560ec9b714c
   hosts:
   children:
     noise-server:
       hosts:
-        ms0624.utah.cloudlab.us:
-          internal_hostname: node0
+        amd275.utah.cloudlab.us:
+          internal_hostname: server-node
 
     noise-client:
       vars:
-        server_url: "http://node0:8080/"
+        server_url: "http://server-node:8080/"
       hosts:
-        ms0643.utah.cloudlab.us:
-          internal_hostname: node1
-        ms0639.utah.cloudlab.us:
-          internal_hostname: node2
-        ms0606.utah.cloudlab.us:
-          internal_hostname: node3
-        ms0613.utah.cloudlab.us:
-          internal_hostname: node4
-        ms0628.utah.cloudlab.us:
-          internal_hostname: node5
-        ms0612.utah.cloudlab.us:
-          internal_hostname: node6
-        ms0604.utah.cloudlab.us:
-          internal_hostname: node7
-        ms0625.utah.cloudlab.us:
-          internal_hostname: node8
-        ms0605.utah.cloudlab.us:
-          internal_hostname: node9
-        ms0614.utah.cloudlab.us:
-          internal_hostname: node10
+        amd109.utah.cloudlab.us:
+          internal_hostname: client-node1
+        amd196.utah.cloudlab.us:
+          internal_hostname: client-node2
+        amd113.utah.cloudlab.us:
+          internal_hostname: client-node3
+        amd167.utah.cloudlab.us:
+          internal_hostname: client-node4
+        amd110.utah.cloudlab.us:
+          internal_hostname: client-node5
+        amd176.utah.cloudlab.us:
+          internal_hostname: client-node6
+        amd177.utah.cloudlab.us:
+          internal_hostname: client-node7
+        amd192.utah.cloudlab.us:
+          internal_hostname: client-node8
+        amd159.utah.cloudlab.us:
+          internal_hostname: client-node9
+        amd117.utah.cloudlab.us:
+          internal_hostname: client-node10
+        
+          
 
     experiment-node:
       hosts:
-        ms0614.utah.cloudlab.us:
+        amd117.utah.cloudlab.us:

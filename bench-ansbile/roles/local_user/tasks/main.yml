@@ -41,10 +41,13 @@
     state: present
     update_cache: yes
   
-- name: Download nload
+- name: Download nload & iotop
   become: yes
   become_user: root
   apt:
-    name: nload
+    name: 
+      - nload
+      - iotop
     state: present
     update_cache: yes
+  

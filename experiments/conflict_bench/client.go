@@ -152,7 +152,7 @@ func runClient(id int64, listToSend []string){
 			atomic.StoreUint64(&maxSeq, incomingMsgContent.SeqID)
 		}
 	})
-
+	
 	// Wait for otkeys message
 	<-messageReceived
 	// listToSend = receiverLists[id]
@@ -211,6 +211,7 @@ func main() {
 	}	
 	
 	// fmt.Printf("%v\n", receiverLists)
+	http.DefaultTransport.(*http.Transport).MaxIdleConnsPerHost = 200
 	wg.Add(int(numClients))
 	for i:=int64(0); i < numClients; i++ {
 		go runClient(i, receiverLists[i])

@@ -71,11 +71,11 @@ func req(reqType string, jsonStr []byte, path string) *http.Response {
 		"Authorization": {"Bearer " + myDeviceId},
 	}
 	resp, err := httpClient.Do(req)
-	defer resp.Body.Close()
+
 	if err != nil {
 		panic(err)
 	}
-
+	defer resp.Body.Close()
 	ioutil.ReadAll(resp.Body)
 	return resp
 }

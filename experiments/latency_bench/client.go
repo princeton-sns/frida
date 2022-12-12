@@ -82,12 +82,10 @@ func req(reqType string, jsonStr []byte, path string) time.Time {
 	}
 	send_time := now()
 	resp, err := httpClient_send.Do(req)
-	defer resp.Body.Close()
-
 	if err != nil {
 		panic(err)
 	}
-
+	defer resp.Body.Close()
 	ioutil.ReadAll(resp.Body)
 	return send_time
 }

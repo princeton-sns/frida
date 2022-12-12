@@ -378,8 +378,9 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	seqCount := make([]byte, 8)
 	seq := atomic.AddUint64(&seqID, 1)
 	binary.LittleEndian.PutUint64(seqCount, seq)
+
+	server.MessageStorage.locksl.RLock()
 	for _, i := range locks {
-		server.MessageStorage.locksl.RLock()
 		x, ok := server.MessageStorage.locks[i]
 		server.MessageStorage.locksl.RUnlock()
 		if ok {
@@ -397,10 +398,11 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 				server.MessageStorage.locksl.Unlock()
 			}
 			// server.MessageStorage.locks[i] = newLock
+			
 		}
-		// server.MessageStorage.locksl.RLock()
+		server.MessageStorage.locksl.RLock()
 	}
-	// server.MessageStorage.locksl.RUnlock()
+	server.MessageStorage.locksl.RUnlock()
 
 	//batch := server.MessageStorage.db.NewBatch()
 

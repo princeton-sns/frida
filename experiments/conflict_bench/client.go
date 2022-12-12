@@ -48,8 +48,6 @@ var msgSize int64
 
 var numClients int64
 
-var recvCount uint64 = 0
-
 var duration int64
 
 var keepout int64
@@ -76,6 +74,7 @@ func req(reqType string, jsonStr []byte, path string, client *http.Client, devic
 }
 
 func send(batchContent []byte, client *http.Client, deviceId string) {
+	// fmt.Printf("%s: send %v\n", deviceId, string(batchContent))
 	req("POST", batchContent, "/message", client, deviceId)
 }
 
@@ -141,9 +140,9 @@ func runClient(id int64, listToSend []string){
 	var maxSeq uint64
 	httpClient := &http.Client{}
 	listToSend = append(listToSend, myDeviceId)
-
-	fmt.Printf("%s: %v\n", myDeviceId, listToSend)
-	return
+	var recvCount uint64 = 0
+	// fmt.Printf("%s: %v\n", myDeviceId, listToSend)
+	// return
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)

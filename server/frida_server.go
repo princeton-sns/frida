@@ -382,19 +382,24 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	server.MessageStorage.locksl.RLock()
 	for _, i := range locks {
 		x, ok := server.MessageStorage.locks[i]
+		server.MessageStorage.locksl.RUnlock()
 		if ok {
 			x.Lock()
-		} else {
-			server.MessageStorage.locksl.RUnlock()
+		} else {			
 			server.MessageStorage.locksl.Lock()
-
-			newLock := new(sync.Mutex)
-			newLock.Lock()
-			server.MessageStorage.locks[i] = newLock
-
-			server.MessageStorage.locksl.Unlock()
-			server.MessageStorage.locksl.RLock()
+			newLock, ok := server.MessageStorage.locks[i]
+			if ok {
+				server.MessageStorage.locksl.Unlock()
+				newLock.Lock()
+			} else {
+				newLock = new(sync.Mutex)
+				newLock.Lock()
+				server.MessageStorage.locks[i] = newLock
+				server.MessageStorage.locksl.Unlock()
+			}
+			// server.MessageStorage.locks[i] = newLock
 		}
+		server.MessageStorage.locksl.RLock()
 	}
 	server.MessageStorage.locksl.RUnlock()
 
@@ -423,7 +428,9 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 	server.MessageStorage.locksl.RLock()
 	for i := len(locks) - 1; i >= 0; i-- {
+		fmt.Printf("In %s: unlocking %s\n", senderDeviceId, locks[i])
 		server.MessageStorage.locks[locks[i]].Unlock()
+		fmt.Printf("In %s: %s unlocked\n", senderDeviceId, locks[i])
 	}
 	server.MessageStorage.locksl.RUnlock()
 	for _, msg := range tmsgs {

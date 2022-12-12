@@ -5,5 +5,5 @@ groupclient
 throughput-bench-client
 .gitignore
 receiver
-/experiments/conflict_bench/*
+/experiments/conflict_bench
 

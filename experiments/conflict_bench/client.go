@@ -140,7 +140,10 @@ func runClient(id int64, listToSend []string){
 	messageReceived := make(chan int, 1000)
 	var maxSeq uint64
 	httpClient := &http.Client{}
+	listToSend = append(listToSend, myDeviceId)
 
+	fmt.Printf("%s: %v\n", myDeviceId, listToSend)
+	return
 	go client.Subscribe("msg", func(msg *sse.Event) {
 		messageReceived <- 1
 		atomic.AddUint64(&recvCount, 1)
@@ -155,8 +158,6 @@ func runClient(id int64, listToSend []string){
 	// Wait for otkeys message
 	<-messageReceived
 	// listToSend = receiverLists[id]
-	listToSend = append(listToSend, myDeviceId)
-	fmt.Printf("%v: %v\n", myDeviceId, listToSend)
 
 	msgContent := string(make([]byte, msgSize))
 	var batchBuffer bytes.Buffer

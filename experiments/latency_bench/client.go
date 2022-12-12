@@ -183,16 +183,23 @@ func main() {
 
 	listToSend := []string{myDeviceId}
 
-	var batchBuffer bytes.Buffer
-	batchBuffer.WriteByte(uint8(len(listToSend)))
-	for _, id := range listToSend {
-		batchBuffer.WriteByte(uint8(len(id)))
-		batchBuffer.WriteString(id)
+	// var batchBuffer bytes.Buffer
+	// batchBuffer.WriteByte(uint8(len(listToSend)))
+	// for _, id := range listToSend {
+	// 	batchBuffer.WriteByte(uint8(len(id)))
+	// 	batchBuffer.WriteString(id)
 
-		batchBuffer.WriteByte(uint8(len(msgContent)))
-		batchBuffer.WriteString(msgContent)
+	// 	batchBuffer.WriteByte(uint8(len(msgContent)))
+	// 	batchBuffer.WriteString(msgContent)
+	// }
+	// batchContent = batchBuffer.Bytes()
+	batch := new(Batch)
+	for _, id := range listToSend {
+		body := msgContent
+		msg := OutgoingMessage{id, body}
+		batch.Batch = append(batch.Batch, msg)
 	}
-	batchContent = batchBuffer.Bytes()
+	batchContent, _ = json.Marshal(batch)
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)
 	timerTail := time.NewTimer(time.Duration(duration-keepout) * time.Second)

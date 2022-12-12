@@ -25,7 +25,6 @@
       - asyncssh
       - numpy
       - matplotlib
-      - pickle
     state: present
 
 - name: Ensure jupyter notebook directory exists

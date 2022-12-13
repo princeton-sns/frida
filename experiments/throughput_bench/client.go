@@ -152,18 +152,6 @@ func main() {
 	})
 
 	listToSend := []string{myDeviceId}
-	// fmt.Printf("%v\n", listToSend)
-
-	// var batchBuffer bytes.Buffer
-	// batchBuffer.WriteByte(uint8(len(listToSend)))
-	// for _, id := range listToSend {
-	// 	batchBuffer.WriteByte(uint8(len(id)))
-	// 	batchBuffer.WriteString(id)
-
-	// 	batchBuffer.WriteByte(uint8(len(msgContent)))
-	// 	batchBuffer.WriteString(msgContent)
-	// }
-	// batchContent = batchBuffer.Bytes()
 
 	batch := new(Batch)
 	for _, id := range listToSend {
@@ -175,10 +163,7 @@ func main() {
 
 	// Wait for otkeys message
 	<-messageReceived
-
-
-
-
+	
 	startTime = now()
 
 	timerHead := time.NewTimer(time.Duration(keepout) * time.Second)

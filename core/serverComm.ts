@@ -31,9 +31,9 @@ export class ServerComm {
     this.eventEmitter = eventEmitter;
   }
 
-  async #init(olmWrapper: OlmWrapper) {
+  #init(olmWrapper: OlmWrapper) {
     this.#olmWrapper = olmWrapper;
-    this.#idkey = await this.#olmWrapper.generateInitialKeys();
+    this.#idkey = this.#olmWrapper.generateInitialKeys();
 
     this.#socket = new EventSourcePolyfill(this.#url + "/events", {
       headers: {
@@ -82,7 +82,7 @@ export class ServerComm {
       port?: string
   ): Promise<ServerComm> {
     let serverComm = new ServerComm(eventEmitter, ip, port);
-    await serverComm.#init(olmWrapper);
+    serverComm.#init(olmWrapper);
     return serverComm;
   }
 

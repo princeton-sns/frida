@@ -52,8 +52,6 @@ export class OlmWrapper {
   static IDKEY     : string = "__idkey";
   static ACCT_KEY  : string = "__account";
   static SESS_KEY  : string = "__session";
-  static ENDPOINT1 : string = "__endpoint1";
-  static ENDPOINT2 : string = "__endpoint2";
   static INIT_NUM_OTKEYS: number = 10;
   static MORE_NUM_OTKEYS: number = 5;
 
@@ -339,7 +337,7 @@ export class OlmWrapper {
     return ciphertext;
   }
 
-  async generateInitialKeys(): Promise<string> {
+  generateInitialKeys(): Promise<string> {
     let { idkey } = this.#generateOtkeys(OlmWrapper.INIT_NUM_OTKEYS);
     this.#setIdkey(idkey);
     return idkey;

@@ -31,7 +31,7 @@ type IncomingMessage struct {
 type OutgoingMessage struct {
 	Sender  string      `json:"sender"`
 	Payload interface{} `json:"encPayload"`
-	SeqID   uint64      `json:"seqID"`
+	SeqID   uint64      `json:"seqId"`
 	// ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
 
@@ -263,7 +263,7 @@ func (server *Server) deleteMessages(rw http.ResponseWriter, req *http.Request) 
 	deviceId := strings.TrimSpace(authHeader[7:])
 
 	type ToDelete struct {
-		SeqID uint64 `json:"seqID"`
+		SeqID uint64 `json:"seqId"`
 	}
 	var td ToDelete
 	e := json.NewDecoder(req.Body).Decode(&td)
@@ -272,7 +272,7 @@ func (server *Server) deleteMessages(rw http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	td.SeqID += 1 // DeleteRange is not inclusive, so bound by a seqID one higher
+	td.SeqID += 1 // DeleteRange is not inclusive, so bound by a seqId one higher
 
 	seqBin := make([]byte, 8)
 	binary.LittleEndian.PutUint64(seqBin, td.SeqID)
@@ -293,7 +293,7 @@ func (server *Server) deleteMessages(rw http.ResponseWriter, req *http.Request) 
 // ```
 //
 //	[ {
-//	  "seqID": 1234,
+//	  "seqId": 1234,
 //	  "sender": "someDeviceId",
 //	  "encPayload": "youcan'treadme!"
 //	} ]
@@ -324,7 +324,7 @@ func (server *Server) getMessages(rw http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(rw).Encode(msgs)
 }
 
-var seqID uint64
+var seqId uint64
 
 // Expects the body of the function to be a JSON object of the format:
 //
@@ -346,6 +346,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	senderDeviceId := strings.TrimSpace(authHeader[7:])
+    log.Printf("sender: %s", senderDeviceId)
 
 	type Batch struct {
 		Batch []*IncomingMessage `json:"batch"`
@@ -354,9 +355,13 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 	e := json.NewDecoder(req.Body).Decode(&msgs)
 	if e != nil {
+        log.Printf("error: %s", e)
 		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
 		return
 	}
+
+    log.Println("no error")
+    log.Printf("%s", msgs)
 
 	defer req.Body.Close()
 
@@ -367,7 +372,7 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 	sort.Strings(locks)
 
 	seqCount := make([]byte, 8)
-	seq := atomic.AddUint64(&seqID, 1)
+	seq := atomic.AddUint64(&seqId, 1)
 	binary.LittleEndian.PutUint64(seqCount, seq)
 
 	server.MessageStorage.locksl.RLock()
@@ -400,7 +405,10 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg.To = msg.DeviceId
 		tmsg.Outgoing.Payload = &msg.Payload
 		tmsg.Outgoing.Sender = senderDeviceId
-		tmsg.Outgoing.SeqID = seqID
+		tmsg.Outgoing.SeqID = seqId
+
+        log.Printf("tmsg.To: %s", tmsg.To)
+        log.Printf("tmsg.Payload: %s", msg.Payload)
 
 		tmsgs = append(tmsgs, &tmsg)
 	}

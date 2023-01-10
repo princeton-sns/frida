@@ -13,7 +13,7 @@ import { MessageChainsIntegration } from "./messageChainsIntegration.js";
 
 export type outboundEncPayloadType = {
   deviceId: string,
-  payload: string
+  payload: Object | string,
 };
 
 export type inboundEncPayloadType = {
@@ -52,7 +52,7 @@ export class Core {
       ip?: string,
       port?: string
   ) {
-    this.olmWrapper = await OlmWrapper.create(turnEncryptionOff);
+    this.olmWrapper = await OlmWrapper.create(turnEncryptionOff, "/olm.wasm", undefined);
     this.#serverComm = await ServerComm.create(this.eventEmitter, this.olmWrapper, ip, port);
     this.messageChains = await MessageChainsIntegration.create(this.olmWrapper.getIdkey());
   }

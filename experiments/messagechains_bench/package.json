@@ -1,0 +1,12 @@
+{
+  "name": "messagechains_bench",
+  "version": "0.0.1",
+  "description": "Microbenchmark of the overhead of validating server linearizability through messagechains",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "The Noise Project Developers",
+  "private": true
+}

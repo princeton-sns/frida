@@ -43,9 +43,8 @@ export class ServerComm {
             }
         });
         this.#socket.addEventListener("msg", async (e) => {
-            let msg = JSON.parse(e.data);
-            afterCommRecv(msg);
             console.log(e);
+            let msg = JSON.parse(e.data);
             console.log("Noise message", msg);
             await this.eventEmitter.emit('serverMsg', msg);
             let u = new URL("/self/messages", this.#url);
@@ -68,7 +67,6 @@ export class ServerComm {
         let u = new URL("/message", this.#url);
         const headers = new Headers();
         headers.append('Authorization', 'Bearer ' + this.#idkey);
-        beforeCommSend();
         let response = (await fetch(u, {
             method: 'POST',
             headers: {

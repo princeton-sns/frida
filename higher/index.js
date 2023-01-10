@@ -205,7 +205,6 @@ export class Higher {
         }
         console.log("SUCCESS");
         await this.#demuxFunc(payload);
-        afterHigherOnMessage();
     }
     /**
      * Resolves a list of one or more group IDs to a list of public keys.
@@ -799,10 +798,9 @@ export class Higher {
      * @param {string} id app-specific object id
      */
     async setData(prefix, id, data) {
-        beforeHigherSetData();
         let existingData = this.getSingleData(prefix, id);
         if (existingData !== null) {
-            await this.#setDataHelper(this.#getDataKey(prefix, id), data, this.#localStorageWrapper.get(this.#getDataKey(prefix, id)).groupID);
+            await this.#setDataHelper(this.#getDataKey(prefix, id), data, existingData.groupID);
         }
         else {
             await this.#setDataHelper(this.#getDataKey(prefix, id), data, this.getLinkedName());

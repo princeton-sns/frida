@@ -49,16 +49,13 @@ export class Core {
         let batch = new Array();
         console.log("sending to...");
         console.log(dstIdkeys);
-        beforeCoreEncrypt();
         for (let dstIdkey of dstIdkeys) {
             let encPayload = await this.olmWrapper.encrypt(this.#serverComm, payload, dstIdkey);
             batch.push({
                 deviceId: dstIdkey,
                 payload: encPayload,
-                clientSeq: global.clientSeq,        // For testing FOFI only!
             });
         }
-        afterCoreEncrypt();
         console.log(batch);
         // send message to server
         await this.#serverComm.sendMessage({
@@ -67,9 +64,7 @@ export class Core {
     }
     async onMessage(msg) {
         console.log("seqID: " + msg.seqID);
-        beforeCoreDecrypt();
         let payload = this.olmWrapper.decrypt(msg.encPayload, msg.sender);
-        afterCoreDecrypt();
         await this.eventEmitter.emit('coreMsg', {
             payload: payload,
             sender: msg.sender,

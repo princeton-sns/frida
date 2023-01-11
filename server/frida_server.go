@@ -171,7 +171,15 @@ func (server *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 //
 // ```
 func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
-	deviceId, e := url.QueryUnescape(req.URL.Query().Get("device_id"))
+    log.Printf("req.URL: %s", req.URL)
+    log.Printf("req.URL.Query(): %s", req.URL.Query())
+    // When used with Rust client (NOT the JS client) Query() already unescapes characters
+    deviceId := req.URL.Query().Get("device_id")
+    log.Printf("req.URL.Query().Get(\"device_id\"): %s", deviceId)
+
+    // When used with Rust client, over-unescapes and causes iterator to be invalid
+	_deviceId, e := url.QueryUnescape(req.URL.Query().Get("device_id"))
+    log.Printf("url.QueryUnescape(): %s", _deviceId)
 
 	if e != nil {
 		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
@@ -187,6 +195,7 @@ func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
 		LowerBound: prefix,
 		UpperBound: append(append([]byte("otkeys/"), []byte(deviceId)...), 1),
 	})
+
 	iter.First()
 	if iter.Valid() {
 		iter.Value()
@@ -346,7 +355,6 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	senderDeviceId := strings.TrimSpace(authHeader[7:])
-    log.Printf("sender: %s", senderDeviceId)
 
 	type Batch struct {
 		Batch []*IncomingMessage `json:"batch"`
@@ -355,13 +363,9 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 
 	e := json.NewDecoder(req.Body).Decode(&msgs)
 	if e != nil {
-        log.Printf("error: %s", e)
 		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
 		return
 	}
-
-    log.Println("no error")
-    log.Printf("%s", msgs)
 
 	defer req.Body.Close()
 
@@ -406,9 +410,6 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg.Outgoing.Payload = &msg.Payload
 		tmsg.Outgoing.Sender = senderDeviceId
 		tmsg.Outgoing.SeqID = seqId
-
-        log.Printf("tmsg.To: %s", tmsg.To)
-        log.Printf("tmsg.Payload: %s", msg.Payload)
 
 		tmsgs = append(tmsgs, &tmsg)
 	}

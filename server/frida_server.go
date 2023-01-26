@@ -12,7 +12,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/pprof"
-	"net/url"
+	//"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,7 +30,7 @@ type IncomingMessage struct {
 // Single message format for receiver
 type OutgoingMessage struct {
 	Sender  string      `json:"sender"`
-	Payload interface{} `json:"encPayload"`
+	Payload interface{} `json:"payload"`
 	SeqID   uint64      `json:"seqId"`
 	// ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
@@ -171,20 +171,20 @@ func (server *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 //
 // ```
 func (server *Server) getOneTimeKey(rw http.ResponseWriter, req *http.Request) {
-    log.Printf("req.URL: %s", req.URL)
-    log.Printf("req.URL.Query(): %s", req.URL.Query())
+    //log.Printf("req.URL: %s", req.URL)
+    //log.Printf("req.URL.Query(): %s", req.URL.Query())
     // When used with Rust client (NOT the JS client) Query() already unescapes characters
     deviceId := req.URL.Query().Get("device_id")
-    log.Printf("req.URL.Query().Get(\"device_id\"): %s", deviceId)
+    //log.Printf("req.URL.Query().Get(\"device_id\"): %s", deviceId)
 
     // When used with Rust client, over-unescapes and causes iterator to be invalid
-	_deviceId, e := url.QueryUnescape(req.URL.Query().Get("device_id"))
-    log.Printf("url.QueryUnescape(): %s", _deviceId)
+	//_deviceId, e := url.QueryUnescape(req.URL.Query().Get("device_id"))
+    //log.Printf("url.QueryUnescape(): %s", _deviceId)
 
-	if e != nil {
-		http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
-		return
-	}
+	//if e != nil {
+	//	http.Error(rw, fmt.Sprintf("%s", e), http.StatusInternalServerError)
+	//	return
+	//}
 
 	server.MessageStorage.lock.Lock()
 	defer server.MessageStorage.lock.Unlock()

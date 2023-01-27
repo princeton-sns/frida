@@ -20,53 +20,12 @@
 import { EventEmitter } from "events";
 import { Core } from "../core";
 import { LocalStorageWrapper } from "./db/localStorageWrapper.js";
-/* doubly-linked tree, allows cycles */
-const NAME = "name";
-const CONTACT_LEVEL = "contactLevel";
-const PARENTS = "parents";
-const CHILDREN = "children";
-const ADMINS = "admins";
-const WRITERS = "writers";
-// readers list isn't necessary, any member that isn't an admin
-// or writer can be assumed to be a reader
-// TODO also deduplicate admins and writers (any writer who is also an
-// admin can _just_ exist in the admin group, since admin abilities are a
-// superset of writer abilities)
-class Key {
-    name;
-    contactLevel;
-    parents;
-    admins;
-    writers;
-    constructor(name, contactLevel, parents, admins, writers) {
-        this.name = name;
-        this.contactLevel = contactLevel;
-        this.parents = parents;
-        this.admins = admins;
-        this.writers = writers;
-    }
-}
-class Group {
-    name;
-    contactLevel;
-    parents;
-    children;
-    admins;
-    writers;
-    constructor(name, contactLevel, parents, children, admins, writers) {
-        this.name = name;
-        this.contactLevel = contactLevel;
-        this.parents = parents;
-        this.children = children;
-        this.admins = admins;
-        this.writers = writers;
-    }
-}
+import { Groups } from "./modules/groups";
+import { Permissions } from "./modules/permissions";
 export class Higher {
     // TODO make variables private
     static #SLASH = "/";
     static #DATA = "__data";
-    static #GROUP = "__group";
     static #LINKED = "__linked";
     static #CONTACTS = "__contacts";
     static #OUTSTANDING_IDKEY = "__outstandingIdkey";
@@ -97,7 +56,7 @@ export class Higher {
             return false;
         return true;
     };
-    #storagePrefixes = [Higher.#GROUP];
+    #storagePrefixes = [Groups.PREFIX]; //FIX: take groups out of here?
     #onAuth;
     #onUnauth;
     #turnEncryptionOff;
@@ -107,6 +66,7 @@ export class Higher {
     #localStorageWrapper;
     #eventEmitter;
     #demuxFunc;
+    #linkedGroupId;
     constructor(
     // TODO type config
     config) {
@@ -190,7 +150,7 @@ export class Higher {
      *           srcIdkey: string }} msg message with encrypted contents
      */
     async #onMessage(payload, sender) {
-        let permissionsOK = this.#checkPermissions(payload, sender);
+        let permissionsOK = this.#checkPermissions(payload, sender); //TODO
         if (this.#demuxFunc === undefined) {
             this.#printBadMessageError(payload.msgType);
             return;
@@ -205,43 +165,6 @@ export class Higher {
         }
         console.log("SUCCESS");
         await this.#demuxFunc(payload);
-    }
-    /**
-     * Resolves a list of one or more group IDs to a list of public keys.
-     *
-     * @param {string[]} ids group IDs to resolve
-     * @return {string[]}
-     *
-     * @private
-     */
-    #resolveIDs(ids) {
-        let idkeys = [];
-        ids.forEach((id) => {
-            let group = this.#getGroup(id);
-            if (group !== null) {
-                if (this.#isKey(group)) {
-                    idkeys.push(id);
-                }
-                else {
-                    idkeys = idkeys.concat(this.#resolveIDs(group.children));
-                }
-            }
-        });
-        return idkeys;
-    }
-    /**
-     * Helper function for determining if resolveIDs has hit it's base case or not.
-     *
-     * @param {Object} group a group
-     * @returns {boolean}
-     *
-     * @private
-     */
-    #isKey(group) {
-        if (group.children) {
-            return false;
-        }
-        return true;
     }
     /*
      ***********
@@ -258,20 +181,17 @@ export class Higher {
      *
      * @private
      */
-    async #initDevice(linkedName, deviceName) {
+    async #initDevice(linkedName, linkedId, deviceName) {
         let idkey = await this.#core.olmWrapper.generateInitialKeys();
         console.log(idkey);
-        // enforce that linkedName exists; deviceName is not necessary
-        if (!linkedName) {
-            linkedName = crypto.randomUUID();
-        }
         if (!deviceName) {
-            deviceName = null;
+            deviceName = undefined;
         }
-        this.#createGroup(Higher.#LINKED, linkedName, false, [], [linkedName], [linkedName], [linkedName]);
-        this.#createGroup(linkedName, null, false, [Higher.#LINKED], [idkey], [linkedName], [linkedName]);
-        this.#createKey(idkey, deviceName, false, [linkedName], [linkedName], [linkedName]);
-        this.#createGroup(Higher.#CONTACTS, null, false, [], [], [linkedName], [linkedName]);
+        //add new group for device id
+        if (!linkedId) {
+            linkedId = Groups.newGroup(linkedName, true, [idkey]);
+        }
+        Groups.newDevice(idkey, deviceName, linkedId);
         return {
             idkey: idkey,
             linkedName: linkedName,
@@ -327,28 +247,29 @@ export class Higher {
      *
      * @private
      */
-    async #processUpdateLinkedRequest({ tempName, srcIdkey, newLinkedMembers }) {
+    async #processUpdateLinkedRequest({ //TODO for refactor
+    tempName, srcIdkey, newLinkedMembers }) {
         if (confirm(`Authenticate new LINKED group member?\n\tName: ${tempName}`)) {
             // get linked idkeys to update
-            let linkedIdkeys = this.#resolveIDs([Higher.#LINKED]);
+            let linkedIdkeys = Groups.getDevices(this.#linkedGroupId);
             let linkedName = this.getLinkedName();
             /* UPDATE OLD SELF */
             // replace all occurrences of tempName with linkedName
             let updatedNewLinkedMembers = [];
             newLinkedMembers.forEach((newGroup) => {
-                updatedNewLinkedMembers.push(this.#groupReplace(newGroup, tempName, linkedName));
+                updatedNewLinkedMembers.push(Groups.groupReplace(newGroup, tempName, linkedName));
             });
             for (let newGroup of updatedNewLinkedMembers) {
                 // FIXME assuming this group ID == linkedName (originally tempName)
                 // when would this be false??
-                if (newGroup.value.parents.includes(Higher.#LINKED)) {
+                if (newGroup.value.parents?.includes(Higher.#LINKED)) {
                     // merge with existing linkedName group
                     let nonLinkedParents = newGroup.value.parents.filter((x) => x != Higher.#LINKED);
                     for (let nonLinkedParent of nonLinkedParents) {
                         await this.#addParent(linkedName, nonLinkedParent, linkedIdkeys);
                     }
                     for (let child of newGroup.value.children) {
-                        await this.#addChild(linkedName, child, linkedIdkeys);
+                        await Groups.addToGroup(this.#linkedGroupId, [child]);
                     }
                 }
                 else {
@@ -359,20 +280,20 @@ export class Higher {
             // delete old linkedName group
             await this.#deleteGroup(tempName, [srcIdkey]);
             // notify new group member of successful link and piggyback existing groups/data
-            await this.#confirmUpdateLinked(this.#getAllGroups(), this.getAllData(), [srcIdkey]);
+            await this.#confirmUpdateLinked(Groups.getAllGroups(), this.getAllData(), [srcIdkey]);
             /* UPDATE OTHER */
             // notify contacts
-            let allContactIdkeys = this.#resolveIDs([Higher.#CONTACTS]);
-            let contactNames = this.#getChildren(Higher.#CONTACTS);
+            let allContactIdkeys = Groups.getDevices([Higher.#CONTACTS]);
+            let contactNames = Groups.getDevices(Higher.#CONTACTS);
             for (let newGroup of updatedNewLinkedMembers) {
                 if (newGroup.id === linkedName) {
                     for (const child of newGroup.value.children) {
-                        await this.#addChild(linkedName, child, allContactIdkeys);
+                        await Groups.addToGroup(this.#linkedGroupId, [child]);
                     }
                 }
                 else {
                     for (const contactName of contactNames) {
-                        let contactIdkeys = this.#resolveIDs([contactName]);
+                        let contactIdkeys = Groups.getDevices([contactName]);
                         await this.#updateGroup(newGroup.id, newGroup.value, contactIdkeys);
                         await this.#addAdmin(newGroup.id, contactName, contactIdkeys);
                     }
@@ -412,9 +333,10 @@ export class Higher {
      * @returns {string}
      */
     getLinkedName() {
-        return this.#getGroup(Higher.#LINKED)?.name ?? null;
+        return Groups.getGroupName(this.#linkedGroupId);
     }
     /**
+     *
      * Initializes device and its linked group.
      *
      * @param {?string} linkedName human-readable name (for contacts)
@@ -422,7 +344,7 @@ export class Higher {
      * @returns {string}
      */
     async createDevice(linkedName = null, deviceName = null) {
-        let { idkey } = await this.#initDevice(linkedName, deviceName);
+        let { idkey } = await this.#initDevice(linkedName, null, deviceName);
         this.#onAuth();
         return idkey;
     }
@@ -436,7 +358,7 @@ export class Higher {
     async createLinkedDevice(dstIdkey, deviceName = null) {
         if (dstIdkey !== null) {
             let { idkey, linkedName } = await this.#initDevice(null, deviceName);
-            let linkedMembers = this.#getAllSubgroups([linkedName]);
+            let linkedMembers = Groups.getAllSubgroups([linkedName]);
             // construct message that asks dstIdkey's device to link this device
             this.#setOutstandingLinkIdkey(dstIdkey);
             await this.#requestUpdateLinked(dstIdkey, idkey, linkedName, linkedMembers);
@@ -450,8 +372,9 @@ export class Higher {
      */
     async #deleteDeviceLocally() {
         // notify all direct parents and contacts that this group should be removed
+        // TODO impl pending state
         let idkey = this.#core.olmWrapper.getIdkey();
-        await this.#deleteGroup(idkey, this.#resolveIDs(this.#getParents(idkey).concat([Higher.#CONTACTS])));
+        await Groups.deleteDevice(idkey);
         this.#localStorageWrapper.clear();
         this.#onUnauth();
     }
@@ -460,16 +383,13 @@ export class Higher {
             msgType: Higher.DELETE_DEVICE,
         });
     }
-    async #deleteDevice(idkeys) {
-        await this.#deleteDeviceRemotely(idkeys);
-        // TODO impl pending state
-    }
     /**
      * Deletes the current device's data and removes it's public key from
      * the server.
      */
     async deleteThisDevice() {
-        await this.#deleteDevice([this.#core.olmWrapper.getIdkey()]);
+        this.#deleteDeviceRemotely(this.getContacts());
+        await Groups.deleteDevice(this.#core.olmWrapper.getIdkey());
     }
     /**
      * Deletes the device pointed to by idkey.
@@ -477,13 +397,15 @@ export class Higher {
      * @param {string} idkey hex-formatted public key
      */
     async deleteLinkedDevice(idkey) {
-        await this.#deleteDevice([idkey]);
+        await Groups.deleteDevice(idkey);
     }
     /**
      * Deletes all devices that are children of this device's linked group.
      */
     async deleteAllLinkedDevices() {
-        await this.#deleteDevice(this.#resolveIDs([Higher.#LINKED]));
+        for (let g in Groups.getDevices(Higher.#LINKED)) {
+            Groups.deleteDevice(g);
+        }
     }
     /**
      * Linked group getter.
@@ -491,7 +413,7 @@ export class Higher {
      * @returns {string[]}
      */
     getLinkedDevices() {
-        return this.#resolveIDs([Higher.#LINKED]);
+        return Groups.getDevices(Higher.#LINKED);
     }
     /*
      ************
@@ -527,7 +449,7 @@ export class Higher {
         if (confirm(`Add new contact: ${reqContactName}?`)) {
             await this.#parseContactInfo(reqContactName, reqContactGroups);
             let linkedName = this.getLinkedName();
-            await this.#confirmContact(linkedName, this.#getAllSubgroups([linkedName]), [reqIdkey]);
+            await this.#confirmContact(linkedName, Groups.getAllSubgroups([linkedName]), [reqIdkey]);
         }
     }
     /**
@@ -552,24 +474,24 @@ export class Higher {
      */
     async #parseContactInfo(contactName, contactGroups) {
         let linkedName = this.getLinkedName();
-        let linkedIdkeys = this.#resolveIDs([Higher.#LINKED]);
+        let linkedIdkeys = Groups.getDevices([Higher.#LINKED]);
         // check if "linked" backpointer will be replaced with "contact" backpointer
         let contactLevelIDs = [];
         for (let contactGroup of contactGroups) {
             let deepCopy = JSON.parse(JSON.stringify(contactGroup));
-            if (this.#groupContains(deepCopy, Higher.#LINKED)) {
+            if (Groups.groupContains(deepCopy, Higher.#LINKED)) {
                 contactLevelIDs.push(deepCopy.id);
             }
         }
         for (let contactGroup of contactGroups) {
-            let updatedContactGroup = this.#groupReplace(contactGroup, Higher.#LINKED, Higher.#CONTACTS);
+            let updatedContactGroup = Groups.groupReplace(contactGroup, Higher.#LINKED, Higher.#CONTACTS);
             // "linked" backpointer was replaced with "contact" backpointer
             // set contactLevel field = true
             if (contactLevelIDs.includes(updatedContactGroup.id)) {
                 updatedContactGroup.value.contactLevel = true;
             }
             // create group and add admin for enabling future deletion of this contact + groups
-            this.#addAdminInMem(updatedContactGroup.value, linkedName);
+            this.#addAdminInMem(updatedContactGroup.value.id, linkedName);
             await this.#updateGroup(updatedContactGroup.id, updatedContactGroup.value, linkedIdkeys);
         }
         await this.#linkGroups(Higher.#CONTACTS, contactName, linkedIdkeys);
@@ -583,9 +505,9 @@ export class Higher {
     async addContact(contactIdkey) {
         // only add contact if not self
         let linkedName = this.getLinkedName();
-        if (!this.#isMember(contactIdkey, [linkedName])) {
+        if (!Groups.isMember(contactIdkey, [linkedName])) {
             // piggyback own contact info when requesting others contact info
-            await this.#requestContact(linkedName, this.#getAllSubgroups([linkedName]), [contactIdkey]);
+            await this.#requestContact(linkedName, Groups.getAllSubgroups([linkedName]), [contactIdkey]);
         }
         else {
             this.#printBadContactError();
@@ -597,7 +519,7 @@ export class Higher {
      * @param {string} name contact name
      */
     async removeContact(name) {
-        await this.#deleteGroup(name, this.#resolveIDs([Higher.#LINKED]));
+        await this.#deleteGroup(name, Groups.getDevices([Higher.#LINKED]));
     }
     /**
      * Get all contacts.
@@ -605,7 +527,7 @@ export class Higher {
      * @returns {string[]}
      */
     getContacts() {
-        return this.#getChildren(Higher.#CONTACTS);
+        return Groups.getDevices(Higher.#CONTACTS);
     }
     /**
      * Get pending contacts.
@@ -679,7 +601,7 @@ export class Higher {
     async #setDataHelper(key, data, groupID) {
         // check permissions
         let idkey = this.#core.olmWrapper.getIdkey();
-        if (!this.#hasWriterPriv(idkey, groupID)) {
+        if (!Permissions.hasWritePermissions(key, groupID)) {
             this.#printBadDataPermissionsError();
             return;
         }
@@ -691,7 +613,7 @@ export class Higher {
             this.#printBadDataError();
             return;
         }
-        await this.#updateData(key, value, this.#resolveIDs([groupID]));
+        await this.#updateData(key, value, Groups.getDevices([groupID]));
     }
     /**
      * Deletes data key (and associated value).
@@ -728,17 +650,17 @@ export class Higher {
         }
         if (curGroupID !== null) {
             let idkey = this.#core.olmWrapper.getIdkey();
-            if (!this.#hasWriterPriv(idkey, curGroupID)) {
+            if (!Permissions.hasWritePermissions(key, curGroupID)) {
                 this.#printBadDataPermissionsError();
                 return;
             }
             // delete data from select devices only (unsharing)
             if (toUnshareGroupID !== null) {
-                await this.#deleteData(key, this.#resolveIDs([toUnshareGroupID]));
+                await this.#deleteData(key, Groups.getDevices([toUnshareGroupID]));
                 return;
             }
             // delete data from all devices in group including current (removing data)
-            await this.#deleteData(key, this.#resolveIDs([curGroupID]));
+            await this.#deleteData(key, Groups.getDevices([curGroupID]));
         }
     }
     /**
@@ -820,28 +742,17 @@ export class Higher {
         return this.#localStorageWrapper.get(this.#getDataKey(prefix, id))?.data ?? null;
     }
     getDataByPrefix(prefix) {
-        // get all data within prefix
-        let results = [];
-        let topLevelNames = this.#getChildren(Higher.#CONTACTS).concat([this.getLinkedName()]);
-        let intermediate = this.#localStorageWrapper.getMany(this.#getDataPrefix(prefix));
-        intermediate.forEach(({ key, value }) => {
-            // deduplicates admins/writers/readers lists
-            let admins = this.#listIntersect(topLevelNames, this.#getAdmins(value.groupID));
-            let writers = this.#listIntersect(topLevelNames, this.#getWriters(value.groupID).filter((x) => !admins.includes(x)));
-            let readers = this.#listIntersect(topLevelNames, this.#getChildren(value.groupID).filter((x) => !admins.includes(x) && !writers.includes(x)));
-            results.push({
-                id: key.split(Higher.#SLASH)[2],
-                data: value.data,
-                admins: admins,
-                writers: writers,
-                readers: readers,
-            });
-        });
-        return results;
+        return this.#localStorageWrapper.getMany(this.#getDataPrefix(prefix));
     }
     getAllData() {
         let results = [];
-        let appPrefixes = this.#storagePrefixes.filter((x) => x != Higher.#GROUP);
+        /**
+         * FIX: wouldn't need this prefix if groups weren't included
+         * in appPrefixes definitions: how should we handle this?
+         * maybe also have "module/plug-in prefixes" that would get
+         * ignored on this call, are they necessary anywehre else?
+         *  */
+        let appPrefixes = this.#storagePrefixes.filter((x) => x != Groups.PREFIX);
         appPrefixes.forEach((appPrefix) => {
             this.#localStorageWrapper.getMany(this.#getDataPrefix(appPrefix)).forEach((dataObj) => {
                 results.push({
@@ -867,101 +778,6 @@ export class Higher {
      *****************
      */
     /**
-     * Wrapper function for assigning a group ID to a group object consisting
-     * of a name and children list.
-     *
-     * @param {string} ID group ID
-     * @param {string} name human-readable name
-     * @param {string[]} parents groups that point to this group
-     * @param {string[]} children groups that this group points to
-     *
-     * @private
-     */
-    #createGroup(ID, name, contactLevel, parents, children, admins, writers) {
-        this.#setGroup(ID, new Group(name, contactLevel, parents, children, admins, writers));
-    }
-    /**
-     * Wrapper function for assigning a key ID to a key object consisting
-     * of a name.
-     *
-     * @param {string} ID hex-formatted public key
-     * @param {string} name human-readable name
-     * @param {string} parents groups that point to this group
-     *
-     * @private
-     */
-    #createKey(ID, name, contactLevel, parents, admins, writers) {
-        this.#setGroup(ID, new Key(name, contactLevel, parents, admins, writers));
-    }
-    /**
-     * Group getter.
-     *
-     * @param {string} groupID ID of group to get
-     * @returns {Object}
-     *
-     * @private
-     */
-    #getGroup(groupID) {
-        return this.#localStorageWrapper.get(this.#getDataKey(Higher.#GROUP, groupID));
-    }
-    /**
-     * Gets all groups on current device.
-     *
-     * @returns {Object[]}
-     *
-     * @private
-     */
-    // FIXME getMany should maybe use "id" as the first field instead of "key"
-    // (so it can return groupObjType[]) unless the key really is the full LS key
-    #getAllGroups() {
-        return this.#localStorageWrapper.getMany(this.#getDataPrefix(Higher.#GROUP));
-    }
-    /**
-     * Recursively gets all children groups in the subtree with root groupID (result includes the root group).
-     *
-     * @param {string} groupID ID of group to get all subgroups of
-     * @returns {Object[]}
-     *
-     * @private
-     */
-    #getAllSubgroups(groupIDs) {
-        let groups = [];
-        groupIDs.forEach((groupID) => {
-            let group = this.#getGroup(groupID);
-            if (group !== null) {
-                groups.push({
-                    id: groupID,
-                    value: group,
-                });
-                if (group.children !== undefined) {
-                    groups = groups.concat(this.#getAllSubgroups(group.children));
-                }
-            }
-        });
-        return groups;
-    }
-    /**
-     * Group setter.
-     *
-     * @param {string} groupID ID of group to set
-     * @param {Object} groupValue value to set group to
-     *
-     * @private
-     */
-    #setGroup(groupID, groupValue) {
-        this.#localStorageWrapper.set(this.#getDataKey(Higher.#GROUP, groupID), groupValue);
-    }
-    /**
-     * Group remover.
-     *
-     * @param {string} groupID ID of group to remove
-     *
-     * @private
-     */
-    #removeGroup(groupID) {
-        this.#localStorageWrapper.remove(this.#getDataKey(Higher.#GROUP, groupID));
-    }
-    /**
      * Updates group with new value.
      *
      * @param {string} groupID group ID
@@ -975,13 +791,15 @@ export class Higher {
         let contacts = this.getContacts();
         // if contactLevel = true but not in contacts, add
         if (groupValue.contactLevel && !contacts.includes(groupID)) {
-            await this.#addChild(Higher.#CONTACTS, groupID, [this.#core.olmWrapper.getIdkey()]);
+            await Groups.addToGroup(Higher.#CONTACTS, [groupID]);
         }
         // if in contacts but contactLevel = false, make contactLevel = true
         if (!groupValue.contactLevel && contacts.includes(groupID)) {
             groupValue.contactLevel = true;
         }
-        this.#setGroup(groupID, groupValue);
+        //FIX: use group lib, no idea how to abstract without exporting 
+        // setGroup which we dont want, but cant just move to groups class
+        Groups.importGroup(groupID, groupValue);
     }
     async #updateGroupRemotely(groupID, value, idkeys) {
         await this.#sendMessage(idkeys, {
@@ -1036,20 +854,8 @@ export class Higher {
      * @private
      */
     #deleteGroupLocally({ groupID }) {
-        // unlink this group from parents
-        this.#getParents(groupID).forEach((parentID) => {
-            this.#removeChildLocally(parentID, groupID);
-        });
-        // unlink children from this group
-        this.#getChildren(groupID).forEach((childID) => {
-            this.#removeParentLocally({ groupID: childID, parentID: groupID });
-            // garbage collect any KEY group that no longer has any parents
-            if (this.#isKey(this.#getGroup(childID)) && this.#getParents(childID).length === 0) {
-                this.#removeGroup(childID);
-            }
-        });
         // delete group
-        this.#removeGroup(groupID);
+        Groups.removeGroup(groupID);
         // TODO more GC e.g. when contact's childrens list is empty -> remove contact
         // TODO if group is a device, delete session associated with it
     }
@@ -1080,72 +886,6 @@ export class Higher {
         // delete parent
         await this.#deleteGroup(parentID, idkeys);
     }
-    /**
-     * Gets childrens list of group with groupID.
-     *
-     * @param {string} groupID ID of group to get children of
-     * @returns {string[]}
-     *
-     * @private
-     */
-    #getChildren(groupID) {
-        return this.#getGroup(groupID)?.children ?? [];
-    }
-    /**
-     * Gets parents list of group with groupID.
-     *
-     * @param {string} groupID ID of group whose parents list to get
-     * @returns {string[]}
-     *
-     * @private
-     */
-    #getParents(groupID) {
-        return this.#getGroup(groupID)?.parents ?? [];
-    }
-    /**
-     * Get admins list of group.
-     *
-     * @param {string} groupID id of group whose admins list to get
-     * @returns {string[]}
-     *
-     * @private
-     */
-    #getAdmins(groupID) {
-        return this.#getGroup(groupID)?.admins ?? [];
-    }
-    /**
-     * Gets the set of admins for a new group by getting the intersection of all
-     * the admins lists of all parent groups (since adding this new group will
-     * presumably need to modify all parents).
-     *
-     * @param {string[]} groupIDs list of group ids to check across
-     * @returns {string[]}
-     *
-     * @private
-     */
-    #getAdminsIntersection(groupIDs) {
-        let adminSet;
-        groupIDs.forEach((groupID) => {
-            if (adminSet === undefined) {
-                adminSet = this.#getAdmins(groupID);
-            }
-            else {
-                adminSet = this.#listIntersect(adminSet, this.#getAdmins(groupID));
-            }
-        });
-        return adminSet ?? [];
-    }
-    /**
-     * Gets writers list of group.
-     *
-     * @param {string} groupID id of group to get writers list of
-     * @returns {string[]}
-     *
-     * @private
-     */
-    #getWriters(groupID) {
-        return this.#getGroup(groupID)?.writers ?? [];
-    }
     #listRemoveCallback(ID, newList) {
         let idx = newList.indexOf(ID);
         if (idx !== -1)
@@ -1159,24 +899,6 @@ export class Higher {
         return newList;
     }
     /**
-     * Helper function for updating the specified list of an existing group.
-     *
-     * @param {string} key list key
-     * @param {string} groupID ID of group to modify
-     * @param {string} memberID ID of list member to add/remove
-     * @param {callback} callback operation to perform on the list
-     * @returns {Object}
-     *
-     * @private
-     */
-    #updateList(key, groupID, memberID, callback) {
-        let oldGroupValue = this.#getGroup(groupID);
-        let newList = callback(memberID, oldGroupValue[key]);
-        let newGroupValue = { ...oldGroupValue, [key]: newList };
-        this.#setGroup(groupID, newGroupValue);
-        return newGroupValue;
-    }
-    /**
      * Adds an additional child (ID or idkey) to an existing group's children list.
      *
      * @param {string} groupID ID of group to modify
@@ -1186,7 +908,7 @@ export class Higher {
      * @private
      */
     #addChildLocally({ groupID, childID }) {
-        return this.#updateList(CHILDREN, groupID, childID, this.#listAddCallback);
+        return Groups.updateGroupField("CHILDREN", groupID, childID, this.#listAddCallback);
     }
     async #addChildRemotely(groupID, childID, idkeys) {
         await this.#sendMessage(idkeys, {
@@ -1194,33 +916,6 @@ export class Higher {
             groupID: groupID,
             childID: childID,
         });
-    }
-    /**
-     * Adds child locally and remotely on all devices in group (specified by idkeys
-     * parameter).
-     *
-     * @param {string} groupID ID of group to modify
-     * @param {string} childID ID of child to add
-     * @param {string[]} idkeys devices to remotely make this modification on
-     *
-     * @private
-     */
-    async #addChild(groupID, childID, idkeys) {
-        await this.#addChildRemotely(groupID, childID, idkeys);
-        // TODO impl pending state
-    }
-    /**
-     * Removes a child (ID or idkey) from an existing group's children list.
-     * Noop if child did not exist in the children list.
-     *
-     * @param {string} groupID ID of group to modify
-     * @param {string} childID ID of child to remove
-     * @returns {Object}
-     *
-     * @private
-     */
-    #removeChildLocally(groupID, childID) {
-        return this.#updateList(CHILDREN, groupID, childID, this.#listRemoveCallback);
     }
     /**
      * Adds an additional parent (ID) to an existing group's parents list.
@@ -1232,7 +927,7 @@ export class Higher {
      * @private
      */
     #addParentLocally({ groupID, parentID }) {
-        return this.#updateList(PARENTS, groupID, parentID, this.#listAddCallback);
+        return Groups.updateGroupField("PARENTS", groupID, parentID, this.#listAddCallback);
     }
     async #addParentRemotely(groupID, parentID, idkeys) {
         await this.#sendMessage(idkeys, {
@@ -1266,7 +961,7 @@ export class Higher {
      * @private
      */
     #removeParentLocally({ groupID, parentID }) {
-        return this.#updateList(PARENTS, groupID, parentID, this.#listRemoveCallback);
+        return Groups.updateGroupField("PARENTS", groupID, parentID, this.#listRemoveCallback);
     }
     async #removeParentRemotely(groupID, parentID, idkeys) {
         await this.#sendMessage(idkeys, {
@@ -1291,28 +986,25 @@ export class Higher {
      *
      * @private
      */
-    #addAdminInMem(oldGroupValue, adminID) {
-        // deduplicate: only add adminID if doesn't already exist in list
-        if (oldGroupValue?.admins.indexOf(adminID) === -1) {
-            oldGroupValue.admins.push(adminID);
-        }
+    #addAdminInMem(key, adminId) {
+        Permissions.addAdmin(key, [adminId]);
     }
     /**
      * Adds an additional admin (ID) to an existing group's admins list.
      *
-     * @param {string} groupID ID of group to modify
+     * @param {string} ObjectKey key of data object
      * @param {string} adminID ID of admin to add
      * @returns {Object}
      *
      * @private
      */
-    #addAdminLocally({ groupID, adminID }) {
-        return this.#updateList(ADMINS, groupID, adminID, this.#listAddCallback);
+    #addAdminLocally({ ObjectKey, adminID }) {
+        Permissions.addAdmin(ObjectKey, [adminID]);
     }
-    async #addAdminRemotely(groupID, adminID, idkeys) {
+    async #addAdminRemotely(ObjectKey, adminID, idkeys) {
         await this.#sendMessage(idkeys, {
             msgType: Higher.ADD_ADMIN,
-            groupID: groupID,
+            key: ObjectKey,
             adminID: adminID,
         });
     }
@@ -1320,7 +1012,7 @@ export class Higher {
      * Adds admin locally and remotely on all devices in group (specified by idkeys
      * parameter).
      *
-     * @param {string} groupID ID of group to modify
+     * @param {string} ObjectKey key of data object
      * @param {string} adminID ID of admin to add
      * @param {string[]} idkeys devices to remotely make this modification on
      *
@@ -1340,13 +1032,13 @@ export class Higher {
      *
      * @private
      */
-    #removeAdminLocally({ groupID, adminID }) {
-        return this.#updateList(ADMINS, groupID, adminID, this.#listRemoveCallback);
+    #removeAdminLocally({ objectKey, adminID }) {
+        Permissions.removeAdmin(objectKey, adminID);
     }
-    async #removeAdminRemotely(groupID, adminID, idkeys) {
+    async #removeAdminRemotely(key, adminID, idkeys) {
         await this.#sendMessage(idkeys, {
             msgType: Higher.REMOVE_ADMIN,
-            groupID: groupID,
+            objectKey: key,
             adminID: adminID,
         });
     }
@@ -1363,25 +1055,25 @@ export class Higher {
     async #removeAdmin(prefix, id, toUnshareGroupID) {
         let { curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
         if (errCode === 0) {
-            await this.#removeAdminRemotely(curGroupID, toUnshareGroupID, this.#resolveIDs([curGroupID]));
+            await this.#removeAdminRemotely(curGroupID, toUnshareGroupID, Groups.getDevices([curGroupID]));
             // TODO impl pending state
         }
     }
     /**
      * Adds writer to writers list of a group (modifies group in place).
      *
-     * @param {Object} oldGroupValue group value with admins list to update
+     * @param {Object} objectKey group value with admins list to update
      * @param {string} writerID id of writer to add
      *
      * @private
      */
-    #addWriterLocally({ groupID, writerID }) {
-        return this.#updateList(WRITERS, groupID, writerID, this.#listAddCallback);
+    #addWriterLocally({ objectKey, writerID }) {
+        Permissions.addWriter(objectKey, [writerID]);
     }
-    async #addWriterRemotely(groupID, writerID, idkeys) {
+    async #addWriterRemotely(key, writerID, idkeys) {
         await this.#sendMessage(idkeys, {
             msgType: Higher.ADD_WRITER,
-            groupID: groupID,
+            objectKey: key,
             writerID: writerID,
         });
     }
@@ -1403,19 +1095,19 @@ export class Higher {
      * Removes a writer (ID or idkey) from an existing group's writers list.
      * Noop if writer did not exist in the writers list.
      *
-     * @param {string} groupID ID of group to modify
+     * @param {string} objectKey key of modified object
      * @param {string} writerID ID of writer to remove
      * @returns {Object}
      *
      * @private
      */
-    #removeWriterLocally({ groupID, writerID }) {
-        return this.#updateList(WRITERS, groupID, writerID, this.#listRemoveCallback);
+    #removeWriterLocally({ objectKey, writerID }) {
+        return Permissions.removeWriter(objectKey, writerID);
     }
-    async #removeWriterRemotely(groupID, writerID, idkeys) {
+    async #removeWriterRemotely(key, writerID, idkeys) {
         await this.#sendMessage(idkeys, {
             msgType: Higher.REMOVE_WRITER,
-            groupID: groupID,
+            objectKey: key,
             writerID: writerID,
         });
     }
@@ -1432,124 +1124,15 @@ export class Higher {
     async #removeWriter(prefix, id, toUnshareGroupID) {
         let { curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
         if (errCode === 0) {
-            await this.#removeWriterRemotely(curGroupID, toUnshareGroupID, this.#resolveIDs([curGroupID]));
+            await this.#removeWriterRemotely(curGroupID, toUnshareGroupID, Groups.getDevices([curGroupID]));
             // TODO impl pending state
         }
-    }
-    /**
-     * Helper function that replaces (in place) the specified ID in the specified
-     * group field with another ID, modifying the group data in place.
-     *
-     * @param {string} key name of group field to update
-     * @param {Object} fullGroup actual group to modify
-     * @param {string} IDToReplace id to replace
-     * @param {string} replacementID replacement id
-     *
-     * @private
-     */
-    #groupReplaceHelper(key, fullGroup, IDToReplace, replacementID) {
-        if (fullGroup.value[key]?.includes(IDToReplace)) {
-            let updated = fullGroup.value[key].filter((x) => x != IDToReplace);
-            updated.push(replacementID);
-            fullGroup.value = {
-                ...fullGroup.value,
-                [key]: updated,
-            };
-        }
-    }
-    /**
-     * Helper function that checks if the specified ID is in the specified
-     * group field's list.
-     *
-     * @param {string} key name of group field to check
-     * @param {Object} fullGroup actual group to check
-     * @param {string} IDToCheck id to check for
-     *
-     * @private
-     */
-    #groupContainsHelper(key, fullGroup, IDToCheck) {
-        if (fullGroup.value[key]?.includes(IDToCheck)) {
-            return true;
-        }
-        return false;
-    }
-    /**
-     * Replaces specified ID with another ID in all fields of a group.
-     *
-     * @param {Object} group group to modify
-     * @param {string} IDToReplace id to replace
-     * @param {string} replacementID replacement id
-     * @returns {Object} new group with all instances of IDToReplace replaced with
-     *   replacementID
-     *
-     * @private
-     */
-    #groupReplace(group, IDToReplace, replacementID) {
-        let updatedGroup = group;
-        if (group.id === IDToReplace) {
-            updatedGroup = {
-                ...updatedGroup,
-                id: replacementID,
-            };
-        }
-        this.#groupReplaceHelper(PARENTS, updatedGroup, IDToReplace, replacementID);
-        this.#groupReplaceHelper(CHILDREN, updatedGroup, IDToReplace, replacementID);
-        this.#groupReplaceHelper(ADMINS, updatedGroup, IDToReplace, replacementID);
-        this.#groupReplaceHelper(WRITERS, updatedGroup, IDToReplace, replacementID);
-        return updatedGroup;
-    }
-    /**
-     * Checks if specified ID is in any of a group's fields.
-     *
-     * @param {Object} group group to modify
-     * @param {string} IDToCheck id to check for
-     * @returns {boolean}
-     *
-     * @private
-     */
-    #groupContains(group, IDToCheck) {
-        if (group.id === IDToCheck) {
-            return true;
-        }
-        let bool = false;
-        bool ||= this.#groupContainsHelper(PARENTS, group, IDToCheck);
-        bool ||= this.#groupContainsHelper(CHILDREN, group, IDToCheck);
-        bool ||= this.#groupContainsHelper(ADMINS, group, IDToCheck);
-        bool ||= this.#groupContainsHelper(WRITERS, group, IDToCheck);
-        return bool;
-    }
-    /**
-     * Helper function for determining the intersection between two lists.
-     *
-     * @param {string[]} list1
-     * @param {string[]} list2
-     * @returns {string[]} intersection of list1 and list2
-     *
-     * @private
-     */
-    #listIntersect(list1, list2) {
-        let intersection = [];
-        list1.forEach((e) => {
-            if (list2.includes(e))
-                intersection.push(e);
-        });
-        return intersection;
     }
     /*
      *************************
      * Sharing and unsharing *
      *************************
      */
-    /**
-     * Randomly generates a new group ID.
-     *
-     * @returns {string}
-     *
-     * @private
-     */
-    #getNewGroupID() {
-        return crypto.randomUUID();
-    }
     /**
      * Shares data item by creating new group that subsumes both it's
      * current group and the new group to share with (commonly, a contact's
@@ -1566,71 +1149,8 @@ export class Higher {
         let idkey = this.#core.olmWrapper.getIdkey();
         let key = this.#getDataKey(prefix, id);
         let value = this.#localStorageWrapper.get(key);
-        let curGroupID = value?.groupID ?? null;
-        let retval = {
-            newGroupIdkeys: [],
-            sharingGroupID: null,
-        };
-        // check that current device can modify this group
-        if (!this.#hasAdminPriv(idkey, curGroupID)) {
-            this.#printBadGroupPermissionsError();
-            return { ...retval, errCode: -1 };
-        }
-        // check that toShareGroupID exists
-        if (this.#getGroup(toShareGroupID) === null) {
-            return { ...retval, errCode: -1 };
-        }
-        if (curGroupID !== null) {
-            let sharingGroupID;
-            let linkedName = this.getLinkedName();
-            let newGroupIdkeys = this.#resolveIDs([curGroupID, toShareGroupID]);
-            // if underlying group is linkedName, generate new group to encompass sharing
-            if (curGroupID === linkedName) {
-                sharingGroupID = this.#getNewGroupID();
-                // create new sharing group
-                let newGroupValue = new Group(null, false, [], [curGroupID, toShareGroupID], [curGroupID], [curGroupID]);
-                await this.#updateGroup(sharingGroupID, newGroupValue, newGroupIdkeys);
-                // add parent pointers for both previously-existing groups
-                // note: have to separately add parents everywhere instead of just doing 
-                // it once and sending updated group b/c groups on diff devices have diff
-                // permissions/etc, don't want to override that
-                await this.#addParent(curGroupID, sharingGroupID, newGroupIdkeys);
-                await this.#addParent(toShareGroupID, sharingGroupID, newGroupIdkeys);
-                // send actual data that group now points to
-                await this.#setDataHelper(key, value.data, sharingGroupID);
-            }
-            else { // sharing group already exists for this data object, modify existing group
-                sharingGroupID = curGroupID;
-                // send existing sharing group subgroups to new member devices
-                let sharingGroupSubgroups = this.#getAllSubgroups([sharingGroupID]);
-                let newMemberIdkeys = this.#resolveIDs([toShareGroupID]);
-                // FIXME send bulk updateGroup message
-                for (let sharingGroupSubgroup of sharingGroupSubgroups) {
-                    let newGroup = this.#groupReplace(sharingGroupSubgroup, Higher.#LINKED, Higher.#CONTACTS);
-                    await this.#updateGroup(newGroup.id, newGroup.value, newMemberIdkeys);
-                }
-                // send new member subgroups to existing members
-                let toShareSubgroups = this.#getAllSubgroups([toShareGroupID]);
-                let existingMemberIdkeys = this.#resolveIDs([curGroupID]);
-                // FIXME send bulk updateGroup message
-                for (let toShareSubgroup of toShareSubgroups) {
-                    let newGroup = this.#groupReplace(toShareSubgroup, Higher.#LINKED, Higher.#CONTACTS);
-                    await this.#updateGroup(newGroup.id, newGroup.value, existingMemberIdkeys);
-                }
-                // add child to existing sharing group
-                await this.#addChild(sharingGroupID, toShareGroupID, newGroupIdkeys);
-                // add parent from new child to existing sharing group
-                await this.#addParent(toShareGroupID, sharingGroupID, newGroupIdkeys);
-                // send actual data that group now points to
-                await this.#setDataHelper(key, value.data, sharingGroupID);
-            }
-            return {
-                newGroupIdkeys: newGroupIdkeys,
-                sharingGroupID: sharingGroupID,
-                errCode: 0,
-            };
-        }
-        return { ...retval, errCode: 0 };
+        let curGroupID = value?.perms ?? null;
+        Permissions.addReader(key, [toShareGroupID]);
     }
     /**
      * Performs necessary checks before any unsharing/privilege revoking can take place.
@@ -1652,81 +1172,22 @@ export class Higher {
             curGroupID: curGroupID,
         };
         // check that current device can modify group
-        if (!this.#hasAdminPriv(idkey, curGroupID)) {
+        if (!Permissions.hasAdminPermissions(key, idkey)) {
             this.#printBadGroupPermissionsError();
             return { ...retval, errCode: -1 };
         }
-        // check that group exists
-        if (this.#getGroup(toUnshareGroupID) === null) {
-            return { ...retval, errCode: -1 };
-        }
         // check that data is currently shared with that group
-        if (!this.#isMember(toUnshareGroupID, [curGroupID])) {
+        if (!Permissions.hasReadPermissions(toUnshareGroupID, [curGroupID])) {
             return { ...retval, errCode: -1 };
         }
         // prevent device from unsharing with self 
+        // what if you get multiple links to self and just
+        // want to unshare one?
         // TODO when would it make sense to allow this?
-        if (this.#isMember(toUnshareGroupID, [this.getLinkedName()])) {
+        if (Groups.isMember(toUnshareGroupID, [this.getLinkedName()])) {
             return { ...retval, errCode: -1 };
         }
         return { ...retval, errCode: 0 };
-    }
-    /**
-     * Unshares data item by creating new group that excludes groupID (commonly
-     * a contact's name or any other subgroup). Propagates the new group info
-     * to the new group members and deletes old group and data from groupID's
-     * devices.
-     *
-     * @param {string} prefix data prefix
-     * @param {string} id data id
-     * @param {string} toUnshareGroupID id with which to unshare data
-     *
-     * @private
-     */
-    async #unshareData(prefix, id, toUnshareGroupID) {
-        let { key, value, curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
-        if (errCode === 0 && curGroupID !== null) {
-            // delete data from toUnshareGroupID devices before deleting related group
-            await this.#removeDataHelper(key, curGroupID, toUnshareGroupID);
-            // unlink and delete curGroupID group on toUnshareGroupID devices
-            // OK to just remove toUnshareGroupID from group b/c unique group per
-            // object => don't need to worry about breaking the sharing of other 
-            // objects TODO unless eventually (for space efficiency) use one group
-            // for multiple objects
-            await this.#unlinkAndDeleteGroup(toUnshareGroupID, curGroupID, this.#resolveIDs([toUnshareGroupID]));
-            // FIXME assuming simple structure, won't work if toUnshareGroupID is
-            // further than the first level down
-            let newChildren = this.#getChildren(curGroupID).filter((x) => x != toUnshareGroupID);
-            // use newChildren[0] (existing group) as the new group name
-            // (e.g. when an object is shared with one contact and then unshared with 
-            // that same contact, newChildren[0] is expected to be the linkedName of the
-            // sharing device(s))
-            if (newChildren.length === 1) {
-                let sharingIdkeys = this.#resolveIDs([newChildren[0]]);
-                // unlink and delete curGroupID group on new group's devices
-                await this.#unlinkAndDeleteGroup(newChildren[0], curGroupID, sharingIdkeys);
-                // update data with new group ID on new group's devices
-                await this.#setDataHelper(key, value.data, newChildren[0]);
-            }
-            else {
-                let sharingGroupID = this.#getNewGroupID();
-                // create new group using curGroupID's admins and writers list (removing
-                // any instances of toUnshareGroupID _on the immediate next level_
-                // TODO check as far down as possible
-                let oldGroup = this.#getGroup(curGroupID);
-                let newGroup = new Group(null, false, [], newChildren, oldGroup.admins.filter((x) => x != toUnshareGroupID), oldGroup.writers.filter((x) => x != toUnshareGroupID));
-                // delete old group and relink parent points from old group to new group
-                // for all remaining (top-level) children of the new group
-                for (let newChild of newChildren) {
-                    let childIdkeys = this.#resolveIDs([newChild]);
-                    await this.#updateGroup(sharingGroupID, newGroup, childIdkeys);
-                    await this.#unlinkAndDeleteGroup(sharingGroupID, curGroupID, childIdkeys);
-                    await this.#addParent(newChild, sharingGroupID, childIdkeys);
-                }
-                // update data with new group ID on sharingGroupID devices
-                await this.#setDataHelper(key, value.data, sharingGroupID);
-            }
-        }
     }
     // demultiplexing map from message types to functions
     #demuxMap = {
@@ -1761,7 +1222,6 @@ export class Higher {
      */
     #checkPermissions(payload, srcIdkey) {
         let permissionsOK = false;
-        // no reader checks, any device that gets data should correctly be a reader
         switch (payload.msgType) {
             /* special checks */
             case Higher.CONFIRM_UPDATE_LINKED: {
@@ -1772,13 +1232,13 @@ export class Higher {
                 /* admin checks */
             }
             case Higher.LINK_GROUPS: {
-                if (this.#hasAdminPriv(srcIdkey, payload.parentID) && this.#hasAdminPriv(srcIdkey, payload.childID)) {
+                if (Permissions.hasAdminPermissions(Groups.getKey(payload.parentID), srcIdkey) && Permissions.hasAdminPermissions(Groups.getKey(payload.childID), srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
             }
             case Higher.DELETE_DEVICE: {
-                if (this.#hasAdminPriv(srcIdkey, this.#core.olmWrapper.getIdkey())) {
+                if (Permissions.hasAdminPermissions(Groups.getKey(this.#core.olmWrapper.getIdkey()), srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
@@ -1787,12 +1247,12 @@ export class Higher {
                 // TODO what was this case for again? need to somehow check that
                 // can modify all parent groups of a group? but wouldn't that be
                 // more like ADD_CHILD?
-                if (this.#hasAdminPriv(srcIdkey, payload.groupValue.parents, true)) {
+                if (Permissions.hasAdminPermissions(Groups.getKey(payload.groupID), srcIdkey)) {
                     permissionsOK = true;
                 }
                 // check that group being created is being created by a device
                 // with admin privs
-                if (this.#hasAdminPriv(srcIdkey, payload.groupValue.admins, false)) {
+                if (Permissions.hasAdminPermissions(Groups.getKey(payload.groupID), srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
@@ -1801,7 +1261,7 @@ export class Higher {
             case Higher.REMOVE_PARENT: {
                 // ok to add parent (e.g. send this group data)
                 // not ok to add child (e.g. have this group send data to me)
-                if (this.#hasAdminPriv(srcIdkey, payload.parentID)) {
+                if (Permissions.hasAdminPermissions(Groups.getKey(payload.parentID), srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
@@ -1811,26 +1271,26 @@ export class Higher {
             case Higher.REMOVE_WRITER:
             case Higher.ADD_ADMIN:
             case Higher.REMOVE_ADMIN: {
-                if (this.#hasAdminPriv(srcIdkey, payload.groupID)) {
+                if (Permissions.hasAdminPermissions(payload.key, srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
             }
             case Higher.DELETE_GROUP: {
-                if (this.#getGroup(payload.groupID) === null || this.#hasAdminPriv(srcIdkey, payload.groupID) || this.#getOutstandingLinkIdkey() === srcIdkey) {
+                if (Permissions.hasAdminPermissions(payload.key, srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
                 /* writer checks */
             }
             case Higher.UPDATE_DATA: {
-                if (this.#hasWriterPriv(srcIdkey, payload.value.groupID)) {
+                if (Permissions.hasWritePermissions(payload.key, srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
             }
             case Higher.DELETE_DATA: {
-                if (this.#hasWriterPriv(srcIdkey, this.#localStorageWrapper.get(payload.key)?.groupID)) {
+                if (Permissions.hasWritePermissions(payload.key, srcIdkey)) {
                     permissionsOK = true;
                 }
                 break;
@@ -1846,60 +1306,6 @@ export class Higher {
         return permissionsOK;
     }
     /**
-     * Check if one groupID has admin privileges for another groupID.
-     *
-     * @param {string} toCheckID id to check if has permissions
-     * @param {string} groupID one or more idd to use for checking permissions
-     * @param {boolean} inDB boolean used to encode the need for an in-memory
-     *   admin-privilege-checking function, rather than one that queries storage
-     * @returns {boolean}
-     *
-     * @private
-     */
-    #hasAdminPriv(toCheckID, groupIDs, inDB = null) {
-        if (typeof groupIDs === "string") { // groupIDs is a single value
-            return this.#isMember(toCheckID, this.#getAdmins(groupIDs));
-        }
-        else if (inDB) { // inDB == true
-            return this.#isMember(toCheckID, this.#getAdminsIntersection(groupIDs));
-        }
-        else { // inDB == false
-            return this.#isMember(toCheckID, groupIDs);
-        }
-    }
-    /**
-     * Check if one groupID has writer privileges for another groupID.
-     *
-     * @param {string} toCheckID is to check if has permissions
-     * @param {string} groupID id to use for checking permissions
-     * @returns {boolean}
-     *
-     * @private
-     */
-    #hasWriterPriv(toCheckID, groupID) {
-        return this.#isMember(toCheckID, this.#getWriters(groupID));
-    }
-    /**
-     * Checks if a groupID is a member of a group.
-     *
-     * @param {string} toCheckGroupID ID of group to check for
-     * @param {string[]} groupIDList list of group IDs to check all children of
-     * @returns {boolean}
-     *
-     * @private
-     */
-    #isMember(toCheckGroupID, groupIDList) {
-        let isMemberRetval = false;
-        groupIDList.forEach((groupID) => {
-            if (groupID === toCheckGroupID) {
-                isMemberRetval ||= true;
-                return;
-            }
-            isMemberRetval ||= this.#isMember(toCheckGroupID, this.#getChildren(groupID));
-        });
-        return isMemberRetval;
-    }
-    /**
      * Allow application to share particular data object with another set of devices
      * with read privileges.
      *
@@ -1908,7 +1314,9 @@ export class Higher {
      * @param {string} toShareGroupID group to grant read privileges to
      */
     async grantReaderPrivs(prefix, id, toShareGroupID) {
-        await this.#shareData(prefix, id, toShareGroupID);
+        let key = this.#getDataKey(prefix, id);
+        await Permissions.addReader(key, [toShareGroupID]);
+        // 
     }
     /**
      * Allow application to share particular data object with another set of devices
@@ -1919,11 +1327,8 @@ export class Higher {
      * @param {string} toShareGroupID group to grant read/write privileges to
      */
     async grantWriterPrivs(prefix, id, toShareGroupID) {
-        let { newGroupIdkeys, sharingGroupID, errCode } = await this.#shareData(prefix, id, toShareGroupID);
-        if (errCode === 0 && sharingGroupID !== null) {
-            // add writer
-            await this.#addWriter(sharingGroupID, toShareGroupID, newGroupIdkeys);
-        }
+        let key = this.#getDataKey(prefix, id);
+        Permissions.addWriter(key, [toShareGroupID]);
     }
     /**
      * Allow application to share particular data object with another set of devices
@@ -1934,13 +1339,8 @@ export class Higher {
      * @param {string} toShareGroupID group to grant read/write/admin privileges to
      */
     async grantAdminPrivs(prefix, id, toShareGroupID) {
-        let { newGroupIdkeys, sharingGroupID, errCode } = await this.#shareData(prefix, id, toShareGroupID);
-        if (errCode === 0 && sharingGroupID !== null) {
-            // add writer
-            await this.#addWriter(sharingGroupID, toShareGroupID, newGroupIdkeys);
-            // add admin
-            await this.#addAdmin(sharingGroupID, toShareGroupID, newGroupIdkeys);
-        }
+        let key = this.#getDataKey(prefix, id);
+        Permissions.addAdmin(key, [toShareGroupID]);
     }
     /**
      * Remove member from the relevant group's writers list.
@@ -1950,7 +1350,8 @@ export class Higher {
      * @param {string} toUnshareGroupID id of member to revoke write privileges of
      */
     async revokeWriterPrivs(prefix, id, toUnshareGroupID) {
-        await this.#removeWriter(prefix, id, toUnshareGroupID);
+        let key = this.#getDataKey(prefix, id);
+        Permissions.removeWriter(key, toUnshareGroupID);
     }
     /**
      * Remove member from the relevant group's admins list.
@@ -1960,7 +1361,8 @@ export class Higher {
      * @param {string} toUnshareGroupID id of member to revoke admin privileges of
      */
     async revokeAdminPrivs(prefix, id, toUnshareGroupID) {
-        await this.#removeAdmin(prefix, id, toUnshareGroupID);
+        let key = this.#getDataKey(prefix, id);
+        Permissions.removeAdmin(key, toUnshareGroupID);
     }
     /**
      * Remove member from all of the relevant group's lists.
@@ -1970,6 +1372,7 @@ export class Higher {
      * @param {string} toUnshareGroupID id of member to revoke privileges of
      */
     async revokeAllPrivs(prefix, id, toUnshareGroupID) {
-        await this.#unshareData(prefix, id, toUnshareGroupID);
+        let { key, value, curGroupID, errCode } = this.#unshareChecks(prefix, id, toUnshareGroupID);
+        Permissions.unshareData(key, toUnshareGroupID);
     }
 }

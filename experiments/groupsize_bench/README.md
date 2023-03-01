@@ -1,5 +1,11 @@
 # groupsize bench
 
+```sh
+go build client.go
+```
+
+Generates an executable that the following script runs.
+
 Command arguments: 
 
 ```sh

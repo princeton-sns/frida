@@ -23,14 +23,16 @@ import (
 // Single message format from sender
 type IncomingMessage struct {
 	DeviceId string      `json:"deviceId"`
-	Payload  interface{} `json:"payload"`
+    CommonPayload interface{} `json:"encCommon"`
+	PerRecipientPayload  interface{} `json:"encPerRecipient"`
 	// ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
 
 // Single message format for receiver
 type OutgoingMessage struct {
 	Sender  string      `json:"sender"`
-	Payload interface{} `json:"payload"`
+    CommonPayload interface{} `json:"encCommon"`
+	PerRecipientPayload interface{} `json:"encPerRecipient"`
 	SeqID   uint64      `json:"seqId"`
 	// ClientSeq uint64 `json:"clientSeq"`		// For testing FOFI only!
 }
@@ -407,7 +409,8 @@ func (server *Server) postMessage(rw http.ResponseWriter, req *http.Request) {
 		tmsg := Message{}
 
 		tmsg.To = msg.DeviceId
-		tmsg.Outgoing.Payload = &msg.Payload
+		tmsg.Outgoing.CommonPayload = &msg.CommonPayload
+		tmsg.Outgoing.PerRecipientPayload = &msg.PerRecipientPayload
 		tmsg.Outgoing.Sender = senderDeviceId
 		tmsg.Outgoing.SeqID = seqId
 
